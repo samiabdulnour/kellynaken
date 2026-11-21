@@ -1131,13 +1131,18 @@ h2{font:400 1.7rem/1.08 var(--font-display);text-transform:uppercase;text-wrap:b
   const plural = (n, one, few, many) => (n === 1 ? one : n >= 2 && n <= 4 ? few : many);
   const bossCount = () => { const n = co.bosses.length; return `${plural(n, 'Čeká na vás', 'Čekají na vás', 'Čeká na vás')} ${n} ${plural(n, 'boss', 'bossové', 'bossů')}`; };
   const post = (p, body) => fetch(COOP + p, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(body || {}) }).catch(() => {});
+  // A free host puts the server to sleep when nobody visits. This ping wakes it, and repeating it
+  // every few minutes keeps it awake for as long as one of the kids has the page open.
+  let pingTries = 0;
   function coopPing() {
     if (typeof EventSource === 'undefined' || !/^https?:$/.test(location.protocol)) return;
+    const again = () => { if (COOP && !co.ok && ++pingTries < 6) setTimeout(coopPing, 30000); };   // only a separate server is worth retrying
     fetch(COOP + '/coop/ping').then((r) => (r.ok ? r.json() : null)).then((j) => {
-      if (!j || !j.ok) return;
+      if (!j || !j.ok) return again();
+      const first = !co.ok;
       co.ok = true; co.bosses = j.bosses || [];
-      if (player && !$('#game').hidden) renderNet();
-    }).catch(() => {});
+      if (first) { setInterval(coopPing, 4 * 60 * 1000); if (player && !$('#game').hidden) renderNet(); }
+    }).catch(again);
   }
   function coopOpen() {
     co.who = player; stopGames();
@@ -1145,7 +1150,8 @@ h2{font:400 1.7rem/1.08 var(--font-display);text-transform:uppercase;text-wrap:b
     delete root.dataset.player; readColors();
     $('#game').hidden = true; $('#pick').hidden = true; $('#coop').hidden = false; window.scrollTo(0, 0);
     co.screen = ''; co.st = null;
-    $('#coop-body').innerHTML = '<p class="coop-lede">Připojuji…</p>';
+    $('#coop-body').innerHTML = '<p class="coop-lede" id="coop-conn">Připojuji…</p>';
+    setTimeout(() => { const c = $('#coop-conn'); if (c) c.textContent = 'Server se probouzí. Může to trvat asi minutu, vydrž.'; }, 4000);
     co.es = new EventSource(`${COOP}/coop/stream?who=${co.who}`);
     co.es.onmessage = (e) => { let st; try { st = JSON.parse(e.data); } catch (x) { return; } coopState(st); };
   }

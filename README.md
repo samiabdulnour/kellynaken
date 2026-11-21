@@ -61,8 +61,23 @@ The bosses, their difficulty and the shared final message live under `coop` in `
 To give a boss a face, add `photos/boss-<id>.jpg` (a square crop) and rebuild.
 If the page is hosted somewhere else, set `coop.server` to the server's address.
 
-`Dockerfile` and `fly.toml` are there for Fly.io. They have not been deployed yet.
-The room lives in one process, so it must run as a single machine.
+### Hosting the server
+
+The room lives in one process's memory, so whatever hosts it must run **one** instance.
+
+**Render** (free plan): `render.yaml` describes the service. In Render choose New → Blueprint, pick this repository
+and apply. A free service goes to sleep after about 15 minutes without visitors and takes around a minute to wake.
+The page pings the server every few minutes while it is open, so it stays awake while the kids play.
+
+Two ways to use it:
+
+- **Everything on Render.** One address, nothing to configure. The first visit after a quiet spell waits for the wake-up.
+- **Site on GitHub Pages, co-op on Render.** The site always opens instantly. Set `coop.server` in `config.json`
+  to the Render address (for example `https://kellynaken.onrender.com`), rebuild and commit.
+
+**Fly.io**: `Dockerfile` and `fly.toml` are there as an alternative. Deploy as a single machine.
+
+None of these hosting files has been deployed yet.
 
 ## Change the content
 

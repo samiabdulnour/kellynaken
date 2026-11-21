@@ -1,0 +1,11 @@
+# Render settings: the site plus the play-together server, on the free plan.
+# The co-op room lives in memory, so this must stay a single instance (the free plan runs exactly one).
+services:
+  - type: web
+    name: kellynaken
+    runtime: node
+    plan: free
+    region: frankfurt
+    buildCommand: node build.mjs
+    startCommand: node server.mjs
+    healthCheckPath: /coop/ping
