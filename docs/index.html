@@ -1509,14 +1509,17 @@ const Lite = (() => {
     });
     co.onEvent = (ev) => {
       if (ev.jump && ev.who === mate && s.gy <= 0) s.gvy = JUMP;
+      if (ev.gift) { blip(660, 880, 1100, 1320); setMood(s, 'win', 'win'); s.note = { text: '+1 život!', color: C.row0, t: 1.1, size: 26 }; }
       if (ev.crash) { s.smug = 1.5; blip(180, 140); setMood(s, ev.who === 'ken' ? 'lose' : 'normal', ev.who === 'kel' ? 'lose' : 'normal'); if (ev.who === mate) s.note = { text: `${N[mate].nom}: au!`, color: C['line-red'], t: 0.9, size: 22 }; }
     };
     const fly = (y, vy, dt) => { if (vy === 0 && y <= 0) return [0, 0]; y += vy * dt; vy -= G * dt; return y <= 0 ? [0, 0] : [y, vy]; };
 
-    // The cameo: a friend who tears through the scene every few seconds, a different crazy way each time.
-    // It runs on the shared clock, so both phones see her at the same moment. She is scenery: nothing to dodge.
+    // The friend: she tears through the scene every few seconds, a different crazy way each time, and throws a heart.
+    // Jump to catch it and the kids win back one of their shared lives. Everything runs on the shared clock.
     const cameo = co.st.boss.cameo && co.st.boss.cameo.files.length ? co.st.boss.cameo : null;
-    const SHOUTS = ['JUCHŮŮ!', 'AHOOOJ!', 'JEDEME!'], PASS_FIRST = 4.2, PASS_EVERY = 8.5, PASS_LEN = 3.6;
+    const SHOUTS = ['CHYTEJ SRDCE!', 'SKOČ PRO SRDCE!', 'SRDCE LETÍ!'];
+    const { first: PASS_FIRST, every: PASS_EVERY, len: PASS_LEN } = co.st.surf.pass;
+    const grabbed = new Set();
     let passSeen = -1;
     function buddy(face) {                      // drawn around (0, 0): her feet
       ctx.lineCap = 'round';
@@ -1583,7 +1586,11 @@ const Lite = (() => {
         if (s.hitMine.has(i) || Math.abs((o.t - s.t) * SPEED) > 17) return;
         if (o.k ? s.y > 26 : s.y < 20) { s.hitMine.add(i); s.inv = 1.2; s.note = { text: 'Au!', color: C['line-red'], t: 0.8 }; post('/coop/crash', { who: me, i }); }
       });
-      if (st.phase === 'count') { s.hitMine.clear(); s.passed = false; }
+      if (st.phase === 'play') st.surf.gifts.forEach(([gt, got], i) => {        // a heart: be in the air as it passes
+        if (got || grabbed.has(i) || Math.abs((gt - s.t) * SPEED) > 19 || s.y < 22) return;
+        grabbed.add(i); post('/coop/gift', { who: me, i });
+      });
+      if (st.phase === 'count') { s.hitMine.clear(); grabbed.clear(); s.passed = false; }
       if (st.phase === 'down' && !s.passed) { s.passed = true; s.note = { text: PASS[me], color: C['line-red'], t: 2.6 }; fanfare(); }
       tickCommon(s, dt);
       draw(st);
@@ -1629,10 +1636,17 @@ const Lite = (() => {
           ctx.beginPath(); ctx.moveTo(x - 15, SEA + 4); ctx.quadraticCurveTo(x - 2, SEA - 16, x + 6, SEA - 30); ctx.lineTo(x + 14, SEA + 4); ctx.closePath(); shape(ctx, C['ink-soft']);
         }
       });
+      st.surf.gifts.forEach(([gt, got], i) => {                                    // hearts thrown by the friend, at jump height
+        const x = SX + (gt - t) * SPEED;
+        if (got || grabbed.has(i) || x < -30 || x > W + 30) return;
+        const pulse = 11 + Math.sin(s.clock * 10) * 2;
+        ctx.save(); ctx.globalAlpha = 0.35; ctx.beginPath(); ctx.arc(x, SEA - 80, pulse + 9, 0, 7); ctx.fillStyle = C.board; ctx.fill(); ctx.restore();
+        heart(ctx, x, SEA - 80, pulse, C.row0);
+      });
       if (st.here[mate]) surfer(mate, SX - 40, s.gy, true);
       surfer(me, SX, s.y, false);
       hudBar(ctx, st, W);
-      for (let i = 0; i < st.max; i++) heart(ctx, 18 + i * 19, 17, 7, i < st.hp ? C['line-red'] : C.rubber);
+      for (let i = 0; i < Math.max(st.max, st.hp); i++) heart(ctx, 18 + i * 19, 17, 7, i < st.hp ? C['line-red'] : C.rubber);
       rr(ctx, 158, 12, 92, 10, 5); ctx.fillStyle = C.rubber; ctx.fill();
       rr(ctx, 158, 12, Math.max(10, 92 * clamp(t / total, 0, 1)), 10, 5); ctx.fillStyle = C.sea; ctx.fill();
       if (st.phase === 'count') countCard(ctx, st, W, 50);

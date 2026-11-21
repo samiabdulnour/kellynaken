@@ -41,7 +41,7 @@ that the two of them play together, each on their own phone. The bosses' names s
 | Boss | Round |
 |---|---|
 | Alan | Drums. The boss plays a pattern on four pads and the kids repeat it. Each kid owns two of the pads. |
-| Sami | Surfing. A runner on a shared wave: tap to jump the sharks, stay low under the boomerangs. Every crash costs one of the shared lives. |
+| Sami | Surfing. A runner on a shared wave: tap to jump the sharks, stay low under the boomerangs. Every crash costs one of the shared lives. A friend dashes through every few seconds and throws a heart: jump to catch it and win a life back. |
 | Leila | The salon. Both kids run around one room collecting flowers for her while she chases whoever is nearest. Whoever she catches gets combed for a moment, and a flower wilts. |
 
 A round that beats them comes back a little kinder, so they cannot get stuck forever.
@@ -65,7 +65,7 @@ Photos go in `photos/` as square crops, then rebuild:
 | `boss-<id>.jpg` | A boss's face. Without it the boss shows their initial. |
 | `boss-<id>-cool.jpg`, `boss-<id>-serious.jpg` | Optional extra faces for the drum boss: while playing the pattern, and after a wrong note. |
 | `truhla.jpg` | The special photo inside the chest. |
-| `zofia-1.jpg` … | Faces for the friend who dashes through the surfing round. Listed under that boss's `cameo` in `config.json`. |
+| `zofia-1.jpg` … | Faces for the friend who dashes through the surfing round and throws hearts. Listed under that boss's `cameo` in `config.json`. |
 
 ### Hosting the server
 

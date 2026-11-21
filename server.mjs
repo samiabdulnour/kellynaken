@@ -47,7 +47,8 @@ function loadBoss() {
     room.drum = { round: 0, pattern: [], pos: 0, mode: 'pause', step: -1, showId: 0, t: 0.3, fresh: true };
   } else if (b.kind === 'surf') {
     room.hp = room.max = Math.min(7, b.lives + fails);
-    room.surf = { t: 0, obs: surfCourse(b), hit: { ken: new Set(), kel: new Set() }, jumped: { ken: 0, kel: 0 } };
+    const gifts = surfGifts(b);
+    room.surf = { t: 0, obs: surfCourse(b, gifts), gifts, hit: { ken: new Set(), kel: new Set() }, jumped: { ken: 0, kel: 0 } };
   } else {
     const target = Math.max(8, b.target - 2 * fails);
     room.hp = room.max = target;
@@ -70,7 +71,7 @@ function snapshot() {
     boss: inLobby ? null : { id: b.id, name: b.name, faces: b.faces, kind: b.kind, tip: b.tip, cameo: b.cameo },
     hp: room.hp, max: room.max, left: Math.max(0, Math.ceil(room.left)), count: Math.ceil(room.count), hits: room.hits, ev: room.ev,
     ...(d && !inLobby ? { drum: { mode: d.mode, len: d.pattern.length, pos: d.pos, round: d.round, showId: d.showId, step: d.step, pad: d.mode === 'show' && d.step >= 0 ? d.pattern[d.step] : -1 } } : {}),
-    ...(s && !inLobby ? { surf: { t: Math.round(s.t * 100) / 100, total: b.seconds, obs: s.obs } } : {}),
+    ...(s && !inLobby ? { surf: { t: Math.round(s.t * 100) / 100, total: b.seconds, obs: s.obs, pass: PASS, gifts: s.gifts.map((g) => [g.t, g.got ? 1 : 0]) } } : {}),
     ...(c && !inLobby ? { chase: { l: [Math.round(c.l.x), Math.round(c.l.y)], p: Object.fromEntries(WHO.map((w) => [w, [Math.round(c.p[w].x), Math.round(c.p[w].y), c.frozen[w] > 0 ? 1 : 0]])), items: c.items.map((i) => [i.id, i.x, i.y]), happy: c.happy, target: c.target, shout: c.shout > 0 } } : {}),
     ...(room.phase === 'won' ? { win: { heading: '', lines: [], ...(coop.win || {}), photo: has('truhla.jpg') } } : {}),
   });
@@ -134,10 +135,19 @@ function drum(who, pad) {
 }
 
 // ---- surf: obstacles are fixed moments on a shared clock, so both phones see the same wave ----
-function surfCourse(b) {
+// The friend dashes through on a fixed beat and throws a heart each time: jump to catch it and win a life back.
+const PASS = { first: 4.2, every: 8.5, len: 3.6, throwAt: 2.1 };
+function surfGifts(b) {
+  const gifts = [];
+  if (b.cameo && b.cameo.files.length) for (let start = PASS.first; start <= b.seconds - 7; start += PASS.every) gifts.push({ t: Math.round((start + PASS.throwAt) * 100) / 100, got: false });
+  return gifts;
+}
+function surfCourse(b, gifts) {
   const obs = [];
   let t = 3.4;
   while (t < b.seconds - 3) {
+    const near = gifts.find((g) => Math.abs(g.t - t) < 1.05);          // keep the water clear around a heart
+    if (near) { t = near.t + 1.1; continue; }                         // lands clearly outside the window, so this cannot loop
     obs.push({ t: Math.round(t * 100) / 100, k: obs.length > 1 && Math.random() < 0.3 ? 1 : 0 });   // k 0: a shark to jump, 1: a boomerang to stay under
     t += Math.max(1.08, (2.0 - (t / b.seconds) * 0.8) * (0.75 + Math.random() * 0.5));
   }
@@ -156,6 +166,15 @@ function crash(who, i) {
   room.hp = Math.max(0, room.hp - 1);
   say({ who, crash: true });
   if (room.hp === 0) lose();
+  broadcast(); return true;
+}
+function gift(who, i) {
+  const s = room.surf;
+  if (room.phase !== 'play' || !s || !Number.isInteger(i) || !s.gifts[i] || s.gifts[i].got || Math.abs(s.gifts[i].t - s.t) > 1.5) return false;
+  s.gifts[i].got = true;
+  room.hp = Math.min(7, room.hp + 1); room.max = Math.max(room.max, room.hp);
+  room.hits[who]++;
+  say({ who, gift: true });
   broadcast(); return true;
 }
 function jump(who) {
@@ -261,6 +280,7 @@ const MOVES = {
   start: () => start(),
   drum: (b) => [0, 1, 2, 3].includes(b.pad) && drum(b.who, b.pad),
   crash: (b) => crash(b.who, b.i),
+  gift: (b) => gift(b.who, b.i),
   jump: (b) => jump(b.who),
   move: (b) => move(b.who, b.x, b.y),
 };
