@@ -28,6 +28,7 @@ const BOSSES = (coop.bosses && coop.bosses.length ? coop.bosses : [{ id: 'boss',
   if (env('COOP_ROUNDS')) full.rounds = env('COOP_ROUNDS');
   if (env('COOP_TARGET')) full.target = env('COOP_TARGET');
   full.faces = ['', 'cool', 'serious', 'happy'].filter((v) => has(`boss-${full.id}${v ? '-' + v : ''}.jpg`));   // which photos exist
+  full.cameo = full.cameo ? { name: full.cameo.name, files: (full.cameo.files || []).filter((f) => has(f + '.jpg')) } : null;   // a friend who dashes through
   return full;
 });
 
@@ -66,7 +67,7 @@ function snapshot() {
     phase: room.phase, here: { ken: isHere('ken'), kel: isHere('kel') },
     stage: room.stage, total: BOSSES.length,
     seen: BOSSES.slice(0, room.best + 1).map((x) => x.name),            // names stay hidden until a boss has appeared
-    boss: inLobby ? null : { id: b.id, name: b.name, faces: b.faces, kind: b.kind, tip: b.tip },
+    boss: inLobby ? null : { id: b.id, name: b.name, faces: b.faces, kind: b.kind, tip: b.tip, cameo: b.cameo },
     hp: room.hp, max: room.max, left: Math.max(0, Math.ceil(room.left)), count: Math.ceil(room.count), hits: room.hits, ev: room.ev,
     ...(d && !inLobby ? { drum: { mode: d.mode, len: d.pattern.length, pos: d.pos, round: d.round, showId: d.showId, step: d.step, pad: d.mode === 'show' && d.step >= 0 ? d.pattern[d.step] : -1 } } : {}),
     ...(s && !inLobby ? { surf: { t: Math.round(s.t * 100) / 100, total: b.seconds, obs: s.obs } } : {}),

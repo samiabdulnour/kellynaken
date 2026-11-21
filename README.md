@@ -65,6 +65,7 @@ Photos go in `photos/` as square crops, then rebuild:
 | `boss-<id>.jpg` | A boss's face. Without it the boss shows their initial. |
 | `boss-<id>-cool.jpg`, `boss-<id>-serious.jpg` | Optional extra faces for the drum boss: while playing the pattern, and after a wrong note. |
 | `truhla.jpg` | The special photo inside the chest. |
+| `zofia-1.jpg` … | Faces for the friend who dashes through the surfing round. Listed under that boss's `cameo` in `config.json`. |
 
 ### Hosting the server
 

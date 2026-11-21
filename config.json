@@ -114,7 +114,16 @@
         "kind": "surf",
         "seconds": 45,
         "lives": 4,
-        "tip": "Klepni a přeskoč žraloka. Pod bumerangem zůstaň dole."
+        "tip": "Klepni a přeskoč žraloka. Pod bumerangem zůstaň dole.",
+        "cameo": {
+          "name": "Zofia",
+          "files": [
+            "zofia-1",
+            "zofia-2",
+            "zofia-3",
+            "zofia-4"
+          ]
+        }
       },
       {
         "id": "leila",

@@ -1380,6 +1380,65 @@ h2{font:400 1.7rem/1.08 var(--font-display);text-transform:uppercase;text-wrap:b
       if (ev.crash) { s.smug = 1.5; blip(180, 140); setMood(s, ev.who === 'ken' ? 'lose' : 'normal', ev.who === 'kel' ? 'lose' : 'normal'); if (ev.who === mate) s.note = { text: `${N[mate].nom}: au!`, color: C['line-red'], t: 0.9, size: 22 }; }
     };
     const fly = (y, vy, dt) => { if (vy === 0 && y <= 0) return [0, 0]; y += vy * dt; vy -= G * dt; return y <= 0 ? [0, 0] : [y, vy]; };
+
+    // The cameo: a friend who tears through the scene every few seconds, a different crazy way each time.
+    // It runs on the shared clock, so both phones see her at the same moment. She is scenery: nothing to dodge.
+    const cameo = co.st.boss.cameo && co.st.boss.cameo.files.length ? co.st.boss.cameo : null;
+    const SHOUTS = ['JUCHŮŮ!', 'AHOOOJ!', 'JEDEME!'], PASS_FIRST = 4.2, PASS_EVERY = 8.5, PASS_LEN = 3.6;
+    let passSeen = -1;
+    function buddy(face) {                      // drawn around (0, 0): her feet
+      ctx.lineCap = 'round';
+      for (const d of [-1, 1]) { ctx.beginPath(); ctx.moveTo(d * 10, -24); ctx.lineTo(d * 25, -50); ctx.lineWidth = 9; ctx.strokeStyle = C.puck; ctx.stroke(); ctx.lineWidth = 5; ctx.strokeStyle = C.skin; ctx.stroke(); }
+      rr(ctx, -12, -30, 24, 28, 8); shape(ctx, C.row3);
+      drawFace(ctx, face, 0, -48, 21, { initial: cameo.name.charAt(0) });
+    }
+    function drawCameo(t, total) {
+      if (!cameo) return;
+      const k = Math.floor((t - PASS_FIRST) / PASS_EVERY);
+      if (k < 0 || PASS_FIRST + k * PASS_EVERY > total - 7) return;
+      const u = (t - PASS_FIRST - k * PASS_EVERY) / PASS_LEN;
+      if (u < 0 || u > 1) return;
+      if (passSeen !== k) { passSeen = k; blip(700, 900, 1100, 1300); }
+      const face = faceImg(cameo.files[k % cameo.files.length]), kind = k % 3;
+      let x, y, rot;
+      ctx.save();
+      if (kind === 0) {                         // shark rodeo: three big leaps across the water, right to left
+        const w = u * Math.PI * 3, up = Math.sin(w) >= 0 ? 1 : -1;
+        x = W + 70 - u * (W + 140); y = SEA - 6 - Math.abs(Math.sin(w)) * 84;
+        rot = Math.atan2(-84 * 3 * Math.PI * Math.cos(w) * up, -(W + 140)) - Math.PI;
+        ctx.translate(x, y); ctx.rotate(rot);
+        ctx.beginPath(); ctx.moveTo(38, 0); ctx.lineTo(66, -18); ctx.lineTo(60, 0); ctx.lineTo(66, 18); ctx.closePath(); shape(ctx, C['ink-soft']);          // tail
+        ctx.beginPath(); ctx.ellipse(0, 0, 46, 17, 0, 0, 7); shape(ctx, C['ink-soft']);
+        ctx.beginPath(); ctx.moveTo(-6, 15); ctx.lineTo(8, 32); ctx.lineTo(18, 13); ctx.closePath(); shape(ctx, C['ink-soft']);                              // fin
+        ctx.beginPath(); ctx.arc(-30, -5, 3.2, 0, 7); ctx.fillStyle = C.board; ctx.fill();
+        ctx.beginPath(); ctx.moveTo(-44, 5); for (let i = 0; i < 5; i++) ctx.lineTo(-40 + i * 5, i % 2 ? 5 : 11); ctx.lineWidth = 2; ctx.strokeStyle = C.board; ctx.stroke();   // teeth
+        ctx.translate(4, -14); buddy(face);
+      } else if (kind === 1) {                  // sky boomerang: left to right with a loop-the-loop in the middle
+        const a = clamp((u - 0.35) / 0.3, 0, 1) * Math.PI * 2, lin = u < 0.35 ? u / 0.7 : u > 0.65 ? (u - 0.3) / 0.7 : 0.5, R = 33;
+        x = -70 + lin * (W + 140) + R * Math.sin(a); y = 124 - R * (1 - Math.cos(a)); rot = -a + Math.sin(s.clock * 9) * 0.18;
+        ctx.translate(x, y); ctx.rotate(rot);
+        ctx.beginPath(); ctx.moveTo(-40, 14); ctx.lineTo(0, -4); ctx.lineTo(40, 14); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+        ctx.lineWidth = 17; ctx.strokeStyle = C.puck; ctx.stroke(); ctx.lineWidth = 11; ctx.strokeStyle = C.wood; ctx.stroke();
+        ctx.translate(0, -6); buddy(face);
+      } else {                                  // rocket board: flat out along the water with a full spinning jump
+        const j = clamp((u - 0.38) / 0.26, 0, 1);
+        x = -70 + u * (W + 140); y = SEA - 4 - Math.sin(j * Math.PI) * 72; rot = j * Math.PI * 2;
+        ctx.translate(x, y); ctx.rotate(rot);
+        const lick = 16 + Math.sin(s.clock * 40) * 6;
+        ctx.beginPath(); ctx.moveTo(-30, -5); ctx.lineTo(-30 - lick * 1.6, 1); ctx.lineTo(-30, 7); ctx.closePath(); ctx.fillStyle = C.outback; ctx.fill();   // flame
+        ctx.beginPath(); ctx.moveTo(-30, -2); ctx.lineTo(-30 - lick, 1); ctx.lineTo(-30, 4); ctx.closePath(); ctx.fillStyle = C.kick; ctx.fill();
+        ctx.beginPath(); ctx.ellipse(0, 2, 32, 6, 0, 0, 7); shape(ctx, C.row0);
+        buddy(face);
+      }
+      ctx.restore();
+      // her shout, kept on screen
+      const text = `${cameo.name.toUpperCase()}: ${SHOUTS[kind]}`;
+      ctx.font = `400 11px ${DISPLAY}`;
+      const tw = ctx.measureText(text).width + 18, bx = clamp(x, tw / 2 + 4, W - tw / 2 - 4), by = clamp(y - 88, 48, H - 20);
+      rr(ctx, bx - tw / 2, by - 11, tw, 22, 10); shape(ctx, C.board);
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = C['line-red']; ctx.fillText(text, bx, by + 1);
+    }
+
     function tick(dt) {
       const st = co.st; if (!st || !st.surf || !s.base) return;
       s.clock += dt;
@@ -1426,6 +1485,7 @@ h2{font:400 1.7rem/1.08 var(--font-display);text-transform:uppercase;text-wrap:b
         ctx.fillStyle = C.sand; ctx.fillRect(beach, 168, W, H);
         drawRoo(ctx, beach + 86, SEA - 60, bossFace(st.boss, 'happy'), st.boss.name.charAt(0));
       }
+      if (st.phase === 'play') drawCameo(t, total);
       st.surf.obs.forEach((o) => {
         const x = SX + (o.t - t) * SPEED;
         if (x < -30 || x > W + 30) return;
