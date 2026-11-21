@@ -2,12 +2,24 @@
   "signoff": "Vedení týmu",
   "footer": "Šifry připravilo vedení týmu.",
   "names": {
-    "ken": { "nom": "Kendrick", "acc": "Kendricka", "voc": "Kendricku" },
-    "kel": { "nom": "Kellyn", "acc": "Kellyn", "voc": "Kellyn" }
+    "ken": {
+      "nom": "Kendrick",
+      "acc": "Kendricka",
+      "voc": "Kendricku"
+    },
+    "kel": {
+      "nom": "Kellyn",
+      "acc": "Kellyn",
+      "voc": "Kellyn"
+    }
   },
   "players": {
     "ken": {
-      "card": { "name": "Kendrick", "number": "10", "role": "lamač šifer" },
+      "card": {
+        "name": "Kendrick",
+        "number": "10",
+        "role": "lamač šifer"
+      },
       "postcard": {
         "password": "SPARTA",
         "key": 6,
@@ -43,7 +55,11 @@
       }
     },
     "kel": {
-      "card": { "name": "Kellyn", "number": "★", "role": "lovkyně medailí" },
+      "card": {
+        "name": "Kellyn",
+        "number": "★",
+        "role": "lovkyně medailí"
+      },
       "postcard": {
         "password": "SALTO",
         "key": 3,
@@ -78,6 +94,66 @@
           "Třeba: V neděli tě čeká překvapení. Vezmi si cvičky."
         ]
       }
+    }
+  },
+  "coop": {
+    "server": "",
+    "bosses": [
+      {
+        "id": "alan",
+        "name": "Alan",
+        "kind": "drums",
+        "theme": "drums",
+        "blurb": "bubenický souboj",
+        "rounds": 4,
+        "first": 3,
+        "seconds": 90,
+        "tip": "Alan zahraje rytmus. Zopakujte ho ve stejném pořadí. Každý má dva bubny."
+      },
+      {
+        "id": "sami",
+        "name": "Sami",
+        "kind": "fight",
+        "theme": "aussie",
+        "blurb": "australská sága",
+        "hp": 36,
+        "speed": [
+          80,
+          145
+        ],
+        "shield": [
+          2.4,
+          1.1
+        ],
+        "seconds": 70,
+        "tip": "Trefujte, dokud je na zemi. Ve skoku se zasáhnout nedá."
+      },
+      {
+        "id": "leila",
+        "name": "Leila",
+        "kind": "fight",
+        "theme": "salon",
+        "blurb": "kadeřnické finále",
+        "hp": 54,
+        "speed": [
+          105,
+          190
+        ],
+        "shield": [
+          1.9,
+          1.1
+        ],
+        "dash": true,
+        "seconds": 70,
+        "tip": "Leila je rychlá a má fén. Střílejte oba skoro najednou."
+      }
+    ],
+    "win": {
+      "heading": "Všichni tři jsou K.O.!",
+      "lines": [
+        "Tohle je jen ukázka. Sem přijde společné tajemství pro oba.",
+        "Třeba: Koukněte se oba pod polštář."
+      ]
     }
   }
 }

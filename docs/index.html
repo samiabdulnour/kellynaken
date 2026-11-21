@@ -24,6 +24,7 @@
   --skin:#F3C6A5; --wood:#D2A064;
   --gold:#F2B90F; --silver:#B7C0CC; --bronze:#C9793A; --shine:rgba(255,255,255,.45);
   --row0:#F0448F; --row1:#7B3FE4; --row2:#1E88E5; --row3:#1FA463; --row4:#FFC61A;
+  --sky:#FFE2B0; --outback:#D9622B; --roo:#C98A4B; --sand:#F5D7A1; --tile:#FFD6E6; --shade:rgba(0,0,0,.2);
   --font-display:'Bungee','Arial Black',Impact,sans-serif;
   --font-jersey:'Graduate','Rockwell','Courier New',serif;
   --font-body:'Barlow','Trebuchet MS','Segoe UI',sans-serif;
@@ -264,6 +265,49 @@ h2{font:400 1.7rem/1.08 var(--font-display);text-transform:uppercase;text-wrap:b
 .rain svg{position:absolute;top:-4rem;animation:fall linear forwards}
 @keyframes fall{to{transform:translateY(calc(100vh + 8rem)) rotate(var(--spin))}}
 
+/* ---- playing together ---- */
+.pick .btn{border-color:var(--board);box-shadow:0 4px 0 var(--board)}
+.pick .btn:active{box-shadow:0 1px 0 var(--board)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.pick .linkish{color:var(--board)}
+.coop-body{display:grid;grid-template-columns:minmax(0,1fr);gap:1.2rem;width:100%;justify-items:start}
+.coop-lede{font-size:1.1rem;font-weight:600;line-height:1.4;max-width:34rem}
+.coop-team{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem;width:100%;max-width:26rem}
+.mate{display:grid;justify-items:center;gap:.45rem;background:var(--kick);color:var(--ink);border:4px solid var(--board);border-radius:18px;padding:.9rem .6rem;text-align:center}
+.mate img{width:4.6rem;height:4.6rem;border-radius:50%;border:3px solid var(--puck);object-fit:cover}
+.mate b{font:400 1rem/1 var(--font-display);text-transform:uppercase}
+.mate span{font-weight:700;font-size:.9rem}
+.mate[data-here="0"]{opacity:.5}
+.bosses{display:flex;flex-wrap:wrap;gap:.5rem;counter-reset:boss}
+.bosses li{counter-increment:boss;font:400 .85rem/1 var(--font-display);text-transform:uppercase;background:var(--rubber);border:2px solid var(--board);border-radius:14px;padding:.55rem .8rem}
+.bosses li::before{content:counter(boss) ". "}
+.bosses small{display:block;margin-top:.3rem;font:700 .72rem/1.2 var(--font-body);letter-spacing:.04em;text-transform:none;color:var(--sb-ink)}
+.kit{display:grid;grid-template-columns:minmax(0,1fr);gap:.9rem;width:100%;max-width:24rem}
+.kit-top{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:.8rem;align-items:center}
+.boss-face{width:4.2rem;height:4.2rem;border-radius:50%;border:4px solid var(--board);background:var(--kick);color:var(--ink);display:grid;place-content:center;font:400 1.8rem/1 var(--font-display);overflow:hidden}
+.boss-face img{width:100%;height:100%;object-fit:cover}
+.kit-name{display:block;font:400 1.3rem/1.1 var(--font-display);text-transform:uppercase}
+.kit-hp{font-weight:700}
+.kit-time{font:400 1.2rem/1 var(--font-display);font-variant-numeric:tabular-nums}
+.kit-say{font-size:1.1rem;font-weight:700;line-height:1.35;min-height:4.1em}
+.kit-dots{display:flex;flex-wrap:wrap;gap:.4rem;min-height:1rem}
+.kit-dots i{width:1rem;height:1rem;border-radius:50%;border:2px solid var(--board)}
+.kit-dots i.on{background:var(--kick)}
+.kit-own{color:var(--sb-ink)}
+.pads{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.8rem}
+.pad{aspect-ratio:1.5;border-radius:999px;border:5px solid var(--board);box-shadow:inset 0 0 0 9px var(--shade);font:400 1rem/1 var(--font-display);text-transform:uppercase;color:var(--board);cursor:pointer;touch-action:manipulation;transition:transform .06s,filter .06s}
+.pad-0{background:var(--line-red)}
+.pad-1{background:var(--line-blue)}
+.pad-2{background:var(--row0)}
+.pad-3{background:var(--row1)}
+.pad:disabled{opacity:.45;border-style:dashed;cursor:default}
+.pad.hit{transform:scale(.93);filter:brightness(1.7);opacity:1}
+.coop .game{max-width:26rem}
+.coop-invite{background:var(--puck);color:var(--board);border-radius:18px;padding:1.2rem;display:grid;gap:.7rem;justify-items:start;text-align:left;width:100%;max-width:30rem}
+.coop-invite h3{margin:0;font:400 1.4rem/1.05 var(--font-display);text-transform:uppercase;color:var(--kick)}
+.coop-invite p{font-weight:600}
+.coop-invite .btn{border-color:var(--board);box-shadow:0 4px 0 var(--board)}
+
 .foot{padding-block:0 2.5rem;display:flex;flex-wrap:wrap;gap:.8rem 1.5rem;align-items:center;justify-content:space-between;font-weight:600}
 .foot-links{display:flex;flex-wrap:wrap;gap:.6rem 1.4rem}
 
@@ -281,6 +325,15 @@ h2{font:400 1.7rem/1.08 var(--font-display);text-transform:uppercase;text-wrap:b
     <p class="tape">Přísně tajné</p>
     <h1 class="pick-title">Za koho hraješ?</h1>
     <div class="pick-grid" id="pick-grid"></div>
+  </div>
+</div>
+
+<div class="pick coop" id="coop" hidden>
+  <div class="wrap pick-in">
+    <p class="tape">Společná mise</p>
+    <h1 class="pick-title">Tři bossové</h1>
+    <div class="coop-body" id="coop-body"></div>
+    <button type="button" class="linkish" id="coop-back">Zpět</button>
   </div>
 </div>
 
@@ -334,6 +387,7 @@ h2{font:400 1.7rem/1.08 var(--font-display);text-transform:uppercase;text-wrap:b
   <footer class="wrap foot">
     <span>Šifry připravilo vedení týmu.</span>
     <span class="foot-links">
+      <button type="button" class="linkish" id="coop-link" data-coop hidden>Společná mise</button>
       <button type="button" class="linkish" id="switch">Změnit hráče</button>
       <button type="button" class="linkish" id="reset">Začít znovu</button>
     </span>
@@ -638,7 +692,7 @@ const Lite = (() => {
 
   // ---- minigames ----
   const C = {};
-  const COLOR_KEYS = ['ice', 'ice-cut', 'crease', 'puck', 'rubber', 'line-red', 'line-blue', 'board', 'mesh', 'kick', 'kick-deep', 'ink-soft', 'skin', 'wood'];
+  const COLOR_KEYS = ['ice', 'ice-cut', 'crease', 'puck', 'rubber', 'line-red', 'line-blue', 'board', 'mesh', 'kick', 'kick-deep', 'ink-soft', 'skin', 'wood', 'sky', 'outback', 'roo', 'sand', 'tile', 'row0', 'row1'];
   function readColors() { const cs = getComputedStyle(root); COLOR_KEYS.forEach((k) => { C[k] = cs.getPropertyValue('--' + k).trim(); }); }
   const faceCache = {};
   const faceImg = (name) => faceCache[name] || (faceCache[name] = Object.assign(new Image(), { src: name + '.jpg' }));
@@ -648,6 +702,7 @@ const Lite = (() => {
     catchHockey: { ken: { normal: 'ken-fan', win: 'ken-smirk', lose: 'ken-hey' }, kel: { normal: 'kel', win: 'kel-tongue', lose: 'kel-frown' } },
     toss: { ken: { normal: 'ken-fan', win: 'ken-smirk', lose: 'ken-hey' }, kel: { normal: 'kel-calm', win: 'kel' } },
     catchGym: { ken: { normal: 'ken', win: 'ken-smirk', lose: 'ken-hey' }, kel: { normal: 'kel-calm', win: 'kel', lose: 'kel-frown' } },
+    coop: { ken: { normal: 'ken', win: 'ken-smirk', lose: 'ken-hey' }, kel: { normal: 'kel', win: 'kel-tongue', lose: 'kel-frown' } },
   };
   Object.values(CAST).forEach((c) => Object.values(c).forEach((m) => Object.values(m).forEach(faceImg)));
   const moodFace = (cast, s, who) => faceImg(cast[who][(s.mood && s.mood[who]) || 'normal'] || cast[who].normal);
@@ -660,7 +715,10 @@ const Lite = (() => {
     ctx.save();
     ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2);
     if (im.complete && im.naturalWidth) { ctx.save(); ctx.clip(); ctx.drawImage(im, x - r, y - r, r * 2, r * 2); ctx.restore(); }
-    else {
+    else if (extra.initial) {
+      ctx.fillStyle = C.kick; ctx.fill();
+      ctx.font = `400 ${Math.round(r * 1.1)}px ${DISPLAY}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = C.puck; ctx.fillText(extra.initial, x, y + 2);
+    } else {
       ctx.fillStyle = C.skin; ctx.fill(); ctx.fillStyle = C.puck;
       ctx.beginPath(); ctx.arc(x - r * 0.35, y - r * 0.15, r * 0.1, 0, 7); ctx.fill();
       ctx.beginPath(); ctx.arc(x + r * 0.35, y - r * 0.15, r * 0.1, 0, 7); ctx.fill();
@@ -1139,9 +1197,11 @@ const Lite = (() => {
       : `<div class="goalmouth" aria-hidden="true"><div class="crease"></div><div class="rline rline-goal"></div>
           <div class="goal">${[0, 1, 2].map((i) => `<span class="slot${i < goals ? ' in' : ''}"></span>`).join('')}</div></div>`;
     net.dataset.state = fin ? 'scored' : 'waiting';
+    const invite = fin && co.ok ? `<div class="coop-invite"><h3>Společná mise</h3><p>Ještě není konec. ${bossCount()}: ${co.bosses.map((b) => esc(b.name)).join(', ')}. Porazíte je jen spolu, každý na svém telefonu.</p><button type="button" class="btn" data-coop>Jdeme na to</button></div>` : '';
+    $('#coop-link').hidden = !invite;
     net.innerHTML = fin
       ? `<div class="zone-head"><span class="ztag">${T.finalTag}</span></div>
-         <div class="secret"><h3>${esc(fin.heading)}</h3>${fin.lines.map((l) => `<p>${esc(l)}</p>`).join('')}<p class="sign">${esc(SIGNOFF)}</p></div>${prize}`
+         <div class="secret"><h3>${esc(fin.heading)}</h3>${fin.lines.map((l) => `<p>${esc(l)}</p>`).join('')}<p class="sign">${esc(SIGNOFF)}</p></div>${invite}${prize}`
       : `<div class="zone-head"><span class="ztag">${T.netTag}</span><p>${T.netText(goals)}</p></div>${prize}`;
   }
 
@@ -1196,6 +1256,299 @@ const Lite = (() => {
     renderHero(); renderAll(); save(); window.scrollTo(0, 0);
   }
 
+  // ---- playing together: the bosses, two phones (needs server.mjs) ----
+  const COOP = "" || '';
+  const co = { ok: false, bosses: [], who: null, es: null, st: null, seen: 0, screen: '', stopGame: null, onEvent: null, onState: null };
+  const BLANK = new Image();
+  const plural = (n, one, few, many) => (n === 1 ? one : n >= 2 && n <= 4 ? few : many);
+  const bossCount = () => { const n = co.bosses.length; return `${plural(n, 'Čeká na vás', 'Čekají na vás', 'Čeká na vás')} ${n} ${plural(n, 'boss', 'bossové', 'bossů')}`; };
+  const post = (p, body) => fetch(COOP + p, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(body || {}) }).catch(() => {});
+  // A free host puts the server to sleep when nobody visits. This ping wakes it, and repeating it
+  // every few minutes keeps it awake for as long as one of the kids has the page open.
+  let pingTries = 0;
+  function coopPing() {
+    if (typeof EventSource === 'undefined' || !/^https?:$/.test(location.protocol)) return;
+    const again = () => { if (COOP && !co.ok && ++pingTries < 6) setTimeout(coopPing, 30000); };   // only a separate server is worth retrying
+    fetch(COOP + '/coop/ping').then((r) => (r.ok ? r.json() : null)).then((j) => {
+      if (!j || !j.ok) return again();
+      const first = !co.ok;
+      co.ok = true; co.bosses = j.bosses || [];
+      if (first) { setInterval(coopPing, 4 * 60 * 1000); if (player && !$('#game').hidden) renderNet(); }
+    }).catch(again);
+  }
+  function coopOpen() {
+    co.who = player; stopGames();
+    try { audio().resume(); } catch (e) {}
+    delete root.dataset.player; readColors();
+    $('#game').hidden = true; $('#pick').hidden = true; $('#coop').hidden = false; window.scrollTo(0, 0);
+    co.screen = ''; co.st = null;
+    $('#coop-body').innerHTML = '<p class="coop-lede" id="coop-conn">Připojuji…</p>';
+    setTimeout(() => { const c = $('#coop-conn'); if (c) c.textContent = 'Server se probouzí. Může to trvat asi minutu, vydrž.'; }, 4000);
+    co.es = new EventSource(`${COOP}/coop/stream?who=${co.who}`);
+    co.es.onmessage = (e) => { let st; try { st = JSON.parse(e.data); } catch (x) { return; } coopState(st); };
+  }
+  function coopLeaveScreen() {
+    if (co.stopGame) { co.stopGame(); co.stopGame = null; }
+    co.onEvent = null; co.onState = null;
+  }
+  function coopClose() {
+    if (co.es) { co.es.close(); co.es = null; }
+    coopLeaveScreen();
+    $('#coop').hidden = true;
+    setPlayer(co.who);
+  }
+  function coopState(st) {
+    const first = !co.st; co.st = st;
+    if (first) co.seen = st.ev.length ? st.ev[st.ev.length - 1].n : 0;      // do not replay moves from before we joined
+    const screen = ['lobby', 'won', 'lost'].includes(st.phase) ? st.phase : 'play:' + st.stage;
+    if (screen !== co.screen) { co.screen = screen; coopScreen(st); }
+    if (st.phase === 'lobby') coopLobby(st);
+    if (co.onState) co.onState(st);
+    for (const ev of st.ev) if (ev.n > co.seen) { co.seen = ev.n; if (co.onEvent) co.onEvent(ev); }
+  }
+  function coopScreen(st) {
+    const body = $('#coop-body');
+    coopLeaveScreen();
+    if (st.phase === 'lobby') {
+      body.innerHTML = `<p class="coop-lede">${bossCount()}. Porazíte je jen spolu, každý na svém telefonu.</p>
+        <ol class="bosses">${co.bosses.map((b) => `<li>${esc(b.name)}${b.blurb ? `<small>${esc(b.blurb)}</small>` : ''}</li>`).join('')}</ol>
+        <div class="coop-team">${IDS.map((id) => `<div class="mate theme-${id}" data-mate="${id}" data-here="0"><img src="${id}.jpg" width="176" height="176" alt=""><b>${esc(N[id].nom)}</b><span></span></div>`).join('')}</div>
+        <button type="button" class="btn" data-coop-start disabled>Start</button>
+        <p class="coop-lede" id="coop-wait"></p>`;
+    } else if (st.phase === 'won') {
+      const w = st.win || { heading: '', lines: [] };
+      body.innerHTML = `<div class="secret"><h3>${esc(w.heading)}</h3>${w.lines.map((l) => `<p>${esc(l)}</p>`).join('')}<p class="sign">${esc(SIGNOFF)}</p></div>
+        <button type="button" class="btn" data-coop-start>Hrát znovu</button>`;
+      horn(); rain();
+    } else if (st.phase === 'lost') {
+      const drums = st.boss.kind === 'drums';
+      const left = drums ? `${st.hp} ${plural(st.hp, 'rytmus', 'rytmy', 'rytmů')}` : `${st.hp} ${plural(st.hp, 'život', 'životy', 'životů')}`;
+      body.innerHTML = `<p class="coop-lede"><strong>Čas vypršel.</strong> ${esc(st.boss.name)}: ještě ${left}. Zkuste to znovu, začínáte u stejného bosse${drums ? '' : ' a ten už bude trochu unavený'}.</p>
+        <button type="button" class="btn" data-coop-start>Zkusit znovu</button>`;
+    } else if (st.boss.kind === 'drums') {
+      co.stopGame = coopDrums(body);
+    } else {
+      body.innerHTML = '<div class="game" data-kind="shoot"><canvas width="360" height="400" role="img" aria-label="Společná hra: klepni na bosse a tref ho."></canvas></div>';
+      co.stopGame = coopGame($('canvas', body));
+    }
+  }
+  function coopLobby(st) {
+    const ready = { ken: 'připraven', kel: 'připravena' };
+    for (const id of IDS) { const m = $(`[data-mate="${id}"]`); m.dataset.here = st.here[id] ? '1' : '0'; m.lastElementChild.textContent = st.here[id] ? ready[id] : 'čekáme…'; }
+    const both = st.here.ken && st.here.kel, mate = co.who === 'ken' ? 'kel' : 'ken';
+    $('[data-coop-start]').disabled = !both;
+    $('#coop-wait').textContent = both ? 'Jste tu oba. Zmáčkněte Start.' : `Čekáme na ${N[mate].acc}. Stejné tlačítko najde na konci své operace.`;
+  }
+
+  // Boss round 1: drums. The boss plays a pattern on four pads; the kids repeat it, each on their own two.
+  let noiseBuf;
+  function drumSound(pad) {
+    try {
+      const c = audio(), t = c.currentTime, g = c.createGain(); g.connect(c.destination);
+      if (pad === 0 || pad === 3) {            // kick and tom: a pitched thump
+        const o = c.createOscillator(); o.type = 'sine';
+        o.frequency.setValueAtTime(pad === 0 ? 150 : 260, t); o.frequency.exponentialRampToValueAtTime(pad === 0 ? 48 : 130, t + 0.22);
+        g.gain.setValueAtTime(0.5, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.26);
+        o.connect(g); o.start(t); o.stop(t + 0.28);
+      } else {                                  // snare and cymbal: filtered noise
+        if (!noiseBuf) { noiseBuf = c.createBuffer(1, Math.round(c.sampleRate * 0.5), c.sampleRate); const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; }
+        const n = c.createBufferSource(), f = c.createBiquadFilter(), dur = pad === 1 ? 0.16 : 0.34;
+        n.buffer = noiseBuf; f.type = 'highpass'; f.frequency.value = pad === 1 ? 1400 : 6500;
+        g.gain.setValueAtTime(pad === 1 ? 0.35 : 0.2, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+        n.connect(f).connect(g); n.start(t); n.stop(t + dur + 0.02);
+      }
+    } catch (e) {}
+  }
+  function coopDrums(body) {
+    const me = co.who, PADS = ['Buben', 'Virbl', 'Činel', 'Tom'], OWNER = ['ken', 'ken', 'kel', 'kel'], b = co.st.boss;
+    body.innerHTML = `<div class="kit">
+        <div class="kit-top"><div class="boss-face">${b.photo ? `<img src="boss-${b.id}.jpg" alt="">` : esc(b.name.charAt(0))}</div>
+          <div><b class="kit-name">${esc(b.name)}</b><span class="kit-hp" id="kit-hp"></span></div><span class="kit-time" id="kit-time"></span></div>
+        <p class="kit-say" id="kit-say" aria-live="polite"></p>
+        <div class="kit-dots" id="kit-dots"></div>
+        ${[0, 2].map((a) => `<p class="sub kit-own">${esc(N[OWNER[a]].nom)}</p><div class="pads">${[a, a + 1].map((i) => `<button type="button" class="pad pad-${i}" data-pad="${i}"${OWNER[i] === me ? '' : ' disabled'}>${PADS[i]}</button>`).join('')}</div>`).join('')}
+      </div>`;
+    const pads = [...body.querySelectorAll('.pad')], sayEl = $('#kit-say', body);
+    let shown = '', sticky = 0, wasDown = false;
+    const flash = (i) => { const p = pads[i]; p.classList.remove('hit'); void p.offsetWidth; p.classList.add('hit'); setTimeout(() => p.classList.remove('hit'), 220); drumSound(i); };
+    const hold = (text, ms) => { sticky = Date.now() + ms; sayEl.textContent = text; };
+    pads.forEach((p, i) => p.addEventListener('pointerdown', () => {
+      const st = co.st;
+      if (p.disabled || !st || st.phase !== 'play' || !st.drum || st.drum.mode !== 'input') return;
+      flash(i); post('/coop/drum', { who: me, pad: i });
+    }));
+    co.onEvent = (ev) => {
+      if ('pad' in ev && ev.who !== me) flash(ev.pad);
+      if (ev.wrong) { hold('Vedle. Ještě jednou od začátku.', 1500); blip(200); }
+      if (ev.dmg) { hold('Správně!', 1300); blip(660, 880, 1100); }
+    };
+    co.onState = (st) => {
+      const d = st.drum; if (!d) return;
+      $('#kit-time', body).textContent = st.left + ' s';
+      $('#kit-hp', body).textContent = `ještě ${st.hp} ${plural(st.hp, 'rytmus', 'rytmy', 'rytmů')}`;
+      $('#kit-dots', body).innerHTML = Array.from({ length: d.len }, (_, i) => `<i${i < d.pos ? ' class="on"' : ''}></i>`).join('');
+      const key = d.showId + ':' + d.step;
+      if (d.mode === 'show' && d.pad >= 0 && key !== shown) { shown = key; flash(d.pad); }
+      if (st.phase === 'down' && !wasDown) { wasDown = true; fanfare(); }
+      if (Date.now() < sticky && st.phase === 'play') return;
+      sayEl.textContent = st.phase === 'count' ? `${st.boss.tip} Začínáme za ${st.count}.` : st.phase === 'down' ? `${st.boss.name}: K.O.!`
+        : d.mode === 'show' ? 'Dívejte se a poslouchejte.' : d.mode === 'input' ? 'Teď vy! Zopakujte to ve stejném pořadí.' : '…';
+    };
+    co.onState(co.st);
+    return () => {};
+  }
+
+  // Boss rounds 2 and 3: tap where the boss is. Hits go to the server, which keeps one health bar for both phones.
+  function coopGame(canvas) {
+    const W = 360, H = 400, BY = 132, REACH = 46, cast = CAST.coop, me = co.who, mate = me === 'ken' ? 'kel' : 'ken';
+    const stage = makeStage(canvas, W, H), ctx = stage.ctx;
+    const s = { bx: 180, hop: 0, clock: 0, shot: null, rest: 0, note: null, mood: null, shake: 0, pops: [], streak: 0, fall: 0, begun: false };
+    canvas._g = s;
+    const hat = (who) => (who === 'ken' ? { helmet: C['line-red'] } : { bow: C.row0 });
+    const shirt = (who) => (who === 'ken' ? C['line-red'] : C.row0);
+    const blockedSay = { aussie: 'Skáče!', salon: 'Fén!' };
+    canvas.addEventListener('click', (e) => {
+      const st = co.st;
+      if (!st || st.phase !== 'play' || s.shot || s.rest > 0) return;
+      s.shot = { x0: 180, y0: H - 104, x1: clamp(stage.local(e).x, 20, W - 20), y1: BY - 12, t: 0 };
+      s.begun = true; blip(420);
+    });
+    co.onEvent = (ev) => {
+      if (ev.blocked) { if (ev.who === me) { s.note = { text: blockedSay[co.st.boss.theme] || 'Štít!', color: C['line-blue'], t: 0.8 }; blip(240); } return; }
+      if (!ev.dmg) return;
+      s.pops.push({ text: '-' + ev.dmg, x: s.bx + (ev.who === me ? 26 : -26), t: 0.9, big: !!ev.combo });
+      s.shake = 0.3;
+      if (ev.who !== me) s.streak = 0.25;
+      if (ev.combo) { s.note = { text: 'Trojitá rána!', color: C['line-red'], t: 1.1 }; blip(660, 880, 1100); setMood(s, 'win', 'win'); }
+      else { blip(660, 880); setMood(s, ev.who === 'ken' ? 'win' : 'normal', ev.who === 'kel' ? 'win' : 'normal'); }
+    };
+    let lastPhase = '';
+    function tick(dt) {
+      const st = co.st; if (!st) return;
+      if (st.phase !== lastPhase) {
+        if (st.phase === 'down') { s.fall = 0.01; s.note = { text: `${st.boss.name}: K.O.!`, color: C['line-red'], t: 2.4 }; fanfare(); }
+        if (st.phase === 'count') { s.fall = 0; s.pops = []; s.bx = st.x; }
+        lastPhase = st.phase;
+      }
+      s.clock += dt;
+      if (st.phase === 'down') s.fall = Math.min(1, s.fall + dt * 1.4);
+      else s.bx += (st.x - s.bx) * Math.min(1, dt * 12);
+      const air = st.boss.theme === 'aussie' && st.shield && st.phase === 'play';
+      s.hop += ((air ? 1 : 0) - s.hop) * Math.min(1, dt * 9);
+      if (s.shot) {
+        s.shot.t += dt / 0.42;
+        if (s.shot.t >= 1) {
+          if (Math.abs(s.shot.x1 - s.bx) < REACH && co.st.phase === 'play') post('/coop/hit', { who: me });
+          else { s.note = { text: 'Vedle!', color: C.puck, t: 0.7 }; blip(200); }
+          s.shot = null; s.rest = 0.28;
+        }
+      }
+      if (s.rest > 0) s.rest -= dt;
+      if (s.shake > 0) s.shake -= dt;
+      if (s.streak > 0) s.streak -= dt;
+      s.pops = s.pops.filter((p) => (p.t -= dt) > 0);
+      tickCommon(s, dt);
+      draw(st);
+    }
+    function weapon(who, x, y, k) {
+      if (who === 'ken') { ctx.beginPath(); ctx.ellipse(x, y, 10 * k, 7 * k, 0, 0, 7); ctx.fillStyle = C.puck; ctx.fill(); }
+      else { ctx.beginPath(); ctx.ellipse(x, y, 20 * k, 8 * k, 0, 0, 7); ctx.lineWidth = 7 * k; ctx.strokeStyle = C.puck; ctx.stroke(); ctx.lineWidth = 4 * k; ctx.strokeStyle = C.row0; ctx.stroke(); }
+    }
+    function scene(theme) {
+      if (theme === 'aussie') {                // the outback: sun, the big red rock, sand
+        ctx.fillStyle = C.sky; ctx.fillRect(0, 0, W, H);
+        ctx.beginPath(); ctx.arc(302, 82, 26, 0, 7); ctx.fillStyle = C.kick; ctx.fill();
+        rr(ctx, 24, BY + 14, 160, 70, 28); ctx.fillStyle = C.outback; ctx.fill();
+        ctx.fillStyle = C.sand; ctx.fillRect(0, BY + 68, W, H);
+        ctx.fillStyle = C.outback; ctx.fillRect(0, BY + 68, W, 5);
+      } else if (theme === 'salon') {          // the salon: mirrors and a checkered floor
+        ctx.fillStyle = C.ice; ctx.fillRect(0, 0, W, H);
+        for (const mx of [34, 256]) { rr(ctx, mx, 48, 70, 100, 30); shape(ctx, C.crease); }
+        for (let r = 0; r < 6; r++) for (let c = 0; c < 9; c++) { ctx.fillStyle = (r + c) % 2 ? C.tile : C.board; ctx.fillRect(c * 40, BY + 70 + r * 36, 40, 36); }
+        ctx.fillStyle = C.puck; ctx.fillRect(0, BY + 68, W, 3);
+      } else {
+        ctx.fillStyle = C.ice; ctx.fillRect(0, 0, W, H);
+        ctx.fillStyle = C['line-blue']; ctx.fillRect(0, BY + 70, W, 8);
+      }
+    }
+    function drawBoss(st) {
+      const theme = st.boss.theme;
+      const x = s.bx + (s.shake > 0 ? Math.sin(s.shake * 70) * 5 : 0);
+      const y = BY - s.hop * 64 - (theme === 'aussie' && st.phase === 'play' ? Math.abs(Math.sin(s.clock * 8)) * 7 : 0);
+      if (theme === 'aussie') { ctx.save(); ctx.globalAlpha = 0.28; ctx.beginPath(); ctx.ellipse(s.bx, BY + 64, 40 - s.hop * 16, 8 - s.hop * 3, 0, 0, 7); ctx.fillStyle = C.puck; ctx.fill(); ctx.restore(); }
+      ctx.save();
+      if (s.fall > 0) { ctx.translate(x, BY + 60); ctx.rotate(s.fall * 1.5); ctx.translate(-x, -(BY + 60)); ctx.globalAlpha = 1 - s.fall * 0.6; }
+      if (theme === 'aussie') {                // a kangaroo with a pouch
+        ctx.beginPath(); ctx.moveTo(x - 24, y + 40); ctx.quadraticCurveTo(x - 70, y + 62, x - 80, y + 28);
+        ctx.lineCap = 'round'; ctx.lineWidth = 14; ctx.strokeStyle = C.puck; ctx.stroke(); ctx.lineWidth = 9; ctx.strokeStyle = C.roo; ctx.stroke();
+        for (const d of [-1, 1]) { ctx.beginPath(); ctx.ellipse(x + d * 20, y + 58, 17, 7, 0, 0, 7); shape(ctx, C.roo); }
+        ctx.beginPath(); ctx.ellipse(x, y + 22, 34, 40, 0, 0, 7); shape(ctx, C.roo);
+        ctx.beginPath(); ctx.ellipse(x, y + 34, 19, 15, 0, 0, 7); shape(ctx, C.sand);
+        for (const d of [-1, 1]) { ctx.beginPath(); ctx.ellipse(x + d * 31, y + 10, 7, 13, d * 0.5, 0, 7); shape(ctx, C.roo); }
+        for (const d of [-1, 1]) { ctx.beginPath(); ctx.ellipse(x + d * 17, y - 74, 8, 19, d * 0.25, 0, 7); shape(ctx, C.roo); }
+      } else if (theme === 'salon') {          // a hairdresser: apron, scissors, hairdryer
+        rr(ctx, x - 36, y - 4, 72, 58, 12); shape(ctx, C.rubber);
+        rr(ctx, x - 16, y + 22, 32, 20, 5); shape(ctx, C.row0);
+        ctx.lineCap = 'round'; ctx.lineWidth = 4; ctx.strokeStyle = C.puck;
+        ctx.beginPath(); ctx.moveTo(x - 62, y - 16); ctx.lineTo(x - 44, y + 22); ctx.moveTo(x - 40, y - 16); ctx.lineTo(x - 58, y + 22); ctx.stroke();
+        for (const dx of [-60, -42]) { ctx.beginPath(); ctx.arc(x + dx, y + 28, 6, 0, 7); ctx.lineWidth = 3.5; ctx.strokeStyle = C.puck; ctx.stroke(); }
+        rr(ctx, x + 50, y + 10, 11, 26, 4); shape(ctx, C.row1);
+        rr(ctx, x + 40, y - 8, 32, 21, 9); shape(ctx, C.row1);
+        rr(ctx, x + 70, y - 4, 10, 13, 2); shape(ctx, C.puck);
+      } else {                                 // a plain robot, for a boss with no theme
+        rr(ctx, x - 42, y + 46, 84, 16, 8); shape(ctx, C.rubber);
+        rr(ctx, x - 38, y - 4, 76, 54, 12); shape(ctx, C['line-blue']);
+      }
+      drawFace(ctx, st.boss.photo ? faceImg('boss-' + st.boss.id) : BLANK, x, y - 36, 30, { initial: st.boss.name.charAt(0) });
+      if (st.stun) for (let i = 0; i < 3; i++) { const a = s.clock * 6 + i * 2.1; ctx.beginPath(); ctx.arc(x + Math.cos(a) * 34, y - 72 + Math.sin(a) * 8, 4, 0, 7); shape(ctx, C.kick); }
+      ctx.restore();
+      if (st.shield && st.phase === 'play' && theme !== 'aussie') {       // shield, or the hairdryer's blast
+        const tint = theme === 'salon' ? C.row0 : C['line-blue'];
+        ctx.save(); ctx.beginPath(); ctx.ellipse(s.bx, BY - 8, 70, 90, 0, 0, 7);
+        ctx.globalAlpha = 0.22; ctx.fillStyle = tint; ctx.fill();
+        ctx.globalAlpha = 1; ctx.lineWidth = 5; ctx.setLineDash([14, 9]); ctx.lineDashOffset = -s.clock * 60; ctx.strokeStyle = tint; ctx.stroke(); ctx.restore();
+      }
+    }
+    function draw(st) {
+      ctx.clearRect(0, 0, W, H);
+      scene(st.boss.theme);
+      // health bar, boss name, which boss, and the clock
+      ctx.fillStyle = C.puck; ctx.fillRect(0, 0, W, 34);
+      rr(ctx, 10, 9, 232, 16, 8); ctx.fillStyle = C.rubber; ctx.fill();
+      if (st.hp > 0) { rr(ctx, 10, 9, Math.max(16, 232 * (st.hp / st.max)), 16, 8); ctx.fillStyle = C['line-red']; ctx.fill(); }
+      ctx.font = `400 11px ${DISPLAY}`; ctx.textBaseline = 'middle'; ctx.fillStyle = C.board;
+      ctx.textAlign = 'left'; ctx.fillText(`${st.boss.name.toUpperCase()} ${st.hp}`, 18, 18);
+      ctx.textAlign = 'center'; ctx.fillStyle = C.kick; ctx.fillText(`${st.stage + 1}/${st.total}`, 272, 18);
+      ctx.textAlign = 'right'; ctx.fillStyle = st.left <= 10 ? C['line-red'] : C.board; ctx.font = `400 15px ${DISPLAY}`; ctx.fillText(`${st.left} s`, W - 10, 18);
+      drawBoss(st);
+      // my partner in the corner, me in the middle
+      ctx.save(); if (!st.here[mate]) ctx.globalAlpha = 0.35;
+      rr(ctx, 24, H - 26, 56, 40, 12); shape(ctx, shirt(mate));
+      drawFace(ctx, moodFace(cast, s, mate), 52, H - 44, 22, hat(mate)); ctx.restore();
+      if (s.streak > 0) { const k = 1 - s.streak / 0.25; weapon(mate, 52 + (s.bx - 52) * k, H - 80 + (BY - (H - 80)) * k, 0.8); }
+      rr(ctx, 140, H - 22, 80, 40, 14); shape(ctx, shirt(me));
+      drawFace(ctx, moodFace(cast, s, me), 180, H - 42, 32, hat(me));
+      if (s.shot) { const e = 1 - Math.pow(1 - Math.min(1, s.shot.t), 2); weapon(me, s.shot.x0 + (s.shot.x1 - s.shot.x0) * e, s.shot.y0 + (s.shot.y1 - s.shot.y0) * e, 1 - 0.3 * e); }
+      else if (s.rest <= 0) weapon(me, 180, H - 104, 1);
+      for (const p of s.pops) {
+        ctx.save(); ctx.globalAlpha = clamp(p.t / 0.3, 0, 1);
+        ctx.font = `400 ${p.big ? 34 : 22}px ${DISPLAY}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.lineJoin = 'round'; ctx.lineWidth = 6; ctx.strokeStyle = C.board; ctx.strokeText(p.text, p.x, BY - 80 - (0.9 - p.t) * 30);
+        ctx.fillStyle = C['line-red']; ctx.fillText(p.text, p.x, BY - 80 - (0.9 - p.t) * 30); ctx.restore();
+      }
+      if (st.phase === 'count') {
+        rr(ctx, 16, 222, W - 32, 96, 14); ctx.save(); ctx.globalAlpha = 0.9; ctx.fillStyle = C.board; ctx.fill(); ctx.restore();
+        drawNote(ctx, { text: String(st.count), color: C['line-red'], t: 1, size: 40 }, W, 246);
+        ctx.fillStyle = C.puck;
+        (st.boss.tip || '').split(/(?<=\.)\s+/).slice(0, 2).forEach((line, i) => { ctx.font = `700 13px ${BODY}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(line, W / 2, 280 + i * 18); });
+      } else {
+        if (st.phase === 'play' && !s.begun) drawTip(ctx, 'Klepni tam, kde boss stojí', W, 258);
+        drawNote(ctx, s.note, W, 258);
+      }
+    }
+    return runLoop(canvas, stage, tick);
+  }
+
   // ---- answering a code ----
   document.addEventListener('submit', (e) => {
     const form = e.target.closest('form.shot');
@@ -1226,12 +1579,15 @@ const Lite = (() => {
   document.addEventListener('click', (e) => {
     const pick = e.target.closest('[data-pick]');
     if (pick) { setPlayer(pick.dataset.pick); return; }
+    if (e.target.closest('[data-coop]')) { coopOpen(); return; }
+    if (e.target.closest('[data-coop-start]')) { post('/coop/start'); return; }
     const h = e.target.closest('[data-hint]');
     if (h) { h.nextElementSibling.hidden = false; h.hidden = true; return; }
     const sk = e.target.closest('[data-skip]');
     if (sk) { const z = +sk.dataset.skip; P.reveals[z] = 99; save(); renderZone(z); }
   });
   $('#switch').addEventListener('click', () => setPlayer(null));
+  $('#coop-back').addEventListener('click', coopClose);
 
   // start over: two taps, so a slip of the thumb does not wipe the game
   const reset = $('#reset'); let armed = 0;
@@ -1244,6 +1600,7 @@ const Lite = (() => {
   });
 
   renderPick();
+  coopPing();
   const savedPlayer = load();
   if (savedPlayer) setPlayer(savedPlayer);
 })();
