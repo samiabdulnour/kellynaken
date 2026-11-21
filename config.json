@@ -97,7 +97,7 @@
     }
   },
   "coop": {
-    "server": "",
+    "server": "https://kellynaken.onrender.com",
     "bosses": [
       {
         "id": "alan",
