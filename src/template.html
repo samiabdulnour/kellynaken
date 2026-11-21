@@ -1260,7 +1260,8 @@ h2{font:400 1.7rem/1.08 var(--font-display);text-transform:uppercase;text-wrap:b
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.font = `400 15px ${DISPLAY}`; ctx.fillStyle = C.puck; ctx.fillText(`${st.stage + 1}/${st.total}  ${st.boss.name.toUpperCase()}`, W / 2, y + 20);
     drawNote(ctx, { text: String(st.count), color: C['line-red'], t: 1, size: 36 }, W, y + 53);
-    ctx.fillStyle = C.puck; ctx.font = `700 13px ${BODY}`;
+    drawFace(ctx, bossFace(st.boss), 56, y + 50, 25, { initial: st.boss.name.charAt(0) });
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = C.puck; ctx.font = `700 13px ${BODY}`;
     tipLines(st.boss.tip).forEach((line, i) => ctx.fillText(line, W / 2, y + 84 + i * 17));
   }
   function hudBar(ctx, st, W) {            // dark strip: which boss, and the clock
@@ -1365,7 +1366,7 @@ h2{font:400 1.7rem/1.08 var(--font-display);text-transform:uppercase;text-wrap:b
   function coopSurf(canvas) {
     const W = 360, H = 320, SX = 92, SEA = 238, SPEED = 175, G = 980, JUMP = 345, cast = CAST.coop, me = co.who, mate = me === 'ken' ? 'kel' : 'ken';
     const stage = makeStage(canvas, W, H), ctx = stage.ctx;
-    const s = { y: 0, vy: 0, gy: 0, gvy: 0, inv: 0, base: null, t: 0, hitMine: new Set(), note: null, mood: null, clock: 0, begun: false, passed: false };
+    const s = { y: 0, vy: 0, gy: 0, gvy: 0, inv: 0, smug: 0, base: null, t: 0, hitMine: new Set(), note: null, mood: null, clock: 0, begun: false, passed: false };
     canvas._g = s;
     const sync = (st) => { if (st.surf) s.base = { t: st.surf.t, at: performance.now(), run: st.phase === 'play' }; };
     co.onState = sync; sync(co.st);
@@ -1376,7 +1377,7 @@ h2{font:400 1.7rem/1.08 var(--font-display);text-transform:uppercase;text-wrap:b
     });
     co.onEvent = (ev) => {
       if (ev.jump && ev.who === mate && s.gy <= 0) s.gvy = JUMP;
-      if (ev.crash) { blip(180, 140); setMood(s, ev.who === 'ken' ? 'lose' : 'normal', ev.who === 'kel' ? 'lose' : 'normal'); if (ev.who === mate) s.note = { text: `${N[mate].nom}: au!`, color: C['line-red'], t: 0.9, size: 22 }; }
+      if (ev.crash) { s.smug = 1.5; blip(180, 140); setMood(s, ev.who === 'ken' ? 'lose' : 'normal', ev.who === 'kel' ? 'lose' : 'normal'); if (ev.who === mate) s.note = { text: `${N[mate].nom}: au!`, color: C['line-red'], t: 0.9, size: 22 }; }
     };
     const fly = (y, vy, dt) => { if (vy === 0 && y <= 0) return [0, 0]; y += vy * dt; vy -= G * dt; return y <= 0 ? [0, 0] : [y, vy]; };
     function tick(dt) {
@@ -1386,6 +1387,7 @@ h2{font:400 1.7rem/1.08 var(--font-display);text-transform:uppercase;text-wrap:b
       [s.y, s.vy] = fly(s.y, s.vy, dt);
       [s.gy, s.gvy] = fly(s.gy, s.gvy, dt);
       if (s.inv > 0) s.inv -= dt;
+      if (s.smug > 0) s.smug -= dt;
       if (st.phase === 'play' && s.inv <= 0) st.surf.obs.forEach((o, i) => {
         if (s.hitMine.has(i) || Math.abs((o.t - s.t) * SPEED) > 17) return;
         if (o.k ? s.y > 26 : s.y < 20) { s.hitMine.add(i); s.inv = 1.2; s.note = { text: 'Au!', color: C['line-red'], t: 0.8 }; post('/coop/crash', { who: me, i }); }
@@ -1407,8 +1409,10 @@ h2{font:400 1.7rem/1.08 var(--font-display);text-transform:uppercase;text-wrap:b
       const t = s.t, total = st.surf.total;
       ctx.clearRect(0, 0, W, H);
       ctx.fillStyle = C.sky; ctx.fillRect(0, 0, W, H);
-      ctx.beginPath(); ctx.arc(300, 86, 24, 0, 7); ctx.fillStyle = C.kick; ctx.fill();
-      rr(ctx, 26, 128, 128, 60, 24); ctx.fillStyle = C.outback; ctx.fill();          // the big red rock on the far shore
+      ctx.beginPath(); ctx.arc(52, 84, 24, 0, 7); ctx.fillStyle = C.kick; ctx.fill();
+      rr(ctx, 196, 126, 136, 62, 24); ctx.fillStyle = C.outback; ctx.fill();         // the big red rock on the far shore
+      const beach = SX + (total - t) * SPEED + 70;                                    // the beach arrives at the end
+      if (beach > W) { ctx.save(); ctx.translate(264, 116); ctx.scale(0.62, 0.62); drawRoo(ctx, 0, 0, bossFace(st.boss, s.smug > 0 ? 'cool' : ''), st.boss.name.charAt(0)); ctx.restore(); }   // the boss watches from the rock
       ctx.fillStyle = C.sea; ctx.fillRect(0, 168, W, H);
       ctx.fillStyle = C['sea-deep']; ctx.fillRect(0, SEA + 8, W, H);
       ctx.strokeStyle = C.board; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
@@ -1418,10 +1422,9 @@ h2{font:400 1.7rem/1.08 var(--font-display);text-transform:uppercase;text-wrap:b
         for (let x = -60 - shift; x < W + 60; x += 60) { ctx.moveTo(x, y); ctx.quadraticCurveTo(x + 15, y - 7, x + 30, y); }
         ctx.stroke();
       }
-      const beach = SX + (total - t) * SPEED + 70;                                    // the beach arrives at the end
       if (beach < W + 100) {
         ctx.fillStyle = C.sand; ctx.fillRect(beach, 168, W, H);
-        drawRoo(ctx, beach + 86, SEA - 60, bossFace(st.boss), st.boss.name.charAt(0));
+        drawRoo(ctx, beach + 86, SEA - 60, bossFace(st.boss, 'happy'), st.boss.name.charAt(0));
       }
       st.surf.obs.forEach((o) => {
         const x = SX + (o.t - t) * SPEED;

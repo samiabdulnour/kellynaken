@@ -27,7 +27,7 @@ const BOSSES = (coop.bosses && coop.bosses.length ? coop.bosses : [{ id: 'boss',
   if (env('COOP_SECONDS')) full.seconds = env('COOP_SECONDS');
   if (env('COOP_ROUNDS')) full.rounds = env('COOP_ROUNDS');
   if (env('COOP_TARGET')) full.target = env('COOP_TARGET');
-  full.faces = ['', 'cool', 'serious'].filter((v) => has(`boss-${full.id}${v ? '-' + v : ''}.jpg`));   // which photos exist
+  full.faces = ['', 'cool', 'serious', 'happy'].filter((v) => has(`boss-${full.id}${v ? '-' + v : ''}.jpg`));   // which photos exist
   return full;
 });
 
