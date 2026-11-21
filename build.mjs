@@ -54,7 +54,8 @@ const page = read('src/template.html')
   .replaceAll('@@SIGNOFF@@', esc(cfg.signoff))
   .replaceAll('@@FOOTER@@', esc(cfg.footer))
   .replace('/*@@NAMES@@*/null', () => JSON.stringify(cfg.names))
-  .replace('/*@@CARDS@@*/null', () => JSON.stringify(cards));
+  .replace('/*@@CARDS@@*/null', () => JSON.stringify(cards))
+  .replace('/*@@COOP@@*/null', () => JSON.stringify((cfg.coop && cfg.coop.server) || ''));
 // no answer may be readable in the page, with or without accents and spaces
 const flat = Lite.norm(page);
 for (const a of answers) if (flat.includes(Lite.norm(a))) throw new Error('an answer is readable in the page source: ' + a);
