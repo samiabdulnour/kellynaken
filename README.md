@@ -36,16 +36,16 @@ The site appears at `https://<your-user>.github.io/kellynaken/` a minute or two 
 ## Playing together
 
 When a kid finishes their own operation, the final card offers **Společná mise**: three boss rounds
-that the two of them play together, each on their own phone.
+that the two of them play together, each on their own phone. The bosses' names stay hidden until each one appears.
 
 | Boss | Round |
 |---|---|
 | Alan | Drums. The boss plays a pattern on four pads and the kids repeat it. Each kid owns two of the pads. |
-| Sami | Australia. A kangaroo that cannot be hit while it is in the air. |
-| Leila | The salon. Fast, a hairdryer that blows shots away, and she darts off when hit. |
+| Sami | Surfing. A runner on a shared wave: tap to jump the sharks, stay low under the boomerangs. Every crash costs one of the shared lives. |
+| Leila | The salon. Both kids run around one room collecting flowers for her while she chases whoever is nearest. Whoever she catches gets combed for a moment, and a flower wilts. |
 
-In the two fights both kids tap the boss and share one health bar. Two hits close together count triple.
-A boss that beats them comes back with a little less health.
+A round that beats them comes back a little kinder, so they cannot get stuck forever.
+Getting through all three drops a treasure chest: tap it and it opens on a special photo and the shared final message.
 
 This part needs a small server, because a plain web host cannot connect two phones:
 
@@ -55,11 +55,16 @@ node server.mjs
 
 Then open `http://localhost:8080` on two devices on the same network, or in two browser windows, one as each kid.
 `server.mjs` serves `docs/` and keeps the shared round; it has no dependencies.
-On a host without it, such as GitHub Pages, the rest of the site works and the co-op card simply does not appear.
+On a host without it, the rest of the site works and the co-op card simply does not appear.
 
 The bosses, their difficulty and the shared final message live under `coop` in `config.json`.
-To give a boss a face, add `photos/boss-<id>.jpg` (a square crop) and rebuild.
-If the page is hosted somewhere else, set `coop.server` to the server's address.
+Photos go in `photos/` as square crops, then rebuild:
+
+| File | Used for |
+|---|---|
+| `boss-<id>.jpg` | A boss's face. Without it the boss shows their initial. |
+| `boss-<id>-cool.jpg`, `boss-<id>-serious.jpg` | Optional extra faces for the drum boss: while playing the pattern, and after a wrong note. |
+| `truhla.jpg` | The special photo inside the chest. |
 
 ### Hosting the server
 

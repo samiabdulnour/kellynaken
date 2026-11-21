@@ -103,53 +103,35 @@
         "id": "alan",
         "name": "Alan",
         "kind": "drums",
-        "theme": "drums",
-        "blurb": "bubenický souboj",
         "rounds": 4,
         "first": 3,
         "seconds": 90,
-        "tip": "Alan zahraje rytmus. Zopakujte ho ve stejném pořadí. Každý má dva bubny."
+        "tip": "Zahraje rytmus. Zopakujte ho ve stejném pořadí. Každý má dva bubny."
       },
       {
         "id": "sami",
         "name": "Sami",
-        "kind": "fight",
-        "theme": "aussie",
-        "blurb": "australská sága",
-        "hp": 36,
-        "speed": [
-          80,
-          145
-        ],
-        "shield": [
-          2.4,
-          1.1
-        ],
-        "seconds": 70,
-        "tip": "Trefujte, dokud je na zemi. Ve skoku se zasáhnout nedá."
+        "kind": "surf",
+        "seconds": 45,
+        "lives": 4,
+        "tip": "Klepni a přeskoč žraloka. Pod bumerangem zůstaň dole."
       },
       {
         "id": "leila",
         "name": "Leila",
-        "kind": "fight",
-        "theme": "salon",
-        "blurb": "kadeřnické finále",
-        "hp": 54,
+        "kind": "chase",
+        "seconds": 75,
+        "target": 18,
         "speed": [
-          105,
-          190
+          82,
+          130
         ],
-        "shield": [
-          1.9,
-          1.1
-        ],
-        "dash": true,
-        "seconds": 70,
-        "tip": "Leila je rychlá a má fén. Střílejte oba skoro najednou."
+        "freeze": 2.2,
+        "tip": "Sbírejte pro ni kytky. Koho chytí, toho učeše."
       }
     ],
     "win": {
-      "heading": "Všichni tři jsou K.O.!",
+      "heading": "Prošli jste všechno!",
       "lines": [
         "Tohle je jen ukázka. Sem přijde společné tajemství pro oba.",
         "Třeba: Koukněte se oba pod polštář."

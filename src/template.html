@@ -18,6 +18,7 @@
   --gold:#F2B90F; --silver:#B7C0CC; --bronze:#C9793A; --shine:rgba(255,255,255,.45);
   --row0:#F0448F; --row1:#7B3FE4; --row2:#1E88E5; --row3:#1FA463; --row4:#FFC61A;
   --sky:#FFE2B0; --outback:#D9622B; --roo:#C98A4B; --sand:#F5D7A1; --tile:#FFD6E6; --shade:rgba(0,0,0,.2);
+  --sea:#34AEDD; --sea-deep:#1D82B8; --wood-deep:#8B5A2B; --glow:rgba(242,185,15,.5);
   --font-display:'Bungee','Arial Black',Impact,sans-serif;
   --font-jersey:'Graduate','Rockwell','Courier New',serif;
   --font-body:'Barlow','Trebuchet MS','Segoe UI',sans-serif;
@@ -248,7 +249,7 @@ h2{font:400 1.7rem/1.08 var(--font-display);text-transform:uppercase;text-wrap:b
 .medal.gold.in{background:var(--gold)}
 .medal.silver.in{background:var(--silver)}
 .medal.bronze.in{background:var(--bronze)}
-.secret{background:var(--board);border:4px solid var(--puck);border-radius:18px;box-shadow:7px 7px 0 var(--line-blue);padding:1.4rem 1.2rem;display:grid;gap:.7rem;max-width:30rem;transform:rotate(-1.2deg);text-align:left}
+.secret{background:var(--board);color:var(--ink);border:4px solid var(--puck);border-radius:18px;box-shadow:7px 7px 0 var(--line-blue);padding:1.4rem 1.2rem;display:grid;gap:.7rem;max-width:30rem;transform:rotate(-1.2deg);text-align:left}
 .secret h3{margin:0;font:400 clamp(1.5rem,7vw,2rem)/1 var(--font-display);text-transform:uppercase;color:var(--line-red)}
 .secret p{font-size:1.2rem;font-weight:600;line-height:1.4}
 .secret .sign{font-size:1rem;font-weight:700;justify-self:end}
@@ -296,6 +297,23 @@ h2{font:400 1.7rem/1.08 var(--font-display);text-transform:uppercase;text-wrap:b
 .pad:disabled{opacity:.45;border-style:dashed;cursor:default}
 .pad.hit{transform:scale(.93);filter:brightness(1.7);opacity:1}
 .coop .game{max-width:26rem}
+.chest-stage{position:relative;width:100%;max-width:22rem;height:20rem;display:grid;justify-items:center;align-items:end;margin-inline:auto}
+.chest{position:relative;width:11rem;height:8.6rem;background:none;border:0;padding:0;cursor:pointer;transition:transform .5s;animation:chest-drop .95s cubic-bezier(.3,1.3,.6,1) backwards,chest-wiggle 1.5s 1.3s infinite}
+@keyframes chest-drop{0%{transform:translateY(-80vh) rotate(-10deg)}62%{transform:translateY(0) rotate(4deg)}80%{transform:translateY(-1.3rem) rotate(-3deg)}100%{transform:none}}
+@keyframes chest-wiggle{0%,60%,100%{transform:rotate(0)}70%{transform:rotate(-4deg)}80%{transform:rotate(4deg)}90%{transform:rotate(-2deg)}}
+.chest-box,.chest-lid{position:absolute;left:0;right:0;border:4px solid var(--puck);background-image:linear-gradient(90deg,transparent 0 12%,var(--gold) 12% 21%,transparent 21% 79%,var(--gold) 79% 88%,transparent 88%)}
+.chest-box{top:3.3rem;bottom:0;background-color:var(--wood);border-radius:0 0 12px 12px}
+.chest-box i{position:absolute;left:50%;top:-.4rem;width:1.9rem;height:2.1rem;transform:translateX(-50%);background:var(--gold);border:3px solid var(--puck);border-radius:5px}
+.chest-lid{top:0;height:3.7rem;background-color:var(--wood-deep);border-radius:3rem 3rem 0 0;transform-origin:8% 100%;transition:transform .55s cubic-bezier(.3,1.5,.6,1)}
+.chest-glow{position:absolute;left:50%;top:3.3rem;width:1rem;height:1rem;border-radius:50%;background:var(--glow);box-shadow:0 0 3rem 2rem var(--glow);opacity:0;transform:translate(-50%,-50%);transition:opacity .5s,width .7s,height .7s}
+.chest-stage.open .chest{animation:none;transform:translateY(.6rem) scale(.86)}
+.chest-stage.open .chest-lid{transform:rotate(-62deg)}
+.chest-stage.open .chest-glow{opacity:1;width:15rem;height:15rem}
+.prize{position:absolute;left:50%;bottom:5.4rem;margin:0;width:11.5rem;background:var(--board);color:var(--ink);border:4px solid var(--puck);border-radius:8px;padding:.5rem .5rem .6rem;box-shadow:6px 6px 0 var(--line-blue);opacity:0;transform:translate(-50%,4rem) scale(.1) rotate(-14deg);transition:transform .8s cubic-bezier(.2,1.4,.5,1) .3s,opacity .3s .3s;pointer-events:none}
+.chest-stage.open .prize{opacity:1;transform:translate(-50%,0) scale(1) rotate(-3deg)}
+.prize img{display:block;width:100%;aspect-ratio:1;object-fit:cover;border:3px solid var(--puck);border-radius:4px}
+.prize-empty{aspect-ratio:1;display:grid;place-content:center;text-align:center;background:var(--ice-cut);border:3px dashed var(--mesh);border-radius:4px;font-weight:700;padding:.6rem;color:var(--ink-soft)}
+.prize figcaption{margin-top:.5rem;font:400 .85rem/1.1 var(--font-display);text-transform:uppercase;text-align:center;color:var(--line-red)}
 .coop-invite{background:var(--puck);color:var(--board);border-radius:18px;padding:1.2rem;display:grid;gap:.7rem;justify-items:start;text-align:left;width:100%;max-width:30rem}
 .coop-invite h3{margin:0;font:400 1.4rem/1.05 var(--font-display);text-transform:uppercase;color:var(--kick)}
 .coop-invite p{font-weight:600}
@@ -560,7 +578,7 @@ h2{font:400 1.7rem/1.08 var(--font-display);text-transform:uppercase;text-wrap:b
 
   // ---- minigames ----
   const C = {};
-  const COLOR_KEYS = ['ice', 'ice-cut', 'crease', 'puck', 'rubber', 'line-red', 'line-blue', 'board', 'mesh', 'kick', 'kick-deep', 'ink-soft', 'skin', 'wood', 'sky', 'outback', 'roo', 'sand', 'tile', 'row0', 'row1'];
+  const COLOR_KEYS = ['ice', 'ice-cut', 'crease', 'puck', 'rubber', 'line-red', 'line-blue', 'board', 'mesh', 'kick', 'kick-deep', 'ink-soft', 'skin', 'wood', 'sky', 'outback', 'roo', 'sand', 'tile', 'row0', 'row1', 'row3', 'sea', 'sea-deep', 'gold'];
   function readColors() { const cs = getComputedStyle(root); COLOR_KEYS.forEach((k) => { C[k] = cs.getPropertyValue('--' + k).trim(); }); }
   const faceCache = {};
   const faceImg = (name) => faceCache[name] || (faceCache[name] = Object.assign(new Image(), { src: name + '.jpg' }));
@@ -1065,7 +1083,7 @@ h2{font:400 1.7rem/1.08 var(--font-display);text-transform:uppercase;text-wrap:b
       : `<div class="goalmouth" aria-hidden="true"><div class="crease"></div><div class="rline rline-goal"></div>
           <div class="goal">${[0, 1, 2].map((i) => `<span class="slot${i < goals ? ' in' : ''}"></span>`).join('')}</div></div>`;
     net.dataset.state = fin ? 'scored' : 'waiting';
-    const invite = fin && co.ok ? `<div class="coop-invite"><h3>Společná mise</h3><p>Ještě není konec. ${bossCount()}: ${co.bosses.map((b) => esc(b.name)).join(', ')}. Porazíte je jen spolu, každý na svém telefonu.</p><button type="button" class="btn" data-coop>Jdeme na to</button></div>` : '';
+    const invite = fin && co.ok ? `<div class="coop-invite"><h3>Společná mise</h3><p>Ještě není konec. ${bossCount()}. Kdo to je, zjistíte až na místě. Projdete jen spolu, každý na svém telefonu.</p><button type="button" class="btn" data-coop>Jdeme na to</button></div>` : '';
     $('#coop-link').hidden = !invite;
     net.innerHTML = fin
       ? `<div class="zone-head"><span class="ztag">${T.finalTag}</span></div>
@@ -1126,11 +1144,15 @@ h2{font:400 1.7rem/1.08 var(--font-display);text-transform:uppercase;text-wrap:b
 
   // ---- playing together: the bosses, two phones (needs server.mjs) ----
   const COOP = /*@@COOP@@*/null || '';
-  const co = { ok: false, bosses: [], who: null, es: null, st: null, seen: 0, screen: '', stopGame: null, onEvent: null, onState: null };
+  const co = { ok: false, total: 0, who: null, es: null, st: null, seen: 0, screen: '', stopGame: null, onEvent: null, onState: null };
   const BLANK = new Image();
+  const PASS = { ken: 'Prošel jsi!', kel: 'Prošla jsi!' };
   const plural = (n, one, few, many) => (n === 1 ? one : n >= 2 && n <= 4 ? few : many);
-  const bossCount = () => { const n = co.bosses.length; return `${plural(n, 'Čeká na vás', 'Čekají na vás', 'Čeká na vás')} ${n} ${plural(n, 'boss', 'bossové', 'bossů')}`; };
+  const bossCount = () => { const n = co.total; return `${plural(n, 'Čeká na vás', 'Čekají na vás', 'Čeká na vás')} ${n} ${plural(n, 'boss', 'bossové', 'bossů')}`; };
   const post = (p, body) => fetch(COOP + p, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(body || {}) }).catch(() => {});
+  // a boss's photo in a given mood, falling back to the plain one, then to nothing (an initial is drawn instead)
+  const bossFile = (b, mood) => { const m = b.faces.includes(mood) ? mood : ''; return b.faces.includes(m) ? `boss-${b.id}${m ? '-' + m : ''}` : ''; };
+  const bossFace = (b, mood) => { const f = bossFile(b, mood || ''); return f ? faceImg(f) : BLANK; };
   // A free host puts the server to sleep when nobody visits. This ping wakes it, and repeating it
   // every few minutes keeps it awake for as long as one of the kids has the page open.
   let pingTries = 0;
@@ -1140,7 +1162,7 @@ h2{font:400 1.7rem/1.08 var(--font-display);text-transform:uppercase;text-wrap:b
     fetch(COOP + '/coop/ping').then((r) => (r.ok ? r.json() : null)).then((j) => {
       if (!j || !j.ok) return again();
       const first = !co.ok;
-      co.ok = true; co.bosses = j.bosses || [];
+      co.ok = true; co.total = j.total || 0;
       if (first) { setInterval(coopPing, 4 * 60 * 1000); if (player && !$('#game').hidden) renderNet(); }
     }).catch(again);
   }
@@ -1178,34 +1200,104 @@ h2{font:400 1.7rem/1.08 var(--font-display);text-transform:uppercase;text-wrap:b
     const body = $('#coop-body');
     coopLeaveScreen();
     if (st.phase === 'lobby') {
-      body.innerHTML = `<p class="coop-lede">${bossCount()}. Porazíte je jen spolu, každý na svém telefonu.</p>
-        <ol class="bosses">${co.bosses.map((b) => `<li>${esc(b.name)}${b.blurb ? `<small>${esc(b.blurb)}</small>` : ''}</li>`).join('')}</ol>
+      body.innerHTML = `<p class="coop-lede">${bossCount()}. Kdo to je, zjistíte až na místě. Projdete jen spolu, každý na svém telefonu.</p>
+        <ol class="bosses" id="coop-bosses"></ol>
         <div class="coop-team">${IDS.map((id) => `<div class="mate theme-${id}" data-mate="${id}" data-here="0"><img src="${id}.jpg" width="176" height="176" alt=""><b>${esc(N[id].nom)}</b><span></span></div>`).join('')}</div>
         <button type="button" class="btn" data-coop-start disabled>Start</button>
         <p class="coop-lede" id="coop-wait"></p>`;
     } else if (st.phase === 'won') {
-      const w = st.win || { heading: '', lines: [] };
-      body.innerHTML = `<div class="secret"><h3>${esc(w.heading)}</h3>${w.lines.map((l) => `<p>${esc(l)}</p>`).join('')}<p class="sign">${esc(SIGNOFF)}</p></div>
-        <button type="button" class="btn" data-coop-start>Hrát znovu</button>`;
-      horn(); rain();
+      coopChest(body, st.win || { heading: '', lines: [] });
     } else if (st.phase === 'lost') {
-      const drums = st.boss.kind === 'drums';
-      const left = drums ? `${st.hp} ${plural(st.hp, 'rytmus', 'rytmy', 'rytmů')}` : `${st.hp} ${plural(st.hp, 'život', 'životy', 'životů')}`;
-      body.innerHTML = `<p class="coop-lede"><strong>Čas vypršel.</strong> ${esc(st.boss.name)}: ještě ${left}. Zkuste to znovu, začínáte u stejného bosse${drums ? '' : ' a ten už bude trochu unavený'}.</p>
+      const kind = st.boss.kind;
+      const why = kind === 'surf' ? '<strong>Došly vám životy.</strong> Příště dostanete jeden navíc.'
+        : kind === 'chase' ? `<strong>Čas vypršel.</strong> Chybí ještě ${st.hp} ${plural(st.hp, 'kytka', 'kytky', 'kytek')}. Příště jich bude stačit míň.`
+        : `<strong>Čas vypršel.</strong> Ještě ${st.hp} ${plural(st.hp, 'rytmus', 'rytmy', 'rytmů')}.`;
+      body.innerHTML = `<p class="coop-lede">${why} Zkuste to znovu, začínáte u stejného bosse.</p>
         <button type="button" class="btn" data-coop-start>Zkusit znovu</button>`;
     } else if (st.boss.kind === 'drums') {
       co.stopGame = coopDrums(body);
     } else {
-      body.innerHTML = '<div class="game" data-kind="shoot"><canvas width="360" height="400" role="img" aria-label="Společná hra: klepni na bosse a tref ho."></canvas></div>';
-      co.stopGame = coopGame($('canvas', body));
+      const surf = st.boss.kind === 'surf';
+      body.innerHTML = `<div class="game" data-kind="${surf ? 'shoot' : 'catch'}"><canvas width="360" height="${surf ? 320 : 400}" role="img" aria-label="${surf ? 'Společná hra: surfování. Klepni a skoč.' : 'Společná hra: sbírejte kytky a utíkejte.'}"></canvas></div>`;
+      co.stopGame = (surf ? coopSurf : coopChase)($('canvas', body));
     }
   }
   function coopLobby(st) {
     const ready = { ken: 'připraven', kel: 'připravena' };
+    const list = Array.from({ length: st.total }, (_, i) => `<li>${st.seen[i] ? esc(st.seen[i]) : '???'}</li>`).join('');
+    const ol = $('#coop-bosses'); if (ol.innerHTML !== list) ol.innerHTML = list;
     for (const id of IDS) { const m = $(`[data-mate="${id}"]`); m.dataset.here = st.here[id] ? '1' : '0'; m.lastElementChild.textContent = st.here[id] ? ready[id] : 'čekáme…'; }
     const both = st.here.ken && st.here.kel, mate = co.who === 'ken' ? 'kel' : 'ken';
     $('[data-coop-start]').disabled = !both;
     $('#coop-wait').textContent = both ? 'Jste tu oba. Zmáčkněte Start.' : `Čekáme na ${N[mate].acc}. Stejné tlačítko najde na konci své operace.`;
+  }
+  // The ending: a chest lands, opens on a tap, and the special photo flies out.
+  function coopChest(body, w) {
+    body.innerHTML = `<div class="chest-stage" id="chest-stage">
+        <button type="button" class="chest" id="chest" aria-label="Otevřít truhlu"><span class="chest-glow"></span><span class="chest-lid"></span><span class="chest-box"><i></i></span></button>
+        <figure class="prize">${w.photo ? '<img src="truhla.jpg" alt="Speciální fotka">' : '<div class="prize-empty">Tady bude speciální fotka</div>'}<figcaption>${esc(w.heading)}</figcaption></figure>
+      </div>
+      <p class="coop-lede" id="chest-tip">Přistála truhla. Klepni na ni!</p>
+      <div class="secret" id="chest-secret" hidden>${w.lines.map((l) => `<p>${esc(l)}</p>`).join('')}<p class="sign">${esc(SIGNOFF)}</p></div>
+      <button type="button" class="btn" id="chest-again" data-coop-start hidden>Hrát znovu</button>`;
+    let opened = false;
+    const open = () => {
+      if (opened || !$('#chest-stage')) return;
+      opened = true;
+      $('#chest-stage').classList.add('open'); $('#chest-tip').hidden = true;
+      fanfare(); rain();
+      setTimeout(() => { const sec = $('#chest-secret'); if (sec) { sec.hidden = !w.lines.length; $('#chest-again').hidden = false; } }, 1300);
+    };
+    $('#chest').addEventListener('click', open);
+    setTimeout(open, 7000);
+    horn();
+  }
+
+  // shared drawing for the canvas rounds
+  const tipLines = (tip) => ((tip || '').match(/[^.!?]+[.!?]?/g) || []).map((x) => x.trim()).filter(Boolean).slice(0, 2);
+  function countCard(ctx, st, W, y) {      // the 3-2-1 card that reveals who the boss is
+    rr(ctx, 16, y, W - 32, 116, 14); ctx.save(); ctx.globalAlpha = 0.93; ctx.fillStyle = C.board; ctx.fill(); ctx.restore();
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = `400 15px ${DISPLAY}`; ctx.fillStyle = C.puck; ctx.fillText(`${st.stage + 1}/${st.total}  ${st.boss.name.toUpperCase()}`, W / 2, y + 20);
+    drawNote(ctx, { text: String(st.count), color: C['line-red'], t: 1, size: 36 }, W, y + 53);
+    ctx.fillStyle = C.puck; ctx.font = `700 13px ${BODY}`;
+    tipLines(st.boss.tip).forEach((line, i) => ctx.fillText(line, W / 2, y + 84 + i * 17));
+  }
+  function hudBar(ctx, st, W) {            // dark strip: which boss, and the clock
+    ctx.fillStyle = C.puck; ctx.fillRect(0, 0, W, 34);
+    ctx.textBaseline = 'middle'; ctx.textAlign = 'center'; ctx.font = `400 11px ${DISPLAY}`; ctx.fillStyle = C.kick; ctx.fillText(`${st.stage + 1}/${st.total}`, 272, 18);
+    ctx.textAlign = 'right'; ctx.font = `400 15px ${DISPLAY}`; ctx.fillStyle = st.left <= 10 ? C['line-red'] : C.board; ctx.fillText(`${st.left} s`, W - 10, 18);
+  }
+  function heart(ctx, x, y, r, fill) {
+    ctx.beginPath(); ctx.moveTo(x, y + r);
+    ctx.bezierCurveTo(x - r * 1.7, y - r * 0.1, x - r * 0.8, y - r * 1.3, x, y - r * 0.35);
+    ctx.bezierCurveTo(x + r * 0.8, y - r * 1.3, x + r * 1.7, y - r * 0.1, x, y + r);
+    ctx.fillStyle = fill; ctx.fill(); ctx.lineWidth = 1.5; ctx.strokeStyle = C.board; ctx.stroke();
+  }
+  const kidHat = (who) => (who === 'ken' ? { helmet: C['line-red'] } : { bow: C.row0 });
+  const kidShirt = (who) => (who === 'ken' ? C['line-red'] : C.row0);
+  // a kangaroo with a pouch; the face sits at (x, y - 36)
+  function drawRoo(ctx, x, y, face, initial) {
+    ctx.beginPath(); ctx.moveTo(x - 24, y + 40); ctx.quadraticCurveTo(x - 70, y + 62, x - 80, y + 28);
+    ctx.lineCap = 'round'; ctx.lineWidth = 14; ctx.strokeStyle = C.puck; ctx.stroke(); ctx.lineWidth = 9; ctx.strokeStyle = C.roo; ctx.stroke();
+    for (const d of [-1, 1]) { ctx.beginPath(); ctx.ellipse(x + d * 20, y + 58, 17, 7, 0, 0, 7); shape(ctx, C.roo); }
+    ctx.beginPath(); ctx.ellipse(x, y + 22, 34, 40, 0, 0, 7); shape(ctx, C.roo);
+    ctx.beginPath(); ctx.ellipse(x, y + 34, 19, 15, 0, 0, 7); shape(ctx, C.sand);
+    for (const d of [-1, 1]) { ctx.beginPath(); ctx.ellipse(x + d * 31, y + 10, 7, 13, d * 0.5, 0, 7); shape(ctx, C.roo); }
+    for (const d of [-1, 1]) { ctx.beginPath(); ctx.ellipse(x + d * 17, y - 74, 8, 19, d * 0.25, 0, 7); shape(ctx, C.roo); }
+    drawFace(ctx, face, x, y - 36, 30, { initial });
+  }
+  // a hairdresser: apron, scissors, hairdryer; the face sits at (x, y - 36)
+  function drawStylist(ctx, x, y, face, initial) {
+    rr(ctx, x - 36, y - 4, 72, 58, 12); shape(ctx, C.rubber);
+    rr(ctx, x - 16, y + 22, 32, 20, 5); shape(ctx, C.row0);
+    ctx.lineCap = 'round'; ctx.lineWidth = 4; ctx.strokeStyle = C.puck;
+    ctx.beginPath(); ctx.moveTo(x - 62, y - 16); ctx.lineTo(x - 44, y + 22); ctx.moveTo(x - 40, y - 16); ctx.lineTo(x - 58, y + 22); ctx.stroke();
+    for (const dx of [-60, -42]) { ctx.beginPath(); ctx.arc(x + dx, y + 28, 6, 0, 7); ctx.lineWidth = 3.5; ctx.strokeStyle = C.puck; ctx.stroke(); }
+    rr(ctx, x + 50, y + 10, 11, 26, 4); shape(ctx, C.row1);
+    rr(ctx, x + 40, y - 8, 32, 21, 9); shape(ctx, C.row1);
+    rr(ctx, x + 70, y - 4, 10, 13, 2); shape(ctx, C.puck);
+    drawFace(ctx, face, x, y - 36, 30, { initial });
   }
 
   // Boss round 1: drums. The boss plays a pattern on four pads; the kids repeat it, each on their own two.
@@ -1230,14 +1322,15 @@ h2{font:400 1.7rem/1.08 var(--font-display);text-transform:uppercase;text-wrap:b
   function coopDrums(body) {
     const me = co.who, PADS = ['Buben', 'Virbl', 'Činel', 'Tom'], OWNER = ['ken', 'ken', 'kel', 'kel'], b = co.st.boss;
     body.innerHTML = `<div class="kit">
-        <div class="kit-top"><div class="boss-face">${b.photo ? `<img src="boss-${b.id}.jpg" alt="">` : esc(b.name.charAt(0))}</div>
+        <div class="kit-top"><div class="boss-face" id="kit-face">${esc(b.name.charAt(0))}</div>
           <div><b class="kit-name">${esc(b.name)}</b><span class="kit-hp" id="kit-hp"></span></div><span class="kit-time" id="kit-time"></span></div>
         <p class="kit-say" id="kit-say" aria-live="polite"></p>
         <div class="kit-dots" id="kit-dots"></div>
         ${[0, 2].map((a) => `<p class="sub kit-own">${esc(N[OWNER[a]].nom)}</p><div class="pads">${[a, a + 1].map((i) => `<button type="button" class="pad pad-${i}" data-pad="${i}"${OWNER[i] === me ? '' : ' disabled'}>${PADS[i]}</button>`).join('')}</div>`).join('')}
       </div>`;
-    const pads = [...body.querySelectorAll('.pad')], sayEl = $('#kit-say', body);
-    let shown = '', sticky = 0, wasDown = false;
+    const pads = [...body.querySelectorAll('.pad')], sayEl = $('#kit-say', body), faceEl = $('#kit-face', body);
+    let shown = '', sticky = 0, wasDown = false, faceNow = null, grumpy = 0;
+    const setFace = (mood) => { const f = bossFile(b, mood); if (f === faceNow) return; faceNow = f; if (f) faceEl.innerHTML = `<img src="${f}.jpg" alt="">`; };
     const flash = (i) => { const p = pads[i]; p.classList.remove('hit'); void p.offsetWidth; p.classList.add('hit'); setTimeout(() => p.classList.remove('hit'), 220); drumSound(i); };
     const hold = (text, ms) => { sticky = Date.now() + ms; sayEl.textContent = text; };
     pads.forEach((p, i) => p.addEventListener('pointerdown', () => {
@@ -1247,7 +1340,7 @@ h2{font:400 1.7rem/1.08 var(--font-display);text-transform:uppercase;text-wrap:b
     }));
     co.onEvent = (ev) => {
       if ('pad' in ev && ev.who !== me) flash(ev.pad);
-      if (ev.wrong) { hold('Vedle. Ještě jednou od začátku.', 1500); blip(200); }
+      if (ev.wrong) { hold('Vedle. Ještě jednou od začátku.', 1500); grumpy = Date.now() + 1500; blip(200); }
       if (ev.dmg) { hold('Správně!', 1300); blip(660, 880, 1100); }
     };
     co.onState = (st) => {
@@ -1255,164 +1348,171 @@ h2{font:400 1.7rem/1.08 var(--font-display);text-transform:uppercase;text-wrap:b
       $('#kit-time', body).textContent = st.left + ' s';
       $('#kit-hp', body).textContent = `ještě ${st.hp} ${plural(st.hp, 'rytmus', 'rytmy', 'rytmů')}`;
       $('#kit-dots', body).innerHTML = Array.from({ length: d.len }, (_, i) => `<i${i < d.pos ? ' class="on"' : ''}></i>`).join('');
+      setFace(Date.now() < grumpy ? 'serious' : d.mode === 'show' && st.phase === 'play' ? 'cool' : '');
       const key = d.showId + ':' + d.step;
       if (d.mode === 'show' && d.pad >= 0 && key !== shown) { shown = key; flash(d.pad); }
       if (st.phase === 'down' && !wasDown) { wasDown = true; fanfare(); }
       if (Date.now() < sticky && st.phase === 'play') return;
-      sayEl.textContent = st.phase === 'count' ? `${st.boss.tip} Začínáme za ${st.count}.` : st.phase === 'down' ? `${st.boss.name}: K.O.!`
+      sayEl.textContent = st.phase === 'count' ? `${st.boss.tip} Začínáme za ${st.count}.` : st.phase === 'down' ? PASS[me]
         : d.mode === 'show' ? 'Dívejte se a poslouchejte.' : d.mode === 'input' ? 'Teď vy! Zopakujte to ve stejném pořadí.' : '…';
     };
     co.onState(co.st);
     return () => {};
   }
 
-  // Boss rounds 2 and 3: tap where the boss is. Hits go to the server, which keeps one health bar for both phones.
-  function coopGame(canvas) {
-    const W = 360, H = 400, BY = 132, REACH = 46, cast = CAST.coop, me = co.who, mate = me === 'ken' ? 'kel' : 'ken';
+  // Boss round 2: surfing. A runner on a shared clock: both phones see the same sharks and boomerangs.
+  // Tap to jump a shark; stay on the water under a boomerang. Every crash costs one of the shared lives.
+  function coopSurf(canvas) {
+    const W = 360, H = 320, SX = 92, SEA = 238, SPEED = 175, G = 980, JUMP = 345, cast = CAST.coop, me = co.who, mate = me === 'ken' ? 'kel' : 'ken';
     const stage = makeStage(canvas, W, H), ctx = stage.ctx;
-    const s = { bx: 180, hop: 0, clock: 0, shot: null, rest: 0, note: null, mood: null, shake: 0, pops: [], streak: 0, fall: 0, begun: false };
+    const s = { y: 0, vy: 0, gy: 0, gvy: 0, inv: 0, base: null, t: 0, hitMine: new Set(), note: null, mood: null, clock: 0, begun: false, passed: false };
     canvas._g = s;
-    const hat = (who) => (who === 'ken' ? { helmet: C['line-red'] } : { bow: C.row0 });
-    const shirt = (who) => (who === 'ken' ? C['line-red'] : C.row0);
-    const blockedSay = { aussie: 'Skáče!', salon: 'Fén!' };
-    canvas.addEventListener('click', (e) => {
+    const sync = (st) => { if (st.surf) s.base = { t: st.surf.t, at: performance.now(), run: st.phase === 'play' }; };
+    co.onState = sync; sync(co.st);
+    canvas.addEventListener('pointerdown', () => {
       const st = co.st;
-      if (!st || st.phase !== 'play' || s.shot || s.rest > 0) return;
-      s.shot = { x0: 180, y0: H - 104, x1: clamp(stage.local(e).x, 20, W - 20), y1: BY - 12, t: 0 };
-      s.begun = true; blip(420);
+      if (!st || st.phase !== 'play' || s.y > 0) return;
+      s.vy = JUMP; s.begun = true; post('/coop/jump', { who: me }); blip(520);
     });
     co.onEvent = (ev) => {
-      if (ev.blocked) { if (ev.who === me) { s.note = { text: blockedSay[co.st.boss.theme] || 'Štít!', color: C['line-blue'], t: 0.8 }; blip(240); } return; }
-      if (!ev.dmg) return;
-      s.pops.push({ text: '-' + ev.dmg, x: s.bx + (ev.who === me ? 26 : -26), t: 0.9, big: !!ev.combo });
-      s.shake = 0.3;
-      if (ev.who !== me) s.streak = 0.25;
-      if (ev.combo) { s.note = { text: 'Trojitá rána!', color: C['line-red'], t: 1.1 }; blip(660, 880, 1100); setMood(s, 'win', 'win'); }
-      else { blip(660, 880); setMood(s, ev.who === 'ken' ? 'win' : 'normal', ev.who === 'kel' ? 'win' : 'normal'); }
+      if (ev.jump && ev.who === mate && s.gy <= 0) s.gvy = JUMP;
+      if (ev.crash) { blip(180, 140); setMood(s, ev.who === 'ken' ? 'lose' : 'normal', ev.who === 'kel' ? 'lose' : 'normal'); if (ev.who === mate) s.note = { text: `${N[mate].nom}: au!`, color: C['line-red'], t: 0.9, size: 22 }; }
     };
-    let lastPhase = '';
+    const fly = (y, vy, dt) => { if (vy === 0 && y <= 0) return [0, 0]; y += vy * dt; vy -= G * dt; return y <= 0 ? [0, 0] : [y, vy]; };
     function tick(dt) {
-      const st = co.st; if (!st) return;
-      if (st.phase !== lastPhase) {
-        if (st.phase === 'down') { s.fall = 0.01; s.note = { text: `${st.boss.name}: K.O.!`, color: C['line-red'], t: 2.4 }; fanfare(); }
-        if (st.phase === 'count') { s.fall = 0; s.pops = []; s.bx = st.x; }
-        lastPhase = st.phase;
-      }
+      const st = co.st; if (!st || !st.surf || !s.base) return;
       s.clock += dt;
-      if (st.phase === 'down') s.fall = Math.min(1, s.fall + dt * 1.4);
-      else s.bx += (st.x - s.bx) * Math.min(1, dt * 12);
-      const air = st.boss.theme === 'aussie' && st.shield && st.phase === 'play';
-      s.hop += ((air ? 1 : 0) - s.hop) * Math.min(1, dt * 9);
-      if (s.shot) {
-        s.shot.t += dt / 0.42;
-        if (s.shot.t >= 1) {
-          if (Math.abs(s.shot.x1 - s.bx) < REACH && co.st.phase === 'play') post('/coop/hit', { who: me });
-          else { s.note = { text: 'Vedle!', color: C.puck, t: 0.7 }; blip(200); }
-          s.shot = null; s.rest = 0.28;
-        }
-      }
-      if (s.rest > 0) s.rest -= dt;
-      if (s.shake > 0) s.shake -= dt;
-      if (s.streak > 0) s.streak -= dt;
-      s.pops = s.pops.filter((p) => (p.t -= dt) > 0);
+      s.t = s.base.run ? s.base.t + (performance.now() - s.base.at) / 1000 : s.base.t;
+      [s.y, s.vy] = fly(s.y, s.vy, dt);
+      [s.gy, s.gvy] = fly(s.gy, s.gvy, dt);
+      if (s.inv > 0) s.inv -= dt;
+      if (st.phase === 'play' && s.inv <= 0) st.surf.obs.forEach((o, i) => {
+        if (s.hitMine.has(i) || Math.abs((o.t - s.t) * SPEED) > 17) return;
+        if (o.k ? s.y > 26 : s.y < 20) { s.hitMine.add(i); s.inv = 1.2; s.note = { text: 'Au!', color: C['line-red'], t: 0.8 }; post('/coop/crash', { who: me, i }); }
+      });
+      if (st.phase === 'count') { s.hitMine.clear(); s.passed = false; }
+      if (st.phase === 'down' && !s.passed) { s.passed = true; s.note = { text: PASS[me], color: C['line-red'], t: 2.6 }; fanfare(); }
       tickCommon(s, dt);
       draw(st);
     }
-    function weapon(who, x, y, k) {
-      if (who === 'ken') { ctx.beginPath(); ctx.ellipse(x, y, 10 * k, 7 * k, 0, 0, 7); ctx.fillStyle = C.puck; ctx.fill(); }
-      else { ctx.beginPath(); ctx.ellipse(x, y, 20 * k, 8 * k, 0, 0, 7); ctx.lineWidth = 7 * k; ctx.strokeStyle = C.puck; ctx.stroke(); ctx.lineWidth = 4 * k; ctx.strokeStyle = C.row0; ctx.stroke(); }
-    }
-    function scene(theme) {
-      if (theme === 'aussie') {                // the outback: sun, the big red rock, sand
-        ctx.fillStyle = C.sky; ctx.fillRect(0, 0, W, H);
-        ctx.beginPath(); ctx.arc(302, 82, 26, 0, 7); ctx.fillStyle = C.kick; ctx.fill();
-        rr(ctx, 24, BY + 14, 160, 70, 28); ctx.fillStyle = C.outback; ctx.fill();
-        ctx.fillStyle = C.sand; ctx.fillRect(0, BY + 68, W, H);
-        ctx.fillStyle = C.outback; ctx.fillRect(0, BY + 68, W, 5);
-      } else if (theme === 'salon') {          // the salon: mirrors and a checkered floor
-        ctx.fillStyle = C.ice; ctx.fillRect(0, 0, W, H);
-        for (const mx of [34, 256]) { rr(ctx, mx, 48, 70, 100, 30); shape(ctx, C.crease); }
-        for (let r = 0; r < 6; r++) for (let c = 0; c < 9; c++) { ctx.fillStyle = (r + c) % 2 ? C.tile : C.board; ctx.fillRect(c * 40, BY + 70 + r * 36, 40, 36); }
-        ctx.fillStyle = C.puck; ctx.fillRect(0, BY + 68, W, 3);
-      } else {
-        ctx.fillStyle = C.ice; ctx.fillRect(0, 0, W, H);
-        ctx.fillStyle = C['line-blue']; ctx.fillRect(0, BY + 70, W, 8);
-      }
-    }
-    function drawBoss(st) {
-      const theme = st.boss.theme;
-      const x = s.bx + (s.shake > 0 ? Math.sin(s.shake * 70) * 5 : 0);
-      const y = BY - s.hop * 64 - (theme === 'aussie' && st.phase === 'play' ? Math.abs(Math.sin(s.clock * 8)) * 7 : 0);
-      if (theme === 'aussie') { ctx.save(); ctx.globalAlpha = 0.28; ctx.beginPath(); ctx.ellipse(s.bx, BY + 64, 40 - s.hop * 16, 8 - s.hop * 3, 0, 0, 7); ctx.fillStyle = C.puck; ctx.fill(); ctx.restore(); }
+    function surfer(who, x, y, ghost) {
       ctx.save();
-      if (s.fall > 0) { ctx.translate(x, BY + 60); ctx.rotate(s.fall * 1.5); ctx.translate(-x, -(BY + 60)); ctx.globalAlpha = 1 - s.fall * 0.6; }
-      if (theme === 'aussie') {                // a kangaroo with a pouch
-        ctx.beginPath(); ctx.moveTo(x - 24, y + 40); ctx.quadraticCurveTo(x - 70, y + 62, x - 80, y + 28);
-        ctx.lineCap = 'round'; ctx.lineWidth = 14; ctx.strokeStyle = C.puck; ctx.stroke(); ctx.lineWidth = 9; ctx.strokeStyle = C.roo; ctx.stroke();
-        for (const d of [-1, 1]) { ctx.beginPath(); ctx.ellipse(x + d * 20, y + 58, 17, 7, 0, 0, 7); shape(ctx, C.roo); }
-        ctx.beginPath(); ctx.ellipse(x, y + 22, 34, 40, 0, 0, 7); shape(ctx, C.roo);
-        ctx.beginPath(); ctx.ellipse(x, y + 34, 19, 15, 0, 0, 7); shape(ctx, C.sand);
-        for (const d of [-1, 1]) { ctx.beginPath(); ctx.ellipse(x + d * 31, y + 10, 7, 13, d * 0.5, 0, 7); shape(ctx, C.roo); }
-        for (const d of [-1, 1]) { ctx.beginPath(); ctx.ellipse(x + d * 17, y - 74, 8, 19, d * 0.25, 0, 7); shape(ctx, C.roo); }
-      } else if (theme === 'salon') {          // a hairdresser: apron, scissors, hairdryer
-        rr(ctx, x - 36, y - 4, 72, 58, 12); shape(ctx, C.rubber);
-        rr(ctx, x - 16, y + 22, 32, 20, 5); shape(ctx, C.row0);
-        ctx.lineCap = 'round'; ctx.lineWidth = 4; ctx.strokeStyle = C.puck;
-        ctx.beginPath(); ctx.moveTo(x - 62, y - 16); ctx.lineTo(x - 44, y + 22); ctx.moveTo(x - 40, y - 16); ctx.lineTo(x - 58, y + 22); ctx.stroke();
-        for (const dx of [-60, -42]) { ctx.beginPath(); ctx.arc(x + dx, y + 28, 6, 0, 7); ctx.lineWidth = 3.5; ctx.strokeStyle = C.puck; ctx.stroke(); }
-        rr(ctx, x + 50, y + 10, 11, 26, 4); shape(ctx, C.row1);
-        rr(ctx, x + 40, y - 8, 32, 21, 9); shape(ctx, C.row1);
-        rr(ctx, x + 70, y - 4, 10, 13, 2); shape(ctx, C.puck);
-      } else {                                 // a plain robot, for a boss with no theme
-        rr(ctx, x - 42, y + 46, 84, 16, 8); shape(ctx, C.rubber);
-        rr(ctx, x - 38, y - 4, 76, 54, 12); shape(ctx, C['line-blue']);
-      }
-      drawFace(ctx, st.boss.photo ? faceImg('boss-' + st.boss.id) : BLANK, x, y - 36, 30, { initial: st.boss.name.charAt(0) });
-      if (st.stun) for (let i = 0; i < 3; i++) { const a = s.clock * 6 + i * 2.1; ctx.beginPath(); ctx.arc(x + Math.cos(a) * 34, y - 72 + Math.sin(a) * 8, 4, 0, 7); shape(ctx, C.kick); }
+      if (ghost) ctx.globalAlpha = 0.5; else if (s.inv > 0 && Math.floor(s.clock * 12) % 2) ctx.globalAlpha = 0.35;
+      ctx.beginPath(); ctx.ellipse(x, SEA - y + 3, 27, 5.5, -0.06, 0, 7); shape(ctx, C.kick);
+      rr(ctx, x - 10, SEA - y - 27, 20, 27, 7); shape(ctx, kidShirt(who));
+      drawFace(ctx, moodFace(cast, s, who), x, SEA - y - 41, 16, kidHat(who));
       ctx.restore();
-      if (st.shield && st.phase === 'play' && theme !== 'aussie') {       // shield, or the hairdryer's blast
-        const tint = theme === 'salon' ? C.row0 : C['line-blue'];
-        ctx.save(); ctx.beginPath(); ctx.ellipse(s.bx, BY - 8, 70, 90, 0, 0, 7);
-        ctx.globalAlpha = 0.22; ctx.fillStyle = tint; ctx.fill();
-        ctx.globalAlpha = 1; ctx.lineWidth = 5; ctx.setLineDash([14, 9]); ctx.lineDashOffset = -s.clock * 60; ctx.strokeStyle = tint; ctx.stroke(); ctx.restore();
-      }
     }
     function draw(st) {
+      const t = s.t, total = st.surf.total;
       ctx.clearRect(0, 0, W, H);
-      scene(st.boss.theme);
-      // health bar, boss name, which boss, and the clock
-      ctx.fillStyle = C.puck; ctx.fillRect(0, 0, W, 34);
+      ctx.fillStyle = C.sky; ctx.fillRect(0, 0, W, H);
+      ctx.beginPath(); ctx.arc(300, 86, 24, 0, 7); ctx.fillStyle = C.kick; ctx.fill();
+      rr(ctx, 26, 128, 128, 60, 24); ctx.fillStyle = C.outback; ctx.fill();          // the big red rock on the far shore
+      ctx.fillStyle = C.sea; ctx.fillRect(0, 168, W, H);
+      ctx.fillStyle = C['sea-deep']; ctx.fillRect(0, SEA + 8, W, H);
+      ctx.strokeStyle = C.board; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
+      for (let k = 0; k < 3; k++) {                                                   // wave crests sliding past
+        const y = [196, SEA + 6, 286][k], shift = (t * SPEED * (0.45 + k * 0.3)) % 60;
+        ctx.beginPath();
+        for (let x = -60 - shift; x < W + 60; x += 60) { ctx.moveTo(x, y); ctx.quadraticCurveTo(x + 15, y - 7, x + 30, y); }
+        ctx.stroke();
+      }
+      const beach = SX + (total - t) * SPEED + 70;                                    // the beach arrives at the end
+      if (beach < W + 100) {
+        ctx.fillStyle = C.sand; ctx.fillRect(beach, 168, W, H);
+        drawRoo(ctx, beach + 86, SEA - 60, bossFace(st.boss), st.boss.name.charAt(0));
+      }
+      st.surf.obs.forEach((o) => {
+        const x = SX + (o.t - t) * SPEED;
+        if (x < -30 || x > W + 30) return;
+        if (o.k) {                                                                    // a boomerang, spinning at jump height
+          ctx.save(); ctx.translate(x, SEA - 78); ctx.rotate(s.clock * 9);
+          ctx.beginPath(); ctx.moveTo(-14, 8); ctx.lineTo(0, -8); ctx.lineTo(14, 8); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+          ctx.lineWidth = 11; ctx.strokeStyle = C.puck; ctx.stroke(); ctx.lineWidth = 6; ctx.strokeStyle = C.wood; ctx.stroke(); ctx.restore();
+        } else {                                                                      // a shark fin
+          ctx.beginPath(); ctx.moveTo(x - 15, SEA + 4); ctx.quadraticCurveTo(x - 2, SEA - 16, x + 6, SEA - 30); ctx.lineTo(x + 14, SEA + 4); ctx.closePath(); shape(ctx, C['ink-soft']);
+        }
+      });
+      if (st.here[mate]) surfer(mate, SX - 40, s.gy, true);
+      surfer(me, SX, s.y, false);
+      hudBar(ctx, st, W);
+      for (let i = 0; i < st.max; i++) heart(ctx, 18 + i * 19, 17, 7, i < st.hp ? C['line-red'] : C.rubber);
+      rr(ctx, 158, 12, 92, 10, 5); ctx.fillStyle = C.rubber; ctx.fill();
+      rr(ctx, 158, 12, Math.max(10, 92 * clamp(t / total, 0, 1)), 10, 5); ctx.fillStyle = C.sea; ctx.fill();
+      if (st.phase === 'count') countCard(ctx, st, W, 50);
+      else { if (st.phase === 'play' && !s.begun) drawTip(ctx, 'Klepni a skoč', W, 70); drawNote(ctx, s.note, W, 110); }
+    }
+    return runLoop(canvas, stage, tick);
+  }
+
+  // Boss round 3: the chase. Both kids run around one room picking flowers for the boss, who chases whoever is nearest.
+  // The server owns the room; this phone moves its own kid at once and reports where it is.
+  function coopChase(canvas) {
+    const W = 360, H = 400, TOP = 74, MAXV = 175, cast = CAST.coop, me = co.who, mate = me === 'ken' ? 'kel' : 'ken';
+    const stage = makeStage(canvas, W, H), ctx = stage.ctx;
+    const home = { ken: { x: 110, y: 330 }, kel: { x: 250, y: 330 } };
+    const s = { x: home[me].x, y: home[me].y, tx: home[me].x, ty: home[me].y, px: home[mate].x, py: home[mate].y, lx: 180, ly: 130, sent: 0, sx: 0, sy: 0, note: null, mood: null, clock: 0, begun: false, passed: false };
+    canvas._g = s;
+    const aim = (e) => { const p = stage.local(e); s.tx = clamp(p.x, 14, W - 14); s.ty = clamp(p.y, TOP, H - 12); s.begun = true; };
+    canvas.addEventListener('pointerdown', (e) => { aim(e); try { canvas.setPointerCapture(e.pointerId); } catch (x) {} });
+    canvas.addEventListener('pointermove', aim);
+    co.onEvent = (ev) => {
+      if (ev.got) { if (ev.who === me) blip(880); return; }
+      if (ev.caught) { blip(200, 150); setMood(s, ev.who === 'ken' ? 'lose' : 'normal', ev.who === 'kel' ? 'lose' : 'normal'); if (ev.who === me) s.note = { text: 'Chytila tě!', color: C['line-red'], t: 1.2, size: 24 }; }
+    };
+    function tick(dt) {
+      const st = co.st; if (!st || !st.chase) return;
+      const c = st.chase, frozen = c.p[me][2] === 1;
+      s.clock += dt;
+      if (st.phase === 'count') { Object.assign(s, { x: home[me].x, y: home[me].y, tx: home[me].x, ty: home[me].y, passed: false }); }
+      if (st.phase === 'play' && !frozen) {
+        const dx = s.tx - s.x, dy = s.ty - s.y, d = Math.hypot(dx, dy);
+        if (d > 0.5) { const step = Math.min(d, MAXV * dt); s.x += (dx / d) * step; s.y += (dy / d) * step; }
+        s.sent += dt;
+        if (s.sent > 0.11 && Math.hypot(s.x - s.sx, s.y - s.sy) > 1.5) { s.sent = 0; s.sx = s.x; s.sy = s.y; post('/coop/move', { who: me, x: Math.round(s.x), y: Math.round(s.y) }); }
+      }
+      const k = Math.min(1, dt * 10);
+      s.lx += (c.l[0] - s.lx) * k; s.ly += (c.l[1] - s.ly) * k;
+      s.px += (c.p[mate][0] - s.px) * k; s.py += (c.p[mate][1] - s.py) * k;
+      if (st.phase === 'down' && !s.passed) { s.passed = true; s.note = { text: PASS[me], color: C['line-red'], t: 2.6 }; fanfare(); }
+      tickCommon(s, dt);
+      draw(st, c);
+    }
+    function kid(who, x, y, frozen, mine) {
+      ctx.save();
+      ctx.globalAlpha = 0.25; ctx.beginPath(); ctx.ellipse(x, y + 34, 18, 5, 0, 0, 7); ctx.fillStyle = C.puck; ctx.fill(); ctx.globalAlpha = 1;
+      if (mine) { ctx.beginPath(); ctx.arc(x, y, 25, 0, 7); ctx.lineWidth = 3; ctx.setLineDash([6, 5]); ctx.strokeStyle = C.puck; ctx.stroke(); ctx.setLineDash([]); }
+      rr(ctx, x - 15, y + 12, 30, 22, 8); shape(ctx, frozen ? C.board : kidShirt(who));          // the white cape means the comb is out
+      drawFace(ctx, faceImg(cast[who][frozen ? 'lose' : 'normal'] || cast[who].normal), x, y, 19, kidHat(who));
+      if (frozen) { ctx.font = `700 11px ${BODY}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = C.puck; ctx.fillText('česání…', x, y - 34); }
+      ctx.restore();
+    }
+    function draw(st, c) {
+      ctx.clearRect(0, 0, W, H);
+      ctx.fillStyle = C.ice; ctx.fillRect(0, 0, W, H);
+      for (const mx of [22, 132, 242]) { rr(ctx, mx, 40, 96, 30, 12); shape(ctx, C.crease); }      // a row of salon mirrors
+      for (let r = 0; r < 10; r++) for (let q = 0; q < 9; q++) { ctx.fillStyle = (r + q) % 2 ? C.tile : C.board; ctx.fillRect(q * 40, TOP + r * 36, 40, 36); }
+      ctx.fillStyle = C.puck; ctx.fillRect(0, TOP - 2, W, 3);
+      for (const [, fx, fy] of c.items) {                                                           // flowers
+        ctx.beginPath(); ctx.moveTo(fx, fy + 4); ctx.lineTo(fx, fy + 15); ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.strokeStyle = C.row3; ctx.stroke();
+        for (let i = 0; i < 5; i++) { const a = (i / 5) * Math.PI * 2 + s.clock; ctx.beginPath(); ctx.arc(fx + Math.cos(a) * 6.5, fy + Math.sin(a) * 6.5, 5, 0, 7); ctx.fillStyle = C.row0; ctx.fill(); }
+        ctx.beginPath(); ctx.arc(fx, fy, 4.5, 0, 7); ctx.fillStyle = C.kick; ctx.fill();
+      }
+      if (st.here[mate]) kid(mate, s.px, s.py, c.p[mate][2] === 1, false);
+      kid(me, s.x, s.y, c.p[me][2] === 1, true);
+      ctx.save(); ctx.translate(s.lx, s.ly); ctx.scale(0.72, 0.72); drawStylist(ctx, 0, 14, bossFace(st.boss), st.boss.name.charAt(0)); ctx.restore();
+      if (c.shout && st.phase === 'play') {                                                         // her speech bubble
+        const bx = clamp(s.lx, 62, W - 62), by = Math.max(TOP + 16, s.ly - 62);
+        rr(ctx, bx - 56, by - 15, 112, 30, 12); shape(ctx, C.board);
+        ctx.font = `400 15px ${DISPLAY}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = C['line-red']; ctx.fillText('NELÍTEJ!', bx, by + 1);
+      }
+      hudBar(ctx, st, W);
       rr(ctx, 10, 9, 232, 16, 8); ctx.fillStyle = C.rubber; ctx.fill();
-      if (st.hp > 0) { rr(ctx, 10, 9, Math.max(16, 232 * (st.hp / st.max)), 16, 8); ctx.fillStyle = C['line-red']; ctx.fill(); }
-      ctx.font = `400 11px ${DISPLAY}`; ctx.textBaseline = 'middle'; ctx.fillStyle = C.board;
-      ctx.textAlign = 'left'; ctx.fillText(`${st.boss.name.toUpperCase()} ${st.hp}`, 18, 18);
-      ctx.textAlign = 'center'; ctx.fillStyle = C.kick; ctx.fillText(`${st.stage + 1}/${st.total}`, 272, 18);
-      ctx.textAlign = 'right'; ctx.fillStyle = st.left <= 10 ? C['line-red'] : C.board; ctx.font = `400 15px ${DISPLAY}`; ctx.fillText(`${st.left} s`, W - 10, 18);
-      drawBoss(st);
-      // my partner in the corner, me in the middle
-      ctx.save(); if (!st.here[mate]) ctx.globalAlpha = 0.35;
-      rr(ctx, 24, H - 26, 56, 40, 12); shape(ctx, shirt(mate));
-      drawFace(ctx, moodFace(cast, s, mate), 52, H - 44, 22, hat(mate)); ctx.restore();
-      if (s.streak > 0) { const k = 1 - s.streak / 0.25; weapon(mate, 52 + (s.bx - 52) * k, H - 80 + (BY - (H - 80)) * k, 0.8); }
-      rr(ctx, 140, H - 22, 80, 40, 14); shape(ctx, shirt(me));
-      drawFace(ctx, moodFace(cast, s, me), 180, H - 42, 32, hat(me));
-      if (s.shot) { const e = 1 - Math.pow(1 - Math.min(1, s.shot.t), 2); weapon(me, s.shot.x0 + (s.shot.x1 - s.shot.x0) * e, s.shot.y0 + (s.shot.y1 - s.shot.y0) * e, 1 - 0.3 * e); }
-      else if (s.rest <= 0) weapon(me, 180, H - 104, 1);
-      for (const p of s.pops) {
-        ctx.save(); ctx.globalAlpha = clamp(p.t / 0.3, 0, 1);
-        ctx.font = `400 ${p.big ? 34 : 22}px ${DISPLAY}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.lineJoin = 'round'; ctx.lineWidth = 6; ctx.strokeStyle = C.board; ctx.strokeText(p.text, p.x, BY - 80 - (0.9 - p.t) * 30);
-        ctx.fillStyle = C['line-red']; ctx.fillText(p.text, p.x, BY - 80 - (0.9 - p.t) * 30); ctx.restore();
-      }
-      if (st.phase === 'count') {
-        rr(ctx, 16, 222, W - 32, 96, 14); ctx.save(); ctx.globalAlpha = 0.9; ctx.fillStyle = C.board; ctx.fill(); ctx.restore();
-        drawNote(ctx, { text: String(st.count), color: C['line-red'], t: 1, size: 40 }, W, 246);
-        ctx.fillStyle = C.puck;
-        (st.boss.tip || '').split(/(?<=\.)\s+/).slice(0, 2).forEach((line, i) => { ctx.font = `700 13px ${BODY}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(line, W / 2, 280 + i * 18); });
-      } else {
-        if (st.phase === 'play' && !s.begun) drawTip(ctx, 'Klepni tam, kde boss stojí', W, 258);
-        drawNote(ctx, s.note, W, 258);
-      }
+      if (c.happy > 0) { rr(ctx, 10, 9, Math.max(16, 232 * clamp(c.happy / c.target, 0, 1)), 16, 8); ctx.fillStyle = C.row0; ctx.fill(); }
+      ctx.font = `400 11px ${DISPLAY}`; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillStyle = C.board; ctx.fillText(`KYTKY ${c.happy}/${c.target}`, 18, 18);
+      if (st.phase === 'count') countCard(ctx, st, W, 150);
+      else { if (st.phase === 'play' && !s.begun) drawTip(ctx, 'Táhni prstem a utíkej', W, 210); drawNote(ctx, s.note, W, 210); }
     }
     return runLoop(canvas, stage, tick);
   }
