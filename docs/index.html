@@ -1,0 +1,1253 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<style>body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>Tajné operace</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700&family=Bungee&family=Doto:wght@900&family=Graduate&display=swap">
+<style>
+/* Layout: a dark start screen where you pick your player card. Each player then gets a bright arena wall up top
+   (title, their card, the door in) and one long sheet scrolled end to end, divided by real floor lines and ending
+   at the prize: the net for hockey, the podium for gymnastics. One look per player on purpose, no dark variant. */
+:root{
+  --kick:#FFD43A; --kick-deep:#E9AE00;
+  --ice:#F1F7FA; --ice-cut:#D9E8F1; --crease:#BFE1F4;
+  --puck:#15171C; --rubber:#2B2F38;
+  --line-red:#CC2233; --line-blue:#1F55D6;
+  --board:#FFFFFF; --mesh:#9FB2C2;
+  --ink:#15171C; --ink-soft:#46536A;
+  --bulb:#FFB81F; --bulb-glow:rgba(255,184,31,.55); --sb-ink:#C6CCD8;
+  --shadow-soft:rgba(21,23,28,.22);
+  --skin:#F3C6A5; --wood:#D2A064;
+  --gold:#F2B90F; --silver:#B7C0CC; --bronze:#C9793A; --shine:rgba(255,255,255,.45);
+  --row0:#F0448F; --row1:#7B3FE4; --row2:#1E88E5; --row3:#1FA463; --row4:#FFC61A;
+  --font-display:'Bungee','Arial Black',Impact,sans-serif;
+  --font-jersey:'Graduate','Rockwell','Courier New',serif;
+  --font-body:'Barlow','Trebuchet MS','Segoe UI',sans-serif;
+  --font-bulb:'Doto','Courier New',monospace;
+  color-scheme:light;
+}
+/* the gymnastics palette: leotard pink wall, lilac mat, magenta and violet ribbons */
+:root[data-player="kel"],.theme-kel{
+  --kick:#FF8CC0; --kick-deep:#E2529B;
+  --ice:#F7F2FC; --ice-cut:#E6DAF6; --crease:#D9C8F7;
+  --line-red:#D4187A; --line-blue:#5B2BD1;
+  --mesh:#B3A3CC; --ink-soft:#54486E;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{background:var(--kick);color:var(--ink);font:500 1.0625rem/1.5 var(--font-body)}
+:root:not([data-player]) body{background:var(--puck)}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--puck)}
+.wrap{max-width:46rem;margin-inline:auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+h1,h2,p,ol,ul,table,figure{margin:0}
+ol,ul{padding:0;list-style:none}
+button,input{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--line-blue);outline-offset:3px}
+
+/* ---- start screen: pick your player ---- */
+.pick{padding-block:2.2rem 3rem;color:var(--board)}
+.pick :focus-visible{outline-color:var(--board)}
+.pick-in{display:grid;gap:1.3rem;justify-items:start}
+.pick-title{font:400 clamp(2.2rem,11vw,4.2rem)/.95 var(--font-display);text-transform:uppercase;transform:rotate(-2deg);transform-origin:left center;text-shadow:.045em .045em 0 var(--line-red),.09em .09em 0 var(--line-blue);text-wrap:balance}
+.pick-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem;width:100%;margin-top:.7rem}
+.pick-card{display:grid;gap:.55rem;justify-items:start;align-content:start;text-align:left;background:var(--kick);color:var(--ink);border:4px solid var(--board);border-radius:20px;padding:.6rem .6rem .8rem;cursor:pointer;box-shadow:6px 6px 0 var(--line-blue);transition:transform .1s}
+.pick-card:hover{transform:translate(-2px,-2px)}
+.pick-card:active{transform:translate(3px,3px);box-shadow:2px 2px 0 var(--line-blue)}
+.pick-card img{display:block;width:100%;height:auto;aspect-ratio:4/5;object-fit:cover;border:3px solid var(--puck);border-radius:12px;background:var(--ice-cut)}
+.pick-name{font:400 clamp(1.05rem,5.4vw,2rem)/1 var(--font-display);text-transform:uppercase}
+.pick-op{font-weight:700;line-height:1.25}
+.pick-go{font:400 .85rem/1 var(--font-display);text-transform:uppercase;background:var(--puck);color:var(--kick);border-radius:999px;padding:.6rem .95rem}
+@media (min-width:44rem){.pick-grid{gap:1.6rem;max-width:36rem}.pick-card{padding:.8rem .8rem 1rem}}
+
+/* ---- scoreboard ---- */
+.sb{position:sticky;top:env(safe-area-inset-top,0px);z-index:9;background:var(--puck);border-bottom:4px solid var(--kick-deep)}
+.sb-in{display:flex;align-items:center;justify-content:space-between;gap:.75rem;padding-block:.5rem}
+.sb-cell{display:flex;align-items:center;gap:.5rem}
+.sb-lab{font:700 .68rem/1 var(--font-body);letter-spacing:.16em;text-transform:uppercase;color:var(--sb-ink)}
+.sb-num{font:900 2rem/1 var(--font-bulb);font-variant-numeric:tabular-nums;color:var(--bulb);text-shadow:0 0 10px var(--bulb-glow);min-width:1.1ch;text-align:center}
+.lamp{flex:none;width:1.5rem;height:1.5rem;border-radius:50% 50% 30% 30%;background:var(--rubber);border:2px solid var(--sb-ink)}
+.lamp.on{background:var(--line-red);border-color:var(--board);animation:lamp .32s steps(2,jump-none) 8}
+@keyframes lamp{from{box-shadow:0 0 0 0 var(--line-red)}to{box-shadow:0 0 0 .7rem var(--line-red),0 0 2.4rem 1rem var(--line-red)}}
+
+/* ---- hero: the arena wall ---- */
+.hero{padding-block:2rem 1.7rem;overflow:hidden}
+.hero-in{display:grid;grid-template-columns:8.5rem minmax(0,1fr);grid-template-areas:"text text" "card lede";gap:1.3rem 1.2rem;align-items:center}
+.hero-text{grid-area:text;min-width:0}
+.tape{display:inline-block;background:var(--board);color:var(--ink);font:700 .78rem/1 var(--font-body);letter-spacing:.18em;text-transform:uppercase;padding:.55rem 1rem;transform:rotate(-3deg);box-shadow:3px 3px 0 var(--shadow-soft);background-image:repeating-linear-gradient(90deg,transparent 0 3px,var(--ice-cut) 3px 4px)}
+.title{font:400 clamp(2.3rem,11.5vw,4.4rem)/.92 var(--font-display);text-transform:uppercase;margin-block:1.1rem 0;transform:rotate(-2deg);transform-origin:left center;text-shadow:.045em .045em 0 var(--line-red),.09em .09em 0 var(--line-blue)}
+.title span{display:block}
+.title span:nth-child(2){margin-left:.3em}
+.title span:nth-child(3){margin-left:.1em}
+.lede{grid-area:lede;font-size:1.06rem;font-weight:600;line-height:1.4;max-width:30rem}
+.card{grid-area:card;position:relative;background:var(--board);border:4px solid var(--puck);border-radius:14px;padding:.4rem .4rem .5rem;box-shadow:6px 6px 0 var(--puck);transform:rotate(-4deg);display:grid;gap:.4rem}
+.card img{display:block;width:100%;height:auto;aspect-ratio:4/5;object-fit:cover;border:3px solid var(--puck);border-radius:8px;background:var(--ice-cut)}
+.card figcaption{display:grid;grid-template-columns:auto minmax(0,1fr);gap:0 .4rem;align-items:center}
+.card-num{grid-row:1 / span 2;width:1.9rem;height:1.9rem;border-radius:50%;background:var(--line-blue);color:var(--board);font:400 .95rem/1.9rem var(--font-jersey);text-align:center}
+.card-name{font:400 .82rem/1.1 var(--font-display);text-transform:uppercase;overflow-wrap:anywhere}
+.card-role{font:700 .62rem/1.2 var(--font-body);letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft)}
+.card-foil{position:absolute;right:-.7rem;top:.9rem;background:var(--gold);border:3px solid var(--puck);border-radius:6px;padding:.3rem .45rem;font:400 .7rem/1 var(--font-display);text-transform:uppercase;transform:rotate(12deg)}
+@media (min-width:44rem){
+  .hero-in{grid-template-columns:minmax(0,1fr) 13.5rem;grid-template-areas:"text card" "lede card";gap:1.2rem 2.2rem}
+  .lede{font-size:1.2rem;align-self:start}
+  .card{transform:rotate(4deg)}
+}
+
+/* ---- the door in ---- */
+.gate{padding-bottom:2.2rem}
+.door{background:var(--board);border:4px solid var(--puck);border-radius:22px;box-shadow:8px 8px 0 var(--puck);padding:1.25rem;display:grid;grid-template-columns:minmax(0,1fr);gap:1.4rem}
+.door-text,.door-form{display:grid;gap:1rem;min-width:0}
+.ztag{justify-self:start;display:inline-block;background:var(--puck);color:var(--kick);font:400 .78rem/1 var(--font-display);letter-spacing:.06em;text-transform:uppercase;padding:.45rem .7rem;border-radius:6px}
+h2{font:400 1.7rem/1.08 var(--font-display);text-transform:uppercase;text-wrap:balance}
+.steps{display:grid;gap:.6rem;counter-reset:step}
+.steps li{counter-increment:step;display:grid;grid-template-columns:2rem minmax(0,1fr);gap:.7rem;align-items:start}
+.steps li::before{content:counter(step);font:400 1.05rem/2rem var(--font-jersey);width:2rem;height:2rem;text-align:center;background:var(--line-blue);color:var(--board);border-radius:50%}
+@media (min-width:44rem){
+  .door{grid-template-columns:minmax(0,1fr) minmax(0,19rem);padding:1.75rem;gap:1.4rem 2rem}
+  .door[data-state="open"]{grid-template-columns:minmax(0,1fr)}
+  .door-text,.door-form{grid-column:1}
+  .wheel-wrap{grid-column:2;grid-row:1 / span 2;align-self:center}
+}
+
+/* decoder wheel: a puck for hockey, a hoop for gymnastics */
+.wheel-wrap{display:grid;gap:.9rem;justify-items:center;min-width:0}
+.wheel{position:relative;width:min(100%,20rem);aspect-ratio:1;border-radius:50%;border:4px solid var(--puck);user-select:none;-webkit-user-select:none;
+  background:repeating-conic-gradient(from -6.9231deg,var(--board) 0deg 13.8462deg,var(--ice-cut) 13.8462deg 27.6923deg)}
+.disc{position:absolute;inset:11%;border-radius:50%;border:3px solid var(--puck);cursor:grab;touch-action:pan-y;
+  background:repeating-conic-gradient(from -6.9231deg,var(--puck) 0deg 13.8462deg,var(--rubber) 13.8462deg 27.6923deg)}
+.wheel.dragging .disc{cursor:grabbing}
+.hub{position:absolute;inset:31%;border-radius:50%;background:var(--kick);border:3px solid var(--puck);display:grid;place-content:center;justify-items:center;gap:.1rem;pointer-events:none}
+.hub-lab{font:700 .66rem/1 var(--font-body);letter-spacing:.14em;text-transform:uppercase}
+.hub-num{font:400 2.4rem/1 var(--font-jersey);font-variant-numeric:tabular-nums}
+.wl,.wn{position:absolute;transform:translate(-50%,-50%);pointer-events:none;font-variant-numeric:tabular-nums}
+.wl{font:400 .95rem/1 var(--font-display);color:var(--ink)}
+.wl.is-a{background:var(--kick);border:2px solid var(--puck);border-radius:50%;width:1.7rem;height:1.7rem;display:grid;place-content:center}
+.wn{font:400 .8rem/1 var(--font-jersey);color:var(--board);transition:left .18s ease-out,top .18s ease-out}
+.wn.under-a{color:var(--kick)}
+.wheel.dragging .wn{transition:none}
+.wheel-ctl{display:flex;gap:.6rem;flex-wrap:wrap;justify-content:center}
+
+/* buttons, inputs */
+.btn{font:400 1rem/1 var(--font-display);text-transform:uppercase;letter-spacing:.02em;border:3px solid var(--puck);border-radius:999px;padding:.85rem 1.25rem;background:var(--kick);color:var(--ink);box-shadow:0 4px 0 var(--puck);cursor:pointer;transition:transform .08s,box-shadow .08s}
+.btn:hover{background:var(--kick-deep)}
+.btn:active{transform:translateY(3px);box-shadow:0 1px 0 var(--puck)}
+.btn-small{font-size:.78rem;padding:.6rem .95rem;background:var(--board)}
+.btn-small:hover{background:var(--ice-cut)}
+.shot{display:grid;gap:.5rem;min-width:0}
+.shot label{font-weight:700}
+.shot-row{display:flex;flex-wrap:wrap;gap:.7rem}
+.shot input{flex:1 1 11rem;min-width:0;font:400 1.2rem/1.2 var(--font-jersey);letter-spacing:.08em;text-transform:uppercase;border:3px solid var(--puck);border-radius:12px;padding:.7rem .8rem;background:var(--board)}
+.call{min-height:1.5em;font-weight:700;color:var(--line-red)}
+.shake{animation:shake .3s}
+@keyframes shake{25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+.linkish{background:none;border:0;padding:0;font-weight:700;color:var(--line-blue);text-decoration:underline;text-underline-offset:.2em;cursor:pointer;justify-self:start;text-align:left}
+.hint{background:var(--kick);border:2px solid var(--puck);border-radius:10px;padding:.6rem .8rem;font-weight:600}
+.plate{display:flex;flex-wrap:wrap;align-items:center;gap:.8rem}
+.stamp{font:400 1rem/1 var(--font-display);text-transform:uppercase;color:var(--line-red);border:3px solid var(--line-red);border-radius:8px;padding:.4rem .6rem;transform:rotate(-5deg)}
+.nameplate{font:400 1.2rem/1.2 var(--font-jersey);letter-spacing:.1em;background:var(--puck);color:var(--board);padding:.45rem .8rem;border-radius:6px;overflow-wrap:anywhere}
+.note{font-weight:600;border-left:6px solid var(--line-blue);padding-left:.8rem}
+
+/* ---- the long sheet: rink or mat ---- */
+.rink-wrap{padding-bottom:2rem}
+.rink{background:var(--ice);border:4px solid var(--puck);border-radius:44px;box-shadow:inset 0 0 0 6px var(--board),inset 0 0 0 10px var(--kick-deep);padding:10px;overflow:hidden}
+.zone{padding:1.7rem 1rem;display:grid;grid-template-columns:minmax(0,1fr);gap:1.1rem;scroll-margin-top:4.5rem}
+.zone[data-state="locked"]{background:repeating-linear-gradient(-45deg,transparent 0 14px,var(--ice-cut) 14px 17px);color:var(--ink-soft)}
+.zone[data-state="locked"] .ztag{background:var(--ink-soft);color:var(--board)}
+.locked{display:flex;align-items:center;gap:.7rem;font-weight:600}
+.locked svg{flex:none;width:1.6rem;height:1.6rem}
+.locked svg rect{fill:var(--ink-soft)}
+.locked svg path{fill:none;stroke:var(--ink-soft);stroke-width:3}
+.zone-head{display:grid;gap:.6rem}
+.rline{height:12px}
+.rline-blue{background:var(--line-blue)}
+.rline-red{background:repeating-linear-gradient(90deg,var(--line-red) 0 14px,var(--board) 14px 20px);border-block:3px solid var(--line-red);position:relative}
+.rline-red::after{content:"";position:absolute;left:50%;top:50%;width:26px;height:26px;transform:translate(-50%,-50%);border-radius:50%;background:var(--line-blue);border:4px solid var(--ice)}
+.rline-goal{height:4px;background:var(--line-red)}
+@media (min-width:44rem){.zone{padding:2.2rem 2rem}}
+
+/* minigames */
+.game{position:relative;width:100%;max-width:30rem;border:3px solid var(--puck);border-radius:16px;overflow:hidden;background:var(--ice);line-height:0}
+.game canvas{display:block;width:100%;height:auto;touch-action:manipulation;cursor:crosshair}
+.game[data-kind="catch"] canvas{touch-action:none;cursor:ew-resize}
+.game-over{position:absolute;inset:0;display:grid;place-content:center;line-height:1}
+.hud{font-weight:700}
+
+/* code: pucks and sticks */
+.ms{display:inline-flex;align-items:center;gap:.22rem;color:var(--ink)}
+.i-puck{width:.95rem;height:.95rem}
+.i-puck circle{fill:currentColor}
+.i-stick{width:2.3rem;height:.95rem}
+.i-stick path{fill:none;stroke:currentColor;stroke-width:4.5;stroke-linecap:round;stroke-linejoin:round}
+.groups{display:flex;flex-wrap:wrap;gap:.6rem}
+.groups li{background:var(--board);border:3px solid var(--puck);border-radius:12px;padding:.7rem .75rem;display:grid;place-content:center;min-height:2.9rem;transition:background .1s}
+.groups li.now{background:var(--kick)}
+.legend{display:grid;grid-template-columns:repeat(auto-fill,minmax(6.4rem,1fr));gap:.35rem}
+.legend div{display:flex;align-items:center;gap:.5rem;background:var(--ice-cut);border-radius:8px;padding:.35rem .5rem;min-height:1.9rem}
+.legend b{font:400 .95rem/1 var(--font-display);width:1.1rem}
+.legend .ms{gap:.16rem}
+.legend .i-puck{width:.55rem;height:.55rem}
+.legend .i-stick{width:1.15rem;height:.55rem}
+.legend .i-stick path{stroke-width:5.5}
+.sub{font:700 .72rem/1.3 var(--font-body);letter-spacing:.16em;text-transform:uppercase;color:var(--ink-soft)}
+
+/* code: the mirror */
+.mirror{justify-self:start;max-width:100%;background:linear-gradient(135deg,var(--board) 0 40%,var(--ice-cut) 40% 55%,var(--board) 55%);border:4px solid var(--puck);border-radius:14px;box-shadow:inset 0 0 0 5px var(--silver);padding:1.2rem 1.5rem}
+.mirror span{display:inline-block;transform:scaleX(-1);font:400 clamp(1.9rem,10vw,3rem)/1 var(--font-display);letter-spacing:.1em;user-select:none;-webkit-user-select:none}
+
+/* code: the chart */
+.chart-box{overflow-x:auto}
+.chart{border-collapse:separate;border-spacing:4px;width:100%;max-width:27rem;table-layout:fixed}
+.chart th{font:400 .85rem/1 var(--font-display);color:var(--line-blue);padding:.3rem 0;text-align:center}
+.chart tbody th{color:var(--line-red);width:2.4rem}
+.chart td{background:var(--board);border:2px solid var(--puck);border-radius:8px;text-align:center;font:400 1.15rem/1 var(--font-jersey);padding:.55rem 0}
+.chart td.blank{background:var(--ice-cut);border-style:dashed;border-color:var(--mesh)}
+.chart td.blank::after{content:"";display:inline-block;width:.6rem;height:.6rem;border-radius:50%;background:var(--mesh);vertical-align:middle}
+.shots{display:flex;flex-wrap:wrap;gap:.5rem}
+.shots li{display:grid;justify-items:center;gap:.25rem;background:var(--puck);color:var(--board);border-radius:10px;padding:.4rem .6rem .5rem;min-width:3.6rem}
+.shots small{font:700 .6rem/1 var(--font-body);letter-spacing:.12em;text-transform:uppercase;color:var(--sb-ink)}
+.shots span{font:400 1.05rem/1 var(--font-jersey);color:var(--kick)}
+.shots li.todo{background:var(--ice-cut);outline:2px dashed var(--mesh);outline-offset:-2px}
+.shots li.todo small,.shots li.todo span{color:var(--ink-soft)}
+.cdot{display:inline-grid;place-content:center;width:1.5rem;height:1.5rem;border-radius:6px;border:2px solid var(--puck);vertical-align:middle}
+.shots .cdot{width:1.9rem;height:1.9rem;border-color:var(--board);color:var(--board)}
+.c0{background:var(--row0)}
+.c1{background:var(--row1)}
+.c2{background:var(--row2)}
+.c3{background:var(--row3)}
+.c4{background:var(--row4)}
+.shots .cdot.c4{color:var(--puck)}
+
+/* code: two lines taking turns */
+.lines{display:grid;gap:.7rem}
+.lrow{display:grid;gap:.4rem}
+.tiles{display:flex;flex-wrap:wrap;gap:.35rem}
+.tiles span{position:relative;width:2.3rem;height:2.6rem;display:grid;place-content:center;font:400 1.3rem/1 var(--font-jersey);color:var(--board);border:2px solid var(--puck);border-radius:8px}
+.tiles b{font-weight:400}
+.tiles i{position:absolute;left:.2rem;top:.12rem;font:700 .6rem/1 var(--font-body);font-style:normal}
+.lrow-1 .tiles span{background:var(--line-red)}
+.lrow-2 .tiles span{background:var(--line-blue)}
+.lrow .tiles span.todo{background:var(--ice-cut);border:2px dashed var(--mesh);color:var(--ink-soft)}
+
+/* the prize: net or podium */
+.zone-net{justify-items:center;text-align:center;padding-bottom:0}
+.zone-net .zone-head{justify-items:center}
+.zone-net .ztag{justify-self:center}
+.goalmouth{width:100%;display:grid;justify-items:center}
+.crease{width:min(19rem,92%);height:4.4rem;background:var(--crease);border:3px solid var(--line-red);border-bottom:0;border-radius:10rem 10rem 0 0}
+.goalmouth .rline-goal{width:100%}
+.goal{width:min(14rem,74%);height:5.6rem;border:8px solid var(--line-red);border-top:0;border-radius:0 0 16px 16px;background-color:var(--board);
+  background-image:repeating-linear-gradient(45deg,var(--mesh) 0 1.5px,transparent 1.5px 11px),repeating-linear-gradient(-45deg,var(--mesh) 0 1.5px,transparent 1.5px 11px);
+  display:flex;align-items:center;justify-content:center;gap:.7rem;margin-bottom:1.4rem}
+.slot{width:2.4rem;height:1rem;border-radius:.5rem;border:2px dashed var(--ink-soft);background:var(--board)}
+.slot.in{background:var(--puck);border:2px solid var(--puck)}
+.podium{display:flex;align-items:flex-end;justify-content:center;width:min(17rem,92%);margin-bottom:1.6rem}
+.step{flex:1;display:grid;justify-items:center;gap:.5rem}
+.step b{display:grid;place-content:center;width:100%;font:400 1.5rem/1 var(--font-display);background:var(--board);border:4px solid var(--puck)}
+.s1 b{height:5.4rem}
+.s2 b{height:3.9rem;border-right:0}
+.s3 b{height:2.9rem;border-left:0}
+.medal{width:2.3rem;height:2.3rem;border-radius:50%;border:3px dashed var(--ink-soft);background:var(--board)}
+.medal.in{border:3px solid var(--puck);box-shadow:inset 0 0 0 4px var(--shine)}
+.medal.gold.in{background:var(--gold)}
+.medal.silver.in{background:var(--silver)}
+.medal.bronze.in{background:var(--bronze)}
+.secret{background:var(--board);border:4px solid var(--puck);border-radius:18px;box-shadow:7px 7px 0 var(--line-blue);padding:1.4rem 1.2rem;display:grid;gap:.7rem;max-width:30rem;transform:rotate(-1.2deg);text-align:left}
+.secret h3{margin:0;font:400 clamp(1.5rem,7vw,2rem)/1 var(--font-display);text-transform:uppercase;color:var(--line-red)}
+.secret p{font-size:1.2rem;font-weight:600;line-height:1.4}
+.secret .sign{font-size:1rem;font-weight:700;justify-self:end}
+
+/* hats or stars raining down */
+.rain{position:fixed;inset:0;overflow:hidden;pointer-events:none;z-index:20}
+.rain svg{position:absolute;top:-4rem;animation:fall linear forwards}
+@keyframes fall{to{transform:translateY(calc(100vh + 8rem)) rotate(var(--spin))}}
+
+.foot{padding-block:0 2.5rem;display:flex;flex-wrap:wrap;gap:.8rem 1.5rem;align-items:center;justify-content:space-between;font-weight:600}
+.foot-links{display:flex;flex-wrap:wrap;gap:.6rem 1.4rem}
+
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}
+}
+</style>
+</head>
+<body>
+
+
+<div class="pick" id="pick">
+  <div class="wrap pick-in">
+    <p class="tape">Přísně tajné</p>
+    <h1 class="pick-title">Za koho hraješ?</h1>
+    <div class="pick-grid" id="pick-grid"></div>
+  </div>
+</div>
+
+<div id="game" hidden>
+  <div class="sb">
+    <div class="sb-in wrap">
+      <span class="lamp" id="lamp" aria-hidden="true"></span>
+      <div class="sb-cell"><span class="sb-lab" id="lab-goals"></span><span class="sb-num" id="sb-goals">0</span></div>
+      <div class="sb-cell"><span class="sb-lab" id="lab-period"></span><span class="sb-num" id="sb-period">-</span></div>
+      <div class="sb-cell"><span class="sb-lab" id="lab-shots"></span><span class="sb-num" id="sb-shots">0</span></div>
+    </div>
+  </div>
+
+  <header class="hero">
+    <div class="wrap hero-in">
+      <div class="hero-text">
+        <p class="tape" id="tape"></p>
+        <h1 class="title" id="title"></h1>
+      </div>
+      <figure class="card">
+        <img id="card-img" width="448" height="560" alt="">
+        <figcaption><span class="card-num" id="card-num"></span><span class="card-name" id="card-name"></span><span class="card-role" id="card-role"></span></figcaption>
+        <span class="card-foil" id="foil" hidden></span>
+      </figure>
+      <p class="lede" id="lede"></p>
+    </div>
+  </header>
+
+  <main>
+    <section class="gate">
+      <div class="wrap">
+        <div class="door" id="door" data-state="shut"></div>
+      </div>
+    </section>
+
+    <div class="rink-wrap">
+      <div class="wrap">
+        <div class="rink">
+          <section class="zone" id="zone-1"></section>
+          <div class="rline rline-blue" aria-hidden="true"></div>
+          <section class="zone" id="zone-2"></section>
+          <div class="rline rline-red" aria-hidden="true"></div>
+          <section class="zone" id="zone-3"></section>
+          <div class="rline rline-blue" aria-hidden="true"></div>
+          <section class="zone zone-net" id="net"></section>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer class="wrap foot">
+    <span>Šifry připravilo vedení týmu.</span>
+    <span class="foot-links">
+      <button type="button" class="linkish" id="switch">Změnit hráče</button>
+      <button type="button" class="linkish" id="reset">Začít znovu</button>
+    </span>
+  </footer>
+</div>
+
+<script>
+// Shared by the build script (Node) and the page (browser).
+// Scrambles each stage with the previous answer as the key, so nothing
+// readable sits in the page source. Kid-proof, not bank-proof.
+const Lite = (() => {
+  const K = [], H0 = [];
+  (() => {
+    const isPrime = (x) => { for (let i = 2; i * i <= x; i++) if (x % i === 0) return false; return true; };
+    for (let n = 2; K.length < 64; n++) {
+      if (!isPrime(n)) continue;
+      if (H0.length < 8) H0.push((Math.pow(n, 1 / 2) * 4294967296) >>> 0);
+      K.push((Math.pow(n, 1 / 3) * 4294967296) >>> 0);
+    }
+  })();
+
+  function sha256(msg) {
+    const l = msg.length;
+    const padLen = ((l + 9 + 63) >> 6) << 6;
+    const m = new Uint8Array(padLen);
+    m.set(msg);
+    m[l] = 0x80;
+    const dv = new DataView(m.buffer);
+    dv.setUint32(padLen - 8, Math.floor((l * 8) / 4294967296));
+    dv.setUint32(padLen - 4, (l * 8) >>> 0);
+    const h = H0.slice();
+    const w = new Uint32Array(64);
+    for (let off = 0; off < padLen; off += 64) {
+      for (let i = 0; i < 16; i++) w[i] = dv.getUint32(off + i * 4);
+      for (let i = 16; i < 64; i++) {
+        const a = w[i - 15], b = w[i - 2];
+        const s0 = ((a >>> 7) | (a << 25)) ^ ((a >>> 18) | (a << 14)) ^ (a >>> 3);
+        const s1 = ((b >>> 17) | (b << 15)) ^ ((b >>> 19) | (b << 13)) ^ (b >>> 10);
+        w[i] = (w[i - 16] + s0 + w[i - 7] + s1) | 0;
+      }
+      let a = h[0], b = h[1], c = h[2], d = h[3], e = h[4], f = h[5], g = h[6], hh = h[7];
+      for (let i = 0; i < 64; i++) {
+        const S1 = ((e >>> 6) | (e << 26)) ^ ((e >>> 11) | (e << 21)) ^ ((e >>> 25) | (e << 7));
+        const ch = (e & f) ^ (~e & g);
+        const t1 = (hh + S1 + ch + K[i] + w[i]) | 0;
+        const S0 = ((a >>> 2) | (a << 30)) ^ ((a >>> 13) | (a << 19)) ^ ((a >>> 22) | (a << 10));
+        const maj = (a & b) ^ (a & c) ^ (b & c);
+        const t2 = (S0 + maj) | 0;
+        hh = g; g = f; f = e; e = (d + t1) | 0; d = c; c = b; b = a; a = (t1 + t2) | 0;
+      }
+      h[0] = (h[0] + a) | 0; h[1] = (h[1] + b) | 0; h[2] = (h[2] + c) | 0; h[3] = (h[3] + d) | 0;
+      h[4] = (h[4] + e) | 0; h[5] = (h[5] + f) | 0; h[6] = (h[6] + g) | 0; h[7] = (h[7] + hh) | 0;
+    }
+    const out = new Uint8Array(32);
+    const odv = new DataView(out.buffer);
+    for (let i = 0; i < 8; i++) odv.setUint32(i * 4, h[i] >>> 0);
+    return out;
+  }
+
+  const enc = new TextEncoder();
+  const dec = new TextDecoder();
+  const utf8 = (s) => enc.encode(s);
+  const cat = (...parts) => {
+    const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
+    let o = 0;
+    for (const p of parts) { out.set(p, o); o += p.length; }
+    return out;
+  };
+  const toB64 = (bytes) => { let s = ''; for (const b of bytes) s += String.fromCharCode(b); return btoa(s); };
+  const fromB64 = (b64) => Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+
+  // "Slap shot!" and "slapshot" count as the same answer.
+  const norm = (s) => String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+
+  const ROUNDS = 6000;
+  function keyFrom(answer, salt) {
+    const s = utf8(salt);
+    let h = sha256(utf8(salt + '|' + norm(answer)));
+    for (let i = 0; i < ROUNDS; i++) h = sha256(cat(h, s));
+    return h;
+  }
+  function xorStream(key, data) {
+    const out = new Uint8Array(data.length);
+    const ctr = new Uint8Array(4);
+    const cdv = new DataView(ctr.buffer);
+    for (let off = 0, i = 0; off < data.length; off += 32, i++) {
+      cdv.setUint32(0, i);
+      const block = sha256(cat(key, ctr));
+      for (let j = 0; j < 32 && off + j < data.length; j++) out[off + j] = data[off + j] ^ block[j];
+    }
+    return out;
+  }
+  const tagOf = (key, ct) => sha256(cat(key, utf8('tag'), ct)).slice(0, 8);
+
+  function seal(answer, salt, obj) {
+    const key = keyFrom(answer, salt);
+    const ct = xorStream(key, utf8(JSON.stringify(obj)));
+    return { s: salt, b: toB64(cat(tagOf(key, ct), ct)) };
+  }
+  // Returns the hidden object, or null when the answer is wrong.
+  function open(answer, box) {
+    if (!norm(answer)) return null;
+    const raw = fromB64(box.b);
+    const tag = raw.slice(0, 8), ct = raw.slice(8);
+    const key = keyFrom(answer, box.s);
+    const want = tagOf(key, ct);
+    for (let i = 0; i < 8; i++) if (tag[i] !== want[i]) return null;
+    try { return JSON.parse(dec.decode(xorStream(key, ct))); } catch (e) { return null; }
+  }
+
+  // ---- the four codes ----
+  const MORSE = { A: '.-', B: '-...', C: '-.-.', D: '-..', E: '.', F: '..-.', G: '--.', H: '....', I: '..', J: '.---', K: '-.-', L: '.-..', M: '--', N: '-.', O: '---', P: '.--.', Q: '--.-', R: '.-.', S: '...', T: '-', U: '..-', V: '...-', W: '.--', X: '-..-', Y: '-.--', Z: '--..' };
+  const GRID_ROWS = ['LK', 'ST', 'PK', 'OB', 'BR'];
+  const GRID_COLS = 6;
+  const ALPHA = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  const lettersOf = (s) => norm(s).replace(/[0-9]/g, '');
+
+  const code = {
+    // Jersey numbers: with key k, A wears k, B wears k+1 ... wrapping 26 -> 1.
+    jersey: (word, key) => [...lettersOf(word)].map((ch) => ((ALPHA.indexOf(ch) + key - 1) % 26) + 1),
+    morse: (word) => [...lettersOf(word)].map((ch) => MORSE[ch]),
+    // grid: [row, column] pairs, column counted from 1
+    grid: (word) => [...lettersOf(word)].map((ch) => { const i = ALPHA.indexOf(ch); return [Math.floor(i / GRID_COLS), (i % GRID_COLS) + 1]; }),
+    mirror: (word) => lettersOf(word),
+    weave: (word) => { const l = [...lettersOf(word)]; return [l.filter((_, i) => i % 2 === 0).join(''), l.filter((_, i) => i % 2 === 1).join('')]; },
+  };
+
+  return { sha256, utf8, norm, seal, open, code, MORSE, GRID_ROWS, GRID_COLS, ALPHA };
+})();
+
+</script>
+<script>
+(() => {
+  const root = document.documentElement;
+  root.lang = 'cs';
+  const CHAINS = {"ken":{"s":"b3baa4b53a237cad","b":"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"},"kel":{"s":"c36109c73aef5ee7","b":"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"}};
+  const N = {"ken":{"nom":"Kendrick","acc":"Kendricka","voc":"Kendricku"},"kel":{"nom":"Kellyn","acc":"Kellyn","voc":"Kellyn"}};
+  const CARDS = {"ken":{"name":"Kendrick","number":"10","role":"lamač šifer"},"kel":{"name":"Kellyn","number":"★","role":"lovkyně medailí"}};
+  const SIGNOFF = "Vedení týmu";
+  const STORE = 'tajne-operace-v1';
+  const IDS = ['ken', 'kel'];
+  const STEP = 360 / 26;
+  const $ = (s, r = document) => r.querySelector(s);
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+  // ---- everything that differs between the two operations ----
+  const THEME = {
+    ken: {
+      kind: 'hockey',
+      title: ['Operace', 'Hattrick'], foil: 'Hattrick',
+      lede: `${N.ken.voc}, vzadu v brance leží tajemství. Hlídají ho tři šifry. Rozlouskni šifru a dáš gól. Tři góly a tajemství je tvoje.`,
+      sb: ['Góly', 'Třetina', 'Pokusy'],
+      doorTag: 'Buly',
+      doorText: 'Na pohlednici máš řadu čísel. Jsou to čísla dresů a každé znamená jedno písmeno. Tenhle dešifrovací puk ti z čísel udělá zpátky písmena. V šifrách nejsou háčky ani čárky.',
+      steps: ['Vyřeš hádanku na pohlednici. Odpověď je tvoje klíčové číslo.', 'Otáčej pukem, dokud klíčové číslo nestojí pod písmenem A.', 'Najdi na puku každé číslo z pohlednice a přečti písmeno, které stojí na okraji hned u něj.'],
+      hub: 'A nosí',
+      doorMiss: 'Dveře zůstaly zavřené. Zkontroluj klíčové číslo na puku a zkus to znovu.',
+      zoneTag: (z) => `${z}. třetina`,
+      lockNext: (z) => `Nejdřív dej gól v ${z - 1}. třetině.`,
+      stamp: () => 'Gól', go: 'Vystřelit', hintAsk: 'Popros trenéra o nápovědu',
+      misses: ['Tyčka. Zkus to znovu.', 'Tohle brankář chytil. Zkontroluj písmena a vystřel znovu.', 'Vedle. Podívej se na to ještě jednou.', 'Zblokováno. Projdi šifru písmeno po písmenu.'],
+      netTag: 'Branka', finalTag: 'Konec zápasu',
+      netText: (g) => `<strong>${g} ze 3 gólů.</strong> Tajemství zůstane v brance, dokud nedáš všechny tři.`,
+    },
+    kel: {
+      kind: 'gym',
+      title: ['Operace', 'Zlatá', 'medaile'], foil: 'Zlato',
+      lede: `${N.kel.voc}, pod stupni vítězů je schované tajemství. Hlídají ho tři šifry. Za každou šifru dostaneš medaili. Až získáš zlatou, tajemství je tvoje.`,
+      sb: ['Medaile', 'Sestava', 'Pokusy'],
+      doorTag: 'Rozcvička',
+      doorText: 'Na pohlednici máš řadu čísel. Každé číslo znamená jedno písmeno. Tahle kouzelná obruč ti z čísel udělá písmena. V šifrách nejsou háčky ani čárky.',
+      steps: ['Vyřeš hádanku na pohlednici. Odpověď je tvoje klíčové číslo.', 'Otáčej obručí, dokud klíčové číslo nestojí pod písmenem A.', 'Najdi na obruči každé číslo z pohlednice a přečti písmeno, které stojí na okraji hned u něj.'],
+      hub: 'A má',
+      doorMiss: 'Dveře do tělocvičny zůstaly zavřené. Zkontroluj klíčové číslo a zkus to znovu.',
+      zoneTag: (z) => `${z}. sestava`,
+      lockNext: (z) => `Nejdřív získej medaili za ${z - 1}. sestavu.`,
+      stamp: (z) => ['Bronz', 'Stříbro', 'Zlato'][z - 1], go: 'Zkusit', hintAsk: 'Popros trenérku o nápovědu',
+      misses: ['Malé zaváhání. Zkus to znovu.', 'Rozhodčí kroutí hlavou. Zkontroluj písmena.', 'Skoro. Ještě jednou.', 'Tohle nebylo ono. Projdi šifru písmeno po písmenu.'],
+      netTag: 'Stupně vítězů', finalTag: 'Vyhlášení',
+      netText: (g) => `<strong>${g} ze 3 medailí.</strong> Tajemství zůstane schované, dokud nezískáš zlatou.`,
+    },
+  };
+  const TYPES = {
+    morse: {
+      title: 'Puky a hokejky', ask: 'Co je tam napsáno?',
+      intro: 'Rozhodčí nechal na plexiskle vzkaz. Puk je jedno krátké písknutí, hokejka jedno dlouhé. V každém rámečku je jedno písmeno. Rozlušti ho podle tabulky.',
+    },
+    mirror: {
+      title: 'Zrcadlo', ask: 'Jaké je to slovo?',
+      intro: 'V tělocvičně visí velké zrcadlo. Někdo na něj napsal slovo, jenže je celé obráceně. Přečti ho pozpátku, nebo si vezmi zrcátko.',
+    },
+    grid: {
+      ken: {
+        title: 'Mapa střel', ask: 'Jaké slovo ze střel vyjde?', chip: 'Střela',
+        intro: `Šifru hlídá v brance ${N.kel.nom}. Za každý gól ti jednu střelu prozradí. Klepni do branky tam, kam chceš vystřelit. Pak najdi každou střelu v mapě: PK3 znamená řádek PK, třetí políčko.`,
+        hud: (g, n) => `Odhalené střely: ${g} z ${n}`, done: 'Máš všechny střely. Teď je rozlušti podle mapy.',
+        skip: `${N.kel.nom} dnes chytá všechno? Ukázat zbylé střely.`, label: 'Hra: nájezdy. Klepni do branky a vystřel.',
+      },
+      kel: {
+        title: 'Barevná žíněnka', ask: 'Jaké slovo vyjde?', chip: 'Trefa',
+        intro: `${N.ken.nom} ti šifru nedá zadarmo. Hoď na něj obruč! Klepni tam, kam má letět. Za každou trefu dostaneš barevný čtvereček s číslem. Barva ti řekne řádek, číslo políčko. Pak najdi písmeno v tabulce.`,
+        hud: (g, n) => `Trefy: ${g} z ${n}`, done: 'Máš všechny čtverečky. Teď najdi písmena v tabulce.',
+        skip: `${N.ken.nom} pořád uhýbá? Ukázat zbylé čtverečky.`, label: 'Hra: házení obručí. Klepni tam, kam má obruč letět.',
+      },
+    },
+    weave: {
+      ken: {
+        title: 'Střídání', ask: 'Jak zní vzkaz?', rows: ['1. lajna', '2. lajna'],
+        intro: `Teď jsi v brance ty a střílí ${N.kel.nom}. Chytej puky s písmeny, hýbej se prstem, myší nebo šipkami. Červené puky patří do 1. lajny, modré do 2. lajny. Lajny se pak střídají po jednom písmenu: začni první, pak druhá, pak zase první.`,
+        hud: (c, n) => `Chycená písmena: ${c} z ${n}`, done: 'Máš všechna písmena. Teď nech lajny střídat.',
+        skip: 'Moc rychlé puky? Ukázat zbylá písmena.', label: 'Hra: chytej puky s písmeny.',
+      },
+      kel: {
+        title: 'Míče s písmeny', ask: 'Co je tam napsáno?', rows: ['Růžové míče', 'Fialové míče'],
+        intro: `${N.ken.nom} hází míče s písmeny. Chytej je! Hýbej se prstem, myší nebo šipkami. Každé písmeno má svoje číslo. Až je budeš mít všechna, přečti je podle čísel od jedničky.`,
+        hud: (c, n) => `Chycené míče: ${c} z ${n}`, done: 'Máš všechna písmena. Přečti je podle čísel.',
+        skip: 'Moc rychlé míče? Ukázat zbylá písmena.', label: 'Hra: chytej míče s písmeny.',
+      },
+    },
+  };
+  const ROW_COLORS = ['růžová', 'fialová', 'modrá', 'zelená', 'žlutá'];
+
+  // ---- state: one progress record per player ----
+  // answers[0] is the postcard password, answers[1..3] the three codes. payloads[i] is what answers[i] unlocked.
+  // reveals[z] is how much of a code the minigame has handed over.
+  const fresh = () => ({ answers: [], payloads: [], shots: 0, reveals: {}, wheelKey: 1 });
+  const prog = { ken: fresh(), kel: fresh() };
+  let player = null, P = null, T = null;
+  const games = {};
+  const typeOf = (p) => TYPES[p.type][player] || TYPES[p.type];
+
+  function load() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(STORE) || 'null');
+      if (!saved) return null;
+      for (const id of IDS) {
+        const s = saved[id]; if (!s) continue;
+        const pr = prog[id];
+        pr.shots = s.shots | 0; pr.reveals = s.reveals || {};
+        for (const a of s.answers || []) {
+          const box = pr.payloads.length ? pr.payloads[pr.payloads.length - 1].next : CHAINS[id];
+          const opened = box && Lite.open(a, box);
+          if (!opened) break;
+          pr.answers.push(a); pr.payloads.push(opened);
+        }
+      }
+      return IDS.includes(saved.player) ? saved.player : null;
+    } catch (e) { return null; /* storage blocked: the game still works, it just forgets on reload */ }
+  }
+  function save() {
+    try {
+      const out = { player };
+      for (const id of IDS) out[id] = { answers: prog[id].answers, shots: prog[id].shots, reveals: prog[id].reveals };
+      localStorage.setItem(STORE, JSON.stringify(out));
+    } catch (e) {}
+  }
+
+  // ---- sound (only ever starts from a tap) ----
+  let ac;
+  const audio = () => ac || (ac = new (window.AudioContext || window.webkitAudioContext)());
+  function tone(type, freq, t, dur, vol, vibrato) {
+    const c = audio(), o = c.createOscillator(), g = c.createGain();
+    o.type = type; o.frequency.value = freq;
+    if (vibrato) { const l = c.createOscillator(), lg = c.createGain(); l.frequency.value = 30; lg.gain.value = vibrato; l.connect(lg).connect(o.frequency); l.start(t); l.stop(t + dur); }
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(vol, t + 0.02);
+    g.gain.setValueAtTime(vol, t + Math.max(0.03, dur - 0.04));
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g).connect(c.destination); o.start(t); o.stop(t + dur + 0.02);
+  }
+  function horn() { try { const t = audio().currentTime; [98, 147, 196].forEach((f) => tone('sawtooth', f, t, 1.2, 0.09)); } catch (e) {} }
+  function fanfare() { try { const t = audio().currentTime; [523, 659, 784, 1047].forEach((f, i) => tone('triangle', f, t + i * 0.14, i === 3 ? 0.6 : 0.16, 0.12)); } catch (e) {} }
+  function blip(...freqs) { try { const t = audio().currentTime; freqs.forEach((f, i) => tone('square', f, t + i * 0.09, 0.09, 0.035)); } catch (e) {} }
+  function whistle(t, dur) { tone('sine', 2500, t, dur, 0.07, 140); }
+  function playWhistles(groups, listEl) {
+    try {
+      const c = audio(); let t = c.currentTime + 0.1; const t0 = c.currentTime;
+      groups.forEach((g, i) => {
+        const start = t;
+        for (const ch of g) { const d = ch === '.' ? 0.13 : 0.42; whistle(t, d); t += d + 0.13; }
+        const end = t;
+        setTimeout(() => listEl.children[i] && listEl.children[i].classList.add('now'), (start - t0) * 1000);
+        setTimeout(() => listEl.children[i] && listEl.children[i].classList.remove('now'), (end - t0) * 1000);
+        t += 0.45;
+      });
+    } catch (e) {}
+  }
+
+  // ---- scoreboard ----
+  function board() {
+    const goals = Math.max(0, P.answers.length - 1);
+    $('#sb-goals').textContent = goals;
+    $('#sb-period').textContent = !P.answers.length ? '-' : Math.min(goals + 1, 3);
+    $('#sb-shots').textContent = P.shots;
+    $('#foil').hidden = goals < 3;
+  }
+  function goalLight() {
+    const lamp = $('#lamp');
+    lamp.classList.remove('on'); void lamp.offsetWidth; lamp.classList.add('on');
+    setTimeout(() => lamp.classList.remove('on'), 2700);
+  }
+
+  // ---- minigames ----
+  const C = {};
+  const COLOR_KEYS = ['ice', 'ice-cut', 'crease', 'puck', 'rubber', 'line-red', 'line-blue', 'board', 'mesh', 'kick', 'kick-deep', 'ink-soft', 'skin', 'wood'];
+  function readColors() { const cs = getComputedStyle(root); COLOR_KEYS.forEach((k) => { C[k] = cs.getPropertyValue('--' + k).trim(); }); }
+  const faceCache = {};
+  const faceImg = (name) => faceCache[name] || (faceCache[name] = Object.assign(new Image(), { src: name + '.jpg' }));
+  // which photo each kid wears in each game, by mood
+  const CAST = {
+    shoot: { ken: { normal: 'ken', win: 'ken-smirk' }, kel: { normal: 'kel', win: 'kel-tongue', lose: 'kel-frown' } },
+    catchHockey: { ken: { normal: 'ken-fan', win: 'ken-smirk', lose: 'ken-hey' }, kel: { normal: 'kel', win: 'kel-tongue', lose: 'kel-frown' } },
+    toss: { ken: { normal: 'ken-fan', win: 'ken-smirk', lose: 'ken-hey' }, kel: { normal: 'kel-calm', win: 'kel' } },
+    catchGym: { ken: { normal: 'ken', win: 'ken-smirk', lose: 'ken-hey' }, kel: { normal: 'kel-calm', win: 'kel', lose: 'kel-frown' } },
+  };
+  Object.values(CAST).forEach((c) => Object.values(c).forEach((m) => Object.values(m).forEach(faceImg)));
+  const moodFace = (cast, s, who) => faceImg(cast[who][(s.mood && s.mood[who]) || 'normal'] || cast[who].normal);
+  const DISPLAY = '"Bungee","Arial Black",sans-serif', JERSEY = '"Graduate","Rockwell",serif', BODY = '"Barlow","Trebuchet MS",sans-serif';
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const rr = (ctx, x, y, w, h, r) => { ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(x, y, w, h, r); else ctx.rect(x, y, w, h); };
+  const shape = (ctx, fill) => { ctx.fillStyle = fill; ctx.fill(); ctx.lineWidth = 2.5; ctx.strokeStyle = C.puck; ctx.stroke(); };
+
+  function drawFace(ctx, im, x, y, r, extra = {}) {
+    ctx.save();
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2);
+    if (im.complete && im.naturalWidth) { ctx.save(); ctx.clip(); ctx.drawImage(im, x - r, y - r, r * 2, r * 2); ctx.restore(); }
+    else {
+      ctx.fillStyle = C.skin; ctx.fill(); ctx.fillStyle = C.puck;
+      ctx.beginPath(); ctx.arc(x - r * 0.35, y - r * 0.15, r * 0.1, 0, 7); ctx.fill();
+      ctx.beginPath(); ctx.arc(x + r * 0.35, y - r * 0.15, r * 0.1, 0, 7); ctx.fill();
+      ctx.beginPath(); ctx.arc(x, y + r * 0.1, r * 0.45, 0.15 * Math.PI, 0.85 * Math.PI); ctx.lineWidth = 2; ctx.strokeStyle = C.puck; ctx.stroke();
+    }
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.lineWidth = 3; ctx.strokeStyle = C.puck; ctx.stroke();
+    if (extra.helmet) {      // a thick band over the top of the head
+      ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.arc(x, y, r + 4.5, Math.PI * 1.12, Math.PI * 1.88); ctx.lineWidth = 10; ctx.strokeStyle = C.puck; ctx.stroke();
+      ctx.beginPath(); ctx.arc(x, y, r + 4.5, Math.PI * 1.12, Math.PI * 1.88); ctx.lineWidth = 5.5; ctx.strokeStyle = extra.helmet; ctx.stroke();
+    }
+    if (extra.bow) {         // a hair bow
+      const by = y - r - 1;
+      for (const d of [-1, 1]) { ctx.beginPath(); ctx.moveTo(x, by); ctx.lineTo(x + d * 14, by - 9); ctx.lineTo(x + d * 14, by + 8); ctx.closePath(); shape(ctx, extra.bow); }
+      ctx.beginPath(); ctx.arc(x, by, 4.5, 0, 7); shape(ctx, extra.bow);
+    }
+    ctx.restore();
+  }
+  // a goalie seen from the front: pads, body, glove, blocker, and a face on top
+  function drawGoalie(ctx, x, footY, color, im, r) {
+    rr(ctx, x - 27, footY - 34, 23, 36, 6); shape(ctx, C.board);
+    rr(ctx, x + 4, footY - 34, 23, 36, 6); shape(ctx, C.board);
+    rr(ctx, x - 29, footY - 68, 58, 46, 11); shape(ctx, color);
+    ctx.beginPath(); ctx.arc(x - 39, footY - 50, 11, 0, 7); shape(ctx, C.kick);
+    rr(ctx, x + 30, footY - 62, 14, 25, 4); shape(ctx, C.kick);
+    drawFace(ctx, im, x, footY - 90, r, { helmet: color });
+  }
+  // a gymnast with her arms up
+  function drawGymnast(ctx, x, footY, color, im, r) {
+    ctx.save(); ctx.lineCap = 'round';
+    for (const d of [-1, 1]) {
+      ctx.beginPath(); ctx.moveTo(x + d * 18, footY - 62); ctx.lineTo(x + d * 40, footY - 108);
+      ctx.lineWidth = 11; ctx.strokeStyle = C.puck; ctx.stroke(); ctx.lineWidth = 6; ctx.strokeStyle = C.skin; ctx.stroke();
+    }
+    ctx.restore();
+    rr(ctx, x - 15, footY - 30, 12, 30, 4); shape(ctx, C.skin);
+    rr(ctx, x + 3, footY - 30, 12, 30, 4); shape(ctx, C.skin);
+    rr(ctx, x - 21, footY - 70, 42, 44, 12); shape(ctx, color);
+    drawFace(ctx, im, x, footY - 92, r, { bow: color });
+  }
+  // a kid in a T-shirt
+  function drawKid(ctx, x, footY, color, im, r) {
+    rr(ctx, x - 16, footY - 30, 13, 30, 4); shape(ctx, C.rubber);
+    rr(ctx, x + 3, footY - 30, 13, 30, 4); shape(ctx, C.rubber);
+    rr(ctx, x - 23, footY - 68, 46, 42, 11); shape(ctx, color);
+    ctx.beginPath(); ctx.arc(x - 29, footY - 42, 7, 0, 7); shape(ctx, C.skin);
+    ctx.beginPath(); ctx.arc(x + 29, footY - 42, 7, 0, 7); shape(ctx, C.skin);
+    drawFace(ctx, im, x, footY - 90, r);
+  }
+  function drawNote(ctx, note, W, y) {
+    if (!note) return;
+    ctx.save();
+    ctx.globalAlpha = clamp(note.t / 0.25, 0, 1);
+    ctx.font = `400 ${note.size || 30}px ${DISPLAY}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.lineJoin = 'round'; ctx.lineWidth = 7; ctx.strokeStyle = C.board; ctx.strokeText(note.text, W / 2, y);
+    ctx.fillStyle = note.color; ctx.fillText(note.text, W / 2, y);
+    ctx.restore();
+  }
+  function drawTip(ctx, text, W, y) { ctx.font = `700 15px ${BODY}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = C['ink-soft']; ctx.fillText(text, W / 2, y); }
+  function wall(ctx, W, h) { ctx.fillStyle = C.board; ctx.fillRect(0, 0, W, h); ctx.fillStyle = C['kick-deep']; ctx.fillRect(0, h, W, 4); }
+  function makeStage(canvas, W, H) {
+    const ctx = canvas.getContext('2d');
+    const fit = () => {
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const cw = canvas.clientWidth || W;
+      canvas.width = Math.round(cw * dpr); canvas.height = Math.round(((cw * H) / W) * dpr);
+      ctx.setTransform(canvas.width / W, 0, 0, canvas.height / H, 0, 0);
+    };
+    fit();
+    const local = (e) => { const r = canvas.getBoundingClientRect(); return { x: ((e.clientX - r.left) / r.width) * W, y: ((e.clientY - r.top) / r.height) * H }; };
+    return { ctx, fit, local };
+  }
+  // runs tick(dt) every frame while the canvas is on screen; returns a stop function
+  function runLoop(canvas, stage, tick) {
+    let raf = 0, last = 0, visible = true, alive = true;
+    const go = () => { if (alive && !raf && visible && !document.hidden) raf = requestAnimationFrame(frame); };
+    function frame(ts) {
+      raf = 0; if (!alive) return;
+      const dt = last ? Math.min(0.05, (ts - last) / 1000) : 0; last = ts;
+      tick(dt);
+      if (visible && !document.hidden) raf = requestAnimationFrame(frame); else last = 0;
+    }
+    const io = 'IntersectionObserver' in window ? new IntersectionObserver((es) => { visible = es[es.length - 1].isIntersecting; if (!visible) last = 0; go(); }) : null;
+    if (io) io.observe(canvas);
+    const wake = () => { last = 0; go(); };
+    const refit = () => { stage.fit(); tick(0); };
+    document.addEventListener('visibilitychange', wake);
+    window.addEventListener('resize', refit);
+    go();
+    return () => { alive = false; cancelAnimationFrame(raf); if (io) io.disconnect(); document.removeEventListener('visibilitychange', wake); window.removeEventListener('resize', refit); };
+  }
+  const setMood = (s, ken, kel) => { s.mood = { ken, kel, t: 1.3 }; };
+  const tickCommon = (s, dt) => {
+    if (s.note && (s.note.t -= dt) <= 0) s.note = null;
+    if (s.mood && (s.mood.t -= dt) <= 0) s.mood = null;
+  };
+  // something that paces between random spots (a goalie, a brother on a beam)
+  function patrol(s, key, dt, lo, hi, speed) {
+    if (Math.abs(s.target - s[key]) < 3) { let n; do { n = lo + Math.random() * (hi - lo); } while (Math.abs(n - s[key]) < 50); s.target = n; }
+    s[key] += Math.sign(s.target - s[key]) * Math.min(Math.abs(s.target - s[key]), speed * dt);
+  }
+
+  // Hockey game 1: penalty shots. Kendrick shoots, Kellyn is in goal. Each goal hands over one piece of the code.
+  function shootout(canvas, total, start, onGoal, onShot) {
+    const W = 360, H = 300, G = { x: 56, y: 40, w: 248, h: 124 }, REACH = 46, cast = CAST.shoot;
+    const stage = makeStage(canvas, W, H), ctx = stage.ctx;
+    const s = { goals: start, taken: 0, gx: 180, target: 250, speed: 0, puck: null, rest: null, note: null, mood: null, flash: 0, begun: false };
+    canvas._g = s;
+    canvas.addEventListener('click', (e) => {
+      if (s.puck || s.rest) return;
+      let { x, y } = stage.local(e);
+      if (y > G.y + G.h - 8) y = G.y + G.h - 9;            // a tap on the ice is a low shot
+      s.puck = { x0: 180, y0: 214, x1: clamp(x, 12, W - 12), y1: Math.max(12, y), t: 0 };
+      s.begun = true; s.taken++; onShot(s.taken); blip(420);
+    });
+    function land() {
+      const x = s.puck.x1, y = s.puck.y1;
+      const inX = x > G.x + 7 && x < G.x + G.w - 7, inY = y > G.y + 7;
+      let res = 'wide';
+      if (inX && inY) res = Math.abs(x - s.gx) < REACH ? 'save' : 'goal';
+      else if (y > G.y - 7 && (Math.abs(x - G.x) <= 7 || Math.abs(x - (G.x + G.w)) <= 7)) res = 'post';
+      else if (Math.abs(y - G.y) <= 7 && x > G.x - 7 && x < G.x + G.w + 7) res = 'bar';
+      const say = { goal: ['GÓL!', C['line-red']], save: ['Chytila to!', C['line-blue']], post: ['Tyčka!', C.puck], bar: ['Břevno!', C.puck], wide: ['Vedle!', C.puck] }[res];
+      s.note = { text: say[0], color: say[1], t: 1.0 };
+      s.rest = { x, y, t: 0.5, goal: res === 'goal' };
+      s.puck = null;
+      if (res === 'goal') {
+        s.flash = 0.5; blip(660, 880); setMood(s, 'win', 'lose');
+        if (s.goals < total) { s.goals++; onGoal(s.goals); }
+      } else { blip(res === 'save' ? 180 : 240); if (res === 'save') setMood(s, 'normal', 'win'); }
+    }
+    function tick(dt) {
+      s.speed = Math.min(190, 95 + s.goals * 8);
+      patrol(s, 'gx', dt, G.x + REACH, G.x + G.w - REACH, s.speed);
+      if (s.puck) { s.puck.t += dt / 0.42; if (s.puck.t >= 1) land(); }
+      if (s.rest && (s.rest.t -= dt) <= 0) s.rest = null;
+      if (s.flash > 0) s.flash -= dt;
+      tickCommon(s, dt);
+      draw();
+    }
+    function drawPuck(x, y, r) { ctx.beginPath(); ctx.ellipse(x, y, r, r * 0.72, 0, 0, 7); ctx.fillStyle = C.puck; ctx.fill(); }
+    function draw() {
+      ctx.clearRect(0, 0, W, H);
+      ctx.fillStyle = C.ice; ctx.fillRect(0, 0, W, H);
+      wall(ctx, W, 20);
+      const gl = G.y + G.h;
+      ctx.beginPath(); ctx.ellipse(180, gl, 160, 40, 0, 0, Math.PI); ctx.fillStyle = C.crease; ctx.fill(); ctx.lineWidth = 2.5; ctx.strokeStyle = C['line-red']; ctx.stroke();
+      ctx.fillStyle = C['line-red']; ctx.fillRect(0, gl - 1.5, W, 3);
+      ctx.save(); rr(ctx, G.x, G.y, G.w, G.h, 4); ctx.fillStyle = s.flash > 0 ? C.kick : C.board; ctx.fill(); ctx.clip();
+      ctx.beginPath();
+      for (let i = -G.h; i < G.w + G.h; i += 12) { ctx.moveTo(G.x + i, G.y); ctx.lineTo(G.x + i + G.h, gl); ctx.moveTo(G.x + i + G.h, G.y); ctx.lineTo(G.x + i, gl); }
+      ctx.lineWidth = 1; ctx.strokeStyle = C.mesh; ctx.stroke(); ctx.restore();
+      ctx.beginPath(); ctx.moveTo(G.x, gl); ctx.lineTo(G.x, G.y); ctx.lineTo(G.x + G.w, G.y); ctx.lineTo(G.x + G.w, gl);
+      ctx.lineWidth = 7; ctx.lineJoin = 'round'; ctx.lineCap = 'round'; ctx.strokeStyle = C['line-red']; ctx.stroke();
+      if (s.rest && s.rest.goal) drawPuck(s.rest.x, s.rest.y, 5);
+      drawGoalie(ctx, s.gx, gl + 2, C['line-blue'], moodFace(cast, s, 'kel'), 29);
+      if (s.rest && !s.rest.goal) drawPuck(s.rest.x, s.rest.y, 5);
+      // the shooter and his stick
+      ctx.beginPath(); ctx.moveTo(226, 298); ctx.lineTo(204, 222); ctx.lineTo(190, 217); ctx.lineWidth = 5; ctx.lineJoin = 'round'; ctx.lineCap = 'round'; ctx.strokeStyle = C.puck; ctx.stroke();
+      rr(ctx, 140, 280, 80, 40, 14); shape(ctx, C['line-red']);
+      drawFace(ctx, moodFace(cast, s, 'ken'), 180, 264, 31, { helmet: C['line-red'] });
+      if (s.puck) { const e = 1 - Math.pow(1 - Math.min(1, s.puck.t), 2); drawPuck(s.puck.x0 + (s.puck.x1 - s.puck.x0) * e, s.puck.y0 + (s.puck.y1 - s.puck.y0) * e, 9 - 4 * e); }
+      else if (!s.rest) drawPuck(180, 214, 9);
+      if (!s.begun) drawTip(ctx, 'Klepni do branky a vystřel', W, 192);
+      drawNote(ctx, s.note, W, 192);
+    }
+    return runLoop(canvas, stage, tick);
+  }
+
+  // Gymnastics game 1: hoop toss. Kellyn throws, Kendrick paces along the beam. Each hit hands over one piece of the code.
+  function toss(canvas, total, start, onHit, onThrow) {
+    const W = 360, H = 300, BEAM = 172, REACH = 42, cast = CAST.toss;
+    const stage = makeStage(canvas, W, H), ctx = stage.ctx;
+    const s = { hits: start, taken: 0, kx: 180, target: 260, speed: 0, hoop: null, rest: null, note: null, mood: null, begun: false };
+    canvas._g = s;
+    canvas.addEventListener('click', (e) => {
+      if (s.hoop || s.rest) return;
+      s.hoop = { x0: 180, y0: 212, x1: clamp(stage.local(e).x, 26, W - 26), y1: BEAM - 46, t: 0 };
+      s.begun = true; s.taken++; onThrow(s.taken); blip(420);
+    });
+    function land() {
+      const x = s.hoop.x1, hit = Math.abs(x - s.kx) < REACH;
+      s.rest = { x, t: 0.75, hit };
+      s.hoop = null;
+      if (hit) {
+        s.note = { text: 'Trefa!', color: C['line-red'], t: 1.0 }; blip(660, 880); setMood(s, 'lose', 'win');
+        if (s.hits < total) { s.hits++; onHit(s.hits); }
+      } else { s.note = { text: 'Vedle!', color: C.puck, t: 1.0 }; blip(200); setMood(s, 'win', 'normal'); }
+    }
+    function tick(dt) {
+      s.speed = Math.min(125, 62 + s.hits * 7);
+      if (!(s.rest && s.rest.hit)) patrol(s, 'kx', dt, 48, W - 48, s.speed);   // he freezes for a moment when ringed
+      if (s.hoop) { s.hoop.t += dt / 0.45; if (s.hoop.t >= 1) land(); }
+      if (s.rest && (s.rest.t -= dt) <= 0) s.rest = null;
+      tickCommon(s, dt);
+      draw();
+    }
+    function ring(x, y, rx, ry) { ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0, 0, 7); ctx.lineWidth = 8; ctx.strokeStyle = C.puck; ctx.stroke(); ctx.lineWidth = 4.5; ctx.strokeStyle = C['line-red']; ctx.stroke(); }
+    function draw() {
+      ctx.clearRect(0, 0, W, H);
+      ctx.fillStyle = C.ice; ctx.fillRect(0, 0, W, H);
+      wall(ctx, W, 20);
+      ctx.fillStyle = C['ice-cut']; for (let x = 60; x < W; x += 60) ctx.fillRect(x - 1, 24, 2, H);
+      // the beam
+      rr(ctx, 70, BEAM + 10, 10, 44, 3); shape(ctx, C.wood);
+      rr(ctx, 280, BEAM + 10, 10, 44, 3); shape(ctx, C.wood);
+      rr(ctx, 22, BEAM, 316, 12, 5); shape(ctx, C.wood);
+      if (s.rest && !s.rest.hit) ring(s.rest.x, BEAM + 46, 26, 8);
+      drawKid(ctx, s.kx, BEAM, C['line-blue'], moodFace(cast, s, 'ken'), 27);
+      if (s.rest && s.rest.hit) ring(s.kx, BEAM - 44, 36, 11);
+      // the thrower and the hoop in her hands
+      rr(ctx, 142, 282, 76, 40, 14); shape(ctx, C['line-red']);
+      drawFace(ctx, moodFace(cast, s, 'kel'), 180, 266, 31, { bow: C['line-red'] });
+      if (s.hoop) { const e = 1 - Math.pow(1 - Math.min(1, s.hoop.t), 2); ring(s.hoop.x0 + (s.hoop.x1 - s.hoop.x0) * e, s.hoop.y0 + (s.hoop.y1 - s.hoop.y0) * e - Math.sin(e * Math.PI) * 26, 24 + 10 * e, 9 + 2 * e); }
+      else if (!s.rest) ring(180, 214, 24, 9);
+      if (!s.begun) drawTip(ctx, 'Klepni tam, kam má obruč letět', W, 44);
+      drawNote(ctx, s.note, W, 44);
+    }
+    return runLoop(canvas, stage, tick);
+  }
+
+  // Game 2 for both: catch what the other one throws. Each catch hands over one letter.
+  function catcher(canvas, startBtn, seq, start, onCatch, onMiss, kind) {
+    const gym = kind === 'gym', cast = gym ? CAST.catchGym : CAST.catchHockey;
+    const me = gym ? 'kel' : 'ken', them = gym ? 'ken' : 'kel';
+    const W = 360, H = 320, REACH = gym ? 54 : 47, SLOW = gym ? 2.3 : 1.8, FAST = gym ? 1.35 : 1.0;
+    const stage = makeStage(canvas, W, H), ctx = stage.ctx;
+    const s = { caught: start, misses: 0, gx: 180, want: 180, sx: 180, sWant: 180, puck: null, wait: 0.7, playing: false, note: null, mood: null, keys: 0 };
+    canvas._g = s;
+    const done = () => s.caught >= seq.length;
+    const allDone = () => { s.note = { text: 'Máš všechna písmena!', color: C['line-red'], t: Infinity, size: 22 }; };
+    const aim = (e) => { s.want = clamp(stage.local(e).x, 40, W - 40); };
+    canvas.addEventListener('pointerdown', (e) => { aim(e); try { canvas.setPointerCapture(e.pointerId); } catch (x) {} });
+    canvas.addEventListener('pointermove', aim);
+    canvas.addEventListener('keydown', (e) => { if (e.key === 'ArrowLeft') { s.keys = -1; e.preventDefault(); } if (e.key === 'ArrowRight') { s.keys = 1; e.preventDefault(); } });
+    canvas.addEventListener('keyup', (e) => { if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') s.keys = 0; });
+    if (startBtn) startBtn.addEventListener('click', () => { s.playing = true; startBtn.parentElement.hidden = true; canvas.focus({ preventScroll: true }); blip(520, 660); });
+    if (done()) allDone();
+    const mood = (mine, theirs) => (gym ? setMood(s, theirs, mine) : setMood(s, mine, theirs));
+    function tick(dt) {
+      if (s.keys) s.want = clamp(s.want + s.keys * 340 * dt, 40, W - 40);
+      s.gx += (s.want - s.gx) * Math.min(1, dt * 16);
+      s.sx += (s.sWant - s.sx) * Math.min(1, dt * 7);
+      if (s.playing && !done()) {
+        if (!s.puck) {
+          if ((s.wait -= dt) <= 0) s.puck = { x0: s.sx, y0: 96, x1: 44 + Math.random() * (W - 88), y1: 226, t: 0, dur: Math.max(FAST, SLOW - s.caught * 0.06), item: seq[s.caught] };
+        } else {
+          s.puck.t += dt / s.puck.dur;
+          if (s.puck.t >= 1) {
+            if (Math.abs(s.puck.x1 - s.gx) < REACH) {
+              s.caught++; onCatch(s.caught); blip(660, 880); mood('win', 'lose');
+              if (done()) { allDone(); s.playing = false; } else s.note = { text: 'Chyceno!', color: C['line-blue'], t: 0.8 };
+            } else { s.misses++; onMiss(s.misses); blip(180); mood('normal', 'win'); s.note = { text: gym ? 'Spadl!' : 'Propadl!', color: C.puck, t: 0.8 }; }
+            s.puck = null; s.wait = 0.75; s.sWant = 50 + Math.random() * (W - 100);
+          }
+        }
+      }
+      tickCommon(s, dt);
+      draw();
+    }
+    function draw() {
+      ctx.clearRect(0, 0, W, H);
+      ctx.fillStyle = C.ice; ctx.fillRect(0, 0, W, H);
+      wall(ctx, W, 14);
+      if (gym) { ctx.fillStyle = C['ice-cut']; for (let x = 60; x < W; x += 60) ctx.fillRect(x - 1, 18, 2, H); }
+      ctx.fillStyle = C['line-blue']; ctx.fillRect(0, 118, W, 8);
+      if (!gym) { ctx.beginPath(); ctx.ellipse(180, H + 6, 170, 78, 0, Math.PI, 0); ctx.fillStyle = C.crease; ctx.fill(); ctx.lineWidth = 2.5; ctx.strokeStyle = C['line-red']; ctx.stroke(); }
+      // the one throwing
+      rr(ctx, s.sx - 27, 70, 54, 28, 10); shape(ctx, C['line-blue']);
+      if (!gym) { ctx.beginPath(); ctx.moveTo(s.sx + 27, 74); ctx.lineTo(s.sx + 37, 104); ctx.lineTo(s.sx + 25, 108); ctx.lineWidth = 4; ctx.lineJoin = 'round'; ctx.lineCap = 'round'; ctx.strokeStyle = C.puck; ctx.stroke(); }
+      drawFace(ctx, moodFace(cast, s, them), s.sx, 50, 26, gym ? {} : { helmet: C['line-blue'] });
+      // the one catching
+      if (gym) drawGymnast(ctx, s.gx, H + 20, C['line-red'], moodFace(cast, s, me), 30);
+      else drawGoalie(ctx, s.gx, H + 14, C['line-red'], moodFace(cast, s, me), 30);
+      if (s.puck) {
+        const p = s.puck, e = Math.pow(Math.min(1, p.t), 1.2);
+        const x = p.x0 + (p.x1 - p.x0) * e, y = p.y0 + (p.y1 - p.y0) * e, r = 12 + 5 * e;
+        const line = [C['line-red'], C['line-blue']][p.item.line];
+        ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fillStyle = gym ? line : C.puck; ctx.fill(); ctx.lineWidth = gym ? 3 : 4; ctx.strokeStyle = gym ? C.puck : line; ctx.stroke();
+        ctx.font = `400 ${Math.round(r * 1.15)}px ${JERSEY}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = C.board; ctx.fillText(p.item.ch, x, y + 1);
+      }
+      drawNote(ctx, s.note, W, 168);
+    }
+    return runLoop(canvas, stage, tick);
+  }
+
+  // ---- code pieces ----
+  const PUCK = '<svg class="i-puck" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="7"/></svg>';
+  const STICK = '<svg class="i-stick" viewBox="0 0 40 16" aria-hidden="true"><path d="M3 5H27L37 12"/></svg>';
+  const LOCK = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 11V8a5 5 0 0 1 10 0v3"/><rect x="4" y="11" width="16" height="10" rx="2"/></svg>';
+  const symbols = (g) => `<span class="ms" role="img" aria-label="${[...g].map((c) => (c === '.' ? 'puk' : 'hokejka')).join(', ')}">${[...g].map((c) => (c === '.' ? PUCK : STICK)).join('')}</span>`;
+  const weaveSeq = (p) => p.lines.flatMap((l, line) => [...l].map((ch, i) => ({ ch, line, order: i * 2 + 1 + line })));
+  const shotLabel = ([r, c]) => (T.kind === 'gym' ? `<span class="cdot c${r}" role="img" aria-label="${ROW_COLORS[r]} ${c}">${c}</span>` : `<span>${Lite.GRID_ROWS[r]}${c}</span>`);
+
+  function puzzleHTML(p, z, scored) {
+    const t = typeOf(p);
+    if (p.type === 'morse') {
+      return `<ol class="groups" id="groups">${p.groups.map((g) => `<li>${symbols(g)}</li>`).join('')}</ol>
+        <button type="button" class="btn btn-small" id="play" style="justify-self:start">Přehrát písknutí</button>
+        <p class="sub">Tabulka rozhodčího</p>
+        <div class="legend">${Object.entries(Lite.MORSE).map(([l, g]) => `<div><b>${l}</b>${symbols(g)}</div>`).join('')}</div>`;
+    }
+    if (p.type === 'mirror') return `<div class="mirror" role="img" aria-label="Slovo napsané zrcadlově"><span>${esc(p.word)}</span></div>`;
+    if (p.type === 'grid') {
+      const cols = Lite.GRID_COLS, n = p.shots.length, gym = T.kind === 'gym';
+      const shown = scored ? n : Math.min(P.reveals[z] | 0, n);
+      const head = `<tr><th></th>${Array.from({ length: cols }, (_, i) => `<th scope="col">${i + 1}</th>`).join('')}</tr>`;
+      const rows = Lite.GRID_ROWS.map((r, ri) => `<tr><th scope="row">${gym ? `<span class="cdot c${ri}" role="img" aria-label="${ROW_COLORS[ri]}"></span>` : r}</th>${Array.from({ length: cols }, (_, ci) => {
+        const ch = Lite.ALPHA[ri * cols + ci];
+        return ch ? `<td>${ch}</td>` : '<td class="blank"></td>';
+      }).join('')}</tr>`).join('');
+      const game = scored ? '' : `<div class="game" data-kind="shoot"><canvas width="360" height="300" role="img" aria-label="${t.label}"></canvas></div>
+        <p class="hud" id="hud-${z}" aria-live="polite"></p>
+        <button type="button" class="linkish" data-skip="${z}" hidden>${t.skip}</button>`;
+      return `${game}<ol class="shots" id="reveal-${z}">${p.shots.map((s, i) => `<li${i < shown ? '' : ' class="todo"'}><small>${t.chip} ${i + 1}</small>${i < shown ? shotLabel(s) : '<span>?</span>'}</li>`).join('')}</ol>
+        <p class="sub">${gym ? 'Tabulka' : 'Mapa'}</p>
+        <div class="chart-box"><table class="chart"><thead>${head}</thead><tbody>${rows}</tbody></table></div>
+        ${gym ? '' : '<p class="sub">LK levé křídlo &middot; ST střed &middot; PK pravé křídlo &middot; OB obránce &middot; BR brankář</p>'}`;
+    }
+    if (p.type === 'weave') {
+      const seq = weaveSeq(p), n = seq.length;
+      const shown = scored ? n : Math.min(P.reveals[z] | 0, n);
+      let k = 0;
+      const rowsHTML = p.lines.map((l, i) => `<div class="lrow lrow-${i + 1}"><p class="sub">${t.rows[i]}</p><div class="tiles">${[...l].map((ch) => {
+        const item = seq[k], on = k++ < shown;
+        return `<span${on ? '' : ' class="todo"'}>${p.numbered ? `<i>${item.order}</i>` : ''}<b>${on ? esc(ch) : ''}</b></span>`;
+      }).join('')}</div></div>`).join('');
+      const game = scored ? '' : `<div class="game" data-kind="catch"><canvas width="360" height="320" tabindex="0" role="img" aria-label="${t.label}"></canvas>${shown < n ? '<div class="game-over"><button type="button" class="btn" data-start>Hrát</button></div>' : ''}</div>
+        <p class="hud" id="hud-${z}" aria-live="polite"></p>
+        <button type="button" class="linkish" data-skip="${z}" hidden>${t.skip}</button>`;
+      return `${game}<div class="lines" id="reveal-${z}">${rowsHTML}</div>`;
+    }
+    return '';
+  }
+
+  function startGame(z, p) {
+    const zone = $('#zone-' + z), canvas = $('canvas', zone), hud = $('#hud-' + z), skip = $('[data-skip]', zone), t = typeOf(p);
+    if (!canvas) return;
+    const pr = P, have = () => pr.reveals[z] | 0;
+    if (p.type === 'grid') {
+      const n = p.shots.length, cells = $('#reveal-' + z).children;
+      const say = (g) => { hud.textContent = g >= n ? t.done : t.hud(g, n); };
+      say(Math.min(have(), n));
+      const onGain = (g) => {
+        pr.reveals[z] = g; save(); say(g);
+        const li = cells[g - 1]; li.classList.remove('todo'); li.lastElementChild.outerHTML = shotLabel(p.shots[g - 1]);
+        if (g >= n) skip.hidden = true;
+      };
+      const onTry = (taken) => { if (taken >= n * 3 && have() < n) skip.hidden = false; };
+      games[z] = (T.kind === 'gym' ? toss : shootout)(canvas, n, Math.min(have(), n), onGain, onTry);
+    }
+    if (p.type === 'weave') {
+      const seq = weaveSeq(p), n = seq.length, tiles = zone.querySelectorAll('#reveal-' + z + ' .tiles span');
+      const say = (c) => { hud.textContent = c >= n ? t.done : t.hud(c, n); };
+      say(Math.min(have(), n));
+      games[z] = catcher(canvas, $('[data-start]', zone), seq, Math.min(have(), n), (c) => {
+        pr.reveals[z] = c; save(); say(c);
+        const tile = tiles[c - 1]; tile.classList.remove('todo'); tile.lastElementChild.textContent = seq[c - 1].ch;
+        if (c >= n) skip.hidden = true;
+      }, (misses) => { if (misses >= 12 && have() < n) skip.hidden = false; }, T.kind);
+    }
+  }
+
+  function shotForm(stage, label, button, hint) {
+    return `<form class="shot" data-stage="${stage}" novalidate>
+        <label for="answer-${stage}">${label}</label>
+        <div class="shot-row"><input id="answer-${stage}" name="answer" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" enterkeyhint="go"><button class="btn">${button}</button></div>
+        <p class="call" aria-live="polite"></p>
+      </form>
+      ${hint ? `<button type="button" class="linkish" data-hint>${T.hintAsk}</button><p class="hint" hidden>${esc(hint)}</p>` : ''}`;
+  }
+
+  // ---- the door (postcard password + decoder wheel) ----
+  function renderDoor() {
+    const door = $('#door');
+    if (P.answers[0]) {
+      door.dataset.state = 'open';
+      door.innerHTML = `<div class="door-text">
+          <span class="ztag">${T.doorTag}</span>
+          <div class="plate"><span class="stamp">Otevřeno</span><span class="nameplate">${esc(P.answers[0])}</span></div>
+          <p class="note">${esc(P.payloads[0].welcome || '')}</p>
+        </div>`;
+      return;
+    }
+    door.dataset.state = 'shut';
+    door.innerHTML = `<div class="door-text">
+        <span class="ztag">${T.doorTag}</span>
+        <h2>Rozlušti svou pohlednici</h2>
+        <p>${T.doorText}</p>
+        <ol class="steps">${T.steps.map((s) => `<li>${s}</li>`).join('')}</ol>
+      </div>
+      <div class="wheel-wrap">
+        <div class="wheel" id="wheel"><div class="disc" id="disc"></div><div class="hub"><span class="hub-lab">${T.hub}</span><span class="hub-num" id="hub-num">1</span></div></div>
+        <div class="wheel-ctl"><button type="button" class="btn btn-small" id="turn-l">Doleva</button><button type="button" class="btn btn-small" id="turn-r">Doprava</button></div>
+      </div>
+      <div class="door-form">${shotForm(0, 'Heslo z pohlednice', 'Otevřít dveře', 'Když ti vychází nesmysl, máš špatné klíčové číslo. Přečti si hádanku znovu a počítej pozorně.')}</div>`;
+    wheel();
+  }
+
+  function wheel() {
+    const w = $('#wheel'), disc = $('#disc'), pr = P;
+    let rot = pr.wheelKey - 1;
+    const nums = [];
+    const at = (elm, radius, deg) => {
+      const a = (deg * Math.PI) / 180;
+      elm.style.left = 50 + radius * Math.sin(a) + '%';
+      elm.style.top = 50 - radius * Math.cos(a) + '%';
+    };
+    [...Lite.ALPHA].forEach((ch, i) => {
+      const s = document.createElement('span');
+      s.className = 'wl' + (i === 0 ? ' is-a' : ''); s.textContent = ch;
+      at(s, 44.6, i * STEP); w.appendChild(s);
+    });
+    for (let n = 1; n <= 26; n++) { const s = document.createElement('span'); s.className = 'wn'; s.textContent = n; w.appendChild(s); nums.push(s); }
+    const draw = () => {
+      const k = (((Math.round(rot) % 26) + 26) % 26) + 1;
+      pr.wheelKey = k;
+      nums.forEach((s, i) => { at(s, 33.5, (i - rot) * STEP); s.classList.toggle('under-a', i + 1 === k); });
+      disc.style.transform = `rotate(${-rot * STEP}deg)`;
+      $('#hub-num').textContent = k;
+    };
+    draw();
+    $('#turn-l').addEventListener('click', () => { rot = Math.round(rot) + 1; draw(); });
+    $('#turn-r').addEventListener('click', () => { rot = Math.round(rot) - 1; draw(); });
+    // drag the wheel round with a finger or the mouse
+    let drag = null;
+    const angle = (e) => { const r = w.getBoundingClientRect(); return (Math.atan2(e.clientX - (r.left + r.width / 2), -(e.clientY - (r.top + r.height / 2))) * 180) / Math.PI; };
+    disc.addEventListener('pointerdown', (e) => { drag = { rot, last: angle(e), sum: 0 }; w.classList.add('dragging'); try { disc.setPointerCapture(e.pointerId); } catch (x) {} });
+    disc.addEventListener('pointermove', (e) => {
+      if (!drag) return;
+      let d = angle(e) - drag.last; if (d > 180) d -= 360; if (d < -180) d += 360;
+      drag.sum += d; drag.last = angle(e);
+      rot = drag.rot - drag.sum / STEP; draw();
+    });
+    const end = () => { if (!drag) return; drag = null; w.classList.remove('dragging'); rot = Math.round(rot); draw(); };
+    disc.addEventListener('pointerup', end);
+    disc.addEventListener('pointercancel', end);
+  }
+
+  // ---- the three codes ----
+  function stopGames() { for (const z of Object.keys(games)) if (games[z]) { games[z](); games[z] = null; } }
+  function renderZone(z) {
+    const zone = $('#zone-' + z);
+    if (games[z]) { games[z](); games[z] = null; }
+    const p = P.payloads[z - 1];
+    const tag = `<span class="ztag">${T.zoneTag(z)}</span>`;
+    if (!p) {
+      zone.dataset.state = 'locked';
+      const need = z === 1 ? 'Nejdřív otevři dveře heslem z pohlednice.' : T.lockNext(z);
+      zone.innerHTML = `<div class="zone-head">${tag}<div class="locked">${LOCK}<p>Zamčeno. ${need}</p></div></div>`;
+      return;
+    }
+    const t = typeOf(p.puzzle);
+    const scored = !!P.answers[z];
+    zone.dataset.state = scored ? 'scored' : 'live';
+    zone.innerHTML = `<div class="zone-head">${tag}<h2>${t.title}</h2><p>${t.intro}</p></div>
+      ${puzzleHTML(p.puzzle, z, scored)}
+      ${scored
+        ? `<div class="plate"><span class="stamp">${T.stamp(z)}</span><span class="nameplate">${esc(P.answers[z])}</span></div><p class="note">${esc(P.payloads[z].note || '')}</p>`
+        : shotForm(z, t.ask, T.go, p.hint)}`;
+    const play = $('#play', zone);
+    if (play) play.addEventListener('click', () => playWhistles(p.puzzle.groups, $('#groups', zone)));
+    if (!scored) startGame(z, p.puzzle);
+  }
+
+  // ---- the prize ----
+  function renderNet() {
+    const net = $('#net');
+    const goals = Math.max(0, P.answers.length - 1);
+    const fin = P.payloads[3] && P.payloads[3].final;
+    const prize = T.kind === 'gym'
+      ? `<div class="podium" aria-hidden="true">
+          <div class="step s2"><span class="medal silver${goals >= 2 ? ' in' : ''}"></span><b>2</b></div>
+          <div class="step s1"><span class="medal gold${goals >= 3 ? ' in' : ''}"></span><b>1</b></div>
+          <div class="step s3"><span class="medal bronze${goals >= 1 ? ' in' : ''}"></span><b>3</b></div></div>`
+      : `<div class="goalmouth" aria-hidden="true"><div class="crease"></div><div class="rline rline-goal"></div>
+          <div class="goal">${[0, 1, 2].map((i) => `<span class="slot${i < goals ? ' in' : ''}"></span>`).join('')}</div></div>`;
+    net.dataset.state = fin ? 'scored' : 'waiting';
+    net.innerHTML = fin
+      ? `<div class="zone-head"><span class="ztag">${T.finalTag}</span></div>
+         <div class="secret"><h3>${esc(fin.heading)}</h3>${fin.lines.map((l) => `<p>${esc(l)}</p>`).join('')}<p class="sign">${esc(SIGNOFF)}</p></div>${prize}`
+      : `<div class="zone-head"><span class="ztag">${T.netTag}</span><p>${T.netText(goals)}</p></div>${prize}`;
+  }
+
+  function rain() {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const gym = T.kind === 'gym';
+    const colors = gym
+      ? [['var(--gold)'], ['var(--row0)'], ['var(--row1)'], ['var(--board)']]
+      : [['var(--line-red)', 'var(--puck)'], ['var(--line-blue)', 'var(--board)'], ['var(--puck)', 'var(--kick)'], ['var(--board)', 'var(--line-red)']];
+    const box = document.createElement('div'); box.className = 'rain'; box.setAttribute('aria-hidden', 'true');
+    for (let i = 0; i < 46; i++) {
+      const [c1, c2] = colors[i % colors.length];
+      const w = 30 + Math.random() * 30;
+      const style = `left:${Math.random() * 96}%;--spin:${(Math.random() * 2 - 1) * 540}deg;animation-duration:${2.2 + Math.random() * 2.2}s;animation-delay:${Math.random() * 1.8}s`;
+      box.insertAdjacentHTML('beforeend', gym
+        ? `<svg viewBox="0 0 40 38" width="${w}" style="${style}"><path d="M20 2l5.3 10.8 11.9 1.7-8.6 8.4 2 11.9L20 29.2 9.4 34.8l2-11.9-8.6-8.4 11.9-1.7z" fill="${c1}" stroke="var(--puck)" stroke-width="1.8" stroke-linejoin="round"/></svg>`
+        : `<svg viewBox="0 0 40 28" width="${w}" style="${style}"><path d="M6 20a14 14 0 0 1 28 0z" fill="${c1}" stroke="var(--puck)" stroke-width="1.5"/><path d="M4 20h31c3 0 4 2 3 4H6c-2 0-3-2-2-4z" fill="${c2}" stroke="var(--puck)" stroke-width="1.5"/><circle cx="20" cy="6.5" r="2" fill="${c2}"/></svg>`);
+    }
+    document.body.appendChild(box);
+    setTimeout(() => box.remove(), 6500);
+  }
+
+  function renderHero() {
+    $('#tape').textContent = 'Přísně tajné';
+    $('#title').innerHTML = T.title.map((w) => `<span>${w}</span>`).join('');
+    $('#lede').textContent = T.lede;
+    const c = CARDS[player];
+    $('#card-img').src = `karta-${player}.jpg`;
+    $('#card-img').alt = `${N[player].nom}: hráčská kartička`;
+    $('#card-num').textContent = c.number; $('#card-name').textContent = c.name; $('#card-role').textContent = c.role;
+    $('#foil').textContent = T.foil;
+    $('#lab-goals').textContent = T.sb[0]; $('#lab-period').textContent = T.sb[1]; $('#lab-shots').textContent = T.sb[2];
+  }
+  function renderAll() { renderDoor(); [1, 2, 3].forEach(renderZone); renderNet(); board(); }
+
+  // ---- choosing who plays ----
+  function renderPick() {
+    $('#pick-grid').innerHTML = IDS.map((id) => `<button type="button" class="pick-card theme-${id}" data-pick="${id}">
+        <img src="karta-${id}.jpg" width="448" height="560" alt="">
+        <span class="pick-name">${esc(N[id].nom)}</span>
+        <span class="pick-op">${THEME[id].title.join(' ')}</span>
+        <span class="pick-go">Hraju</span>
+      </button>`).join('');
+  }
+  function setPlayer(id) {
+    stopGames();
+    player = id;
+    if (!id) { delete root.dataset.player; $('#game').hidden = true; $('#pick').hidden = false; save(); window.scrollTo(0, 0); return; }
+    root.dataset.player = id; P = prog[id]; T = THEME[id];
+    readColors();
+    $('#pick').hidden = true; $('#game').hidden = false;
+    renderHero(); renderAll(); save(); window.scrollTo(0, 0);
+  }
+
+  // ---- answering a code ----
+  document.addEventListener('submit', (e) => {
+    const form = e.target.closest('form.shot');
+    if (!form) return;
+    e.preventDefault();
+    const stage = +form.dataset.stage;
+    const input = form.elements.answer, call = $('.call', form);
+    const text = input.value.trim();
+    if (!Lite.norm(text)) { call.textContent = 'Nejdřív napiš odpověď.'; input.focus(); return; }
+    const box = stage === 0 ? CHAINS[player] : P.payloads[stage - 1].next;
+    const opened = Lite.open(text, box);
+    P.shots++;
+    if (!opened) {
+      call.textContent = stage === 0 ? T.doorMiss : T.misses[P.shots % T.misses.length];
+      input.classList.remove('shake'); void input.offsetWidth; input.classList.add('shake');
+      save(); board(); input.select();
+      return;
+    }
+    P.answers[stage] = text.toUpperCase().replace(/\s+/g, ' ');
+    P.payloads[stage] = opened;
+    save(); renderAll();
+    if (stage > 0) { goalLight(); if (T.kind === 'gym') fanfare(); else horn(); }
+    const next = stage < 3 ? $('#zone-' + (stage + 1)) : $('#net');
+    next.scrollIntoView({ block: 'start' });
+    if (stage === 3) rain();
+  });
+
+  document.addEventListener('click', (e) => {
+    const pick = e.target.closest('[data-pick]');
+    if (pick) { setPlayer(pick.dataset.pick); return; }
+    const h = e.target.closest('[data-hint]');
+    if (h) { h.nextElementSibling.hidden = false; h.hidden = true; return; }
+    const sk = e.target.closest('[data-skip]');
+    if (sk) { const z = +sk.dataset.skip; P.reveals[z] = 99; save(); renderZone(z); }
+  });
+  $('#switch').addEventListener('click', () => setPlayer(null));
+
+  // start over: two taps, so a slip of the thumb does not wipe the game
+  const reset = $('#reset'); let armed = 0;
+  reset.addEventListener('click', () => {
+    if (!armed) { armed = setTimeout(() => { armed = 0; reset.textContent = 'Začít znovu'; }, 4000); reset.textContent = 'Klepni ještě jednou a všechno se smaže'; return; }
+    clearTimeout(armed); armed = 0; reset.textContent = 'Začít znovu';
+    stopGames();
+    prog[player] = fresh(); P = prog[player];
+    save(); renderAll(); window.scrollTo(0, 0);
+  });
+
+  renderPick();
+  const savedPlayer = load();
+  if (savedPlayer) setPlayer(savedPlayer);
+})();
+</script>
+
+</body>
+</html>

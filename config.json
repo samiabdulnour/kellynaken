@@ -1,0 +1,83 @@
+{
+  "signoff": "Vedení týmu",
+  "footer": "Šifry připravilo vedení týmu.",
+  "names": {
+    "ken": { "nom": "Kendrick", "acc": "Kendricka", "voc": "Kendricku" },
+    "kel": { "nom": "Kellyn", "acc": "Kellyn", "voc": "Kellyn" }
+  },
+  "players": {
+    "ken": {
+      "card": { "name": "Kendrick", "number": "10", "role": "lamač šifer" },
+      "postcard": {
+        "password": "SPARTA",
+        "key": 6,
+        "riddle": "A nosí číslo, které říká, kolik hráčů jednoho týmu je na ledě. Brankář se počítá.",
+        "welcome": "Sparta, do toho! Jsi na ledě. Tři třetiny, tři šifry. Dej gól v každé a tajemství z branky je tvoje."
+      },
+      "periods": [
+        {
+          "type": "morse",
+          "answer": "GOLFAK",
+          "hint": "První rámeček jsou dvě hokejky a jeden puk. Najdi je v tabulce a máš první písmeno.",
+          "note": "První gól. To bylo na rozbruslení. Další šifru hlídá v brance Kellyn."
+        },
+        {
+          "type": "grid",
+          "answer": "PRESILOVKA",
+          "hint": "LK je horní řádek. Políčka počítej zleva, takže LK2 je druhé písmeno v horním řádku.",
+          "note": "Dva góly. Ještě jeden a na led poletí čepice. Teď jdeš do branky ty."
+        },
+        {
+          "type": "weave",
+          "answer": "CEPICE NA LED",
+          "hint": "Vezmi jedno písmeno z 1. lajny, pak jedno z 2. lajny. Vzkaz začíná písmeny C a E.",
+          "note": "Tři góly. To je hattrick."
+        }
+      ],
+      "final": {
+        "heading": "Hattrick!",
+        "lines": [
+          "Tohle je jen ukázka. Sem přijde opravdové tajemství.",
+          "Třeba: V sobotu v šest. Vezmi si brusle. Nikomu ani slovo."
+        ]
+      }
+    },
+    "kel": {
+      "card": { "name": "Kellyn", "number": "★", "role": "lovkyně medailí" },
+      "postcard": {
+        "password": "SALTO",
+        "key": 3,
+        "riddle": "A má číslo, které říká, kolik medailí se rozdává na stupních vítězů.",
+        "welcome": "Jsi v tělocvičně. Tři sestavy, tři šifry. Za každou dostaneš medaili. Až budeš mít zlatou, tajemství je tvoje."
+      },
+      "periods": [
+        {
+          "type": "mirror",
+          "answer": "STOJKA",
+          "hint": "Čti od konce. První písmeno slova je to úplně vpravo.",
+          "note": "Bronzová medaile je tvoje. Teď pozor, do tělocvičny přišel Kendrick."
+        },
+        {
+          "type": "grid",
+          "answer": "KLADINA",
+          "hint": "Barva čtverečku ti řekne řádek. Číslo říká, kolikáté políčko zleva to je.",
+          "note": "Stříbrná medaile. Zbývá poslední sestava a zlato je tvoje."
+        },
+        {
+          "type": "weave",
+          "numbered": true,
+          "answer": "MAS ZLATO",
+          "hint": "Najdi písmeno s číslem 1, pak 2, pak 3. Čti je za sebou.",
+          "note": "Zlatá medaile!"
+        }
+      ],
+      "final": {
+        "heading": "Zlatá medaile!",
+        "lines": [
+          "Tohle je jen ukázka. Sem přijde opravdové tajemství.",
+          "Třeba: V neděli tě čeká překvapení. Vezmi si cvičky."
+        ]
+      }
+    }
+  }
+}
