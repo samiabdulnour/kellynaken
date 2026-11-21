@@ -1578,7 +1578,10 @@ h2{font:400 1.7rem/1.08 var(--font-display);text-transform:uppercase;text-wrap:b
       }
       if (st.here[mate]) kid(mate, s.px, s.py, c.p[mate][2] === 1, false);
       kid(me, s.x, s.y, c.p[me][2] === 1, true);
-      ctx.save(); ctx.translate(s.lx, s.ly); ctx.scale(0.72, 0.72); drawStylist(ctx, 0, 14, bossFace(st.boss), st.boss.name.charAt(0)); ctx.restore();
+      // her face follows the chase: a grin, tongue out when she is closing in, wild eyes when she catches someone, a smile when they pass
+      const close = Math.min(Math.hypot(s.x - s.lx, s.y - s.ly), st.here[mate] ? Math.hypot(s.px - s.lx, s.py - s.ly) : 999) < 80;
+      const look = st.phase === 'down' ? 'happy' : c.shout ? 'serious' : close && st.phase === 'play' ? 'cool' : '';
+      ctx.save(); ctx.translate(s.lx, s.ly); ctx.scale(0.8, 0.8); drawStylist(ctx, 0, 14, bossFace(st.boss, look), st.boss.name.charAt(0)); ctx.restore();
       if (c.shout && st.phase === 'play') {                                                         // her speech bubble
         const bx = clamp(s.lx, 62, W - 62), by = Math.max(TOP + 16, s.ly - 62);
         rr(ctx, bx - 56, by - 15, 112, 30, 12); shape(ctx, C.board);
