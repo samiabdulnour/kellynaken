@@ -1,39 +1,53 @@
 # Kellyn a Ken: art package for ChatGPT
 
-Everything ChatGPT needs to draw the game's scenes and objects, in the order to ask for it. There are 14 images in all. The characters are yours and are not part of this.
+Everything ChatGPT needs to draw the game's scenes and objects so they match your characters. There are 21 images, plus a few optional ones at the end.
+
+## What changed in this version
+
+- **The style now follows your character sheets.** No black outlines, soft shading, warm natural colours. Step 0 is rewritten, so use this one.
+- **S0 is now the skin of a spinning planet** that the levels are picked on. If you already drew S0, draw it again with the new prompt.
+- **New place: Praha 6, Strahov** (the old stadium, the drums): S10 to S13, P5 and P6.
+- **New objects for the heroes:** Kendrick's hockey stick and puck, Kellyn's white bunny (P7).
+- Scenes never show who is waiting to be rescued, so the surprise is kept.
 
 ## How to use this
 
 1. Open **one new ChatGPT conversation** and keep all of this in it, so the style stays the same.
-2. Paste **Step 0** first and **attach one of your finished character images** to that message, so the scenes are drawn to match them. Wait for "ready".
-3. Then paste one prompt at a time, in the order below.
-4. Save each result. When you send them to me, say which code each one is (S3, P2 and so on).
+2. Paste **Step 0** first and **attach your character sheet** (the one with all six characters) to that message. Wait for "ready".
+3. Then paste one prompt at a time. The order inside each part does not matter.
+4. Save each result under its code (`S3.png`, `P2.png`) and send them to me in a normal message.
 
 If a result is wrong:
 
+- **It has black outlines, or looks harsher than your characters:** reply `Same image, but with no black outlines: edge each shape with a darker shade of its own colour, like the character sheet.`
 - **It added people, animals or lettering to a scene:** reply `Same image, but with no people, no animals and no lettering.`
-- **The style drifted** (smooth shading, tiny pixels, different colours): paste Step 0 again, then ask for the image again.
-- **The layout is wrong** (ground not empty, frames not in a row): ask for it again from scratch. Editing a wrong layout rarely fixes it.
+- **The style drifted** (smooth shading, tiny pixels, different colours): paste Step 0 again with the sheet, then ask for the image again.
+- **The layout is wrong** (ground not empty, objects not in rows): ask for it again from scratch. Editing a wrong layout rarely fixes it.
+
 The background colour for objects is bright magenta on purpose. I cut it away afterwards.
 
 ---
 
-## Step 0: style setup (paste first, with one of your character images attached)
+## Step 0: style setup (paste first, with your character sheet attached)
 
 ```text
 I'm making a pixel-art adventure game for two children. I'll ask you for images one at a time: background scenes and objects. Use these rules for every image in this conversation.
 
-REFERENCE. The attached image is one of the game's finished characters. Everything you draw must look like it belongs in the same game: the same size of pixels, the same kind of outline and shading, and colours that sit well next to it. Do not draw this character, or any character, in the images I ask for.
+REFERENCE. The attached sheet shows the game's finished characters. It is the style guide: everything you draw must look as if the same artist made it. Do not draw these characters, or any other people, unless I ask for them.
 
-STYLE. 16-bit era pixel art, like a Super Nintendo adventure game. Large, clearly visible square pixels on one consistent grid, as if the whole image were drawn about 192 pixels wide and then enlarged. Flat colours with simple two-tone shading, a thin dark outline around objects, crisp hard edges.
+STYLE. Cute, chunky pixel art with clearly visible square pixels on one consistent grid, as if the whole image were drawn about 192 pixels wide and then enlarged. Rounded, friendly shapes. Every colour area has two or three flat tones: a base, a soft shadow and a small highlight. Crisp, hard pixel edges, with flat colour inside them.
 
-PALETTE. One small shared palette of about 32 colours, the same in every image. Warm and friendly: sunny yellow, brick red, royal blue, hot pink, teal and cream, with charcoal outlines. Where the attached character uses different colours, follow the character.
+OUTLINES. There are no black outlines anywhere. Each shape is edged with a darker shade of its own colour, exactly as on the character sheet: dark brown around hair, skin and wood, dark blue around blue things, dark green around leaves.
+
+PALETTE. Warm, natural and slightly soft, taken from the character sheet: chestnut and caramel browns, warm skin tones, cream and off-white, denim blue, mint green, soft pink, brick red and sunny yellow. Skies and water are clear but gentle. The darkest colour in any image is a deep warm brown.
+
+SCALE. In the game a character stands about one seventh of the image height tall. Draw everything to fit them: a door is about one fifth of the image height, and a chair seat reaches a character's waist.
 
 SCENES. A side-on stage view, like a classic side-scrolling game. Scenery fills the upper part of the image. The bottom third is flat, open ground where the characters will stand and move, kept clear of furniture and objects. Scenes are empty of people and animals, because I add the characters myself. Signs, posters and screens are blank shapes.
 
-OBJECTS. Drawn on a plain, flat, bright magenta background (#FF00FF) with nothing else in the image: no ground, no shadow, no scenery. Same pixel size, outline and palette as the scenes. Seen from the side. Each object is separate, with clear magenta space all around it.
+OBJECTS. Drawn on a plain, flat, bright magenta background (#FF00FF) with nothing else in the image: no ground, no shadow, no scenery. Same pixel size, outline rule and palette as the scenes. Seen from the side. Each object is separate, with clear magenta space all around it.
 
-MOOD. Bright, playful, safe for children.
+MOOD. Bright, cosy, playful, safe for children.
 
 No text, no letters, no numbers, no logos, no watermark, no border.
 
@@ -46,14 +60,14 @@ Reply "ready" and wait for my first request.
 
 Do these first. They set the look for everything else.
 
-### S0. World map
+### S0. The planet
 
 ```text
-S0, the world map. Landscape, 3:2 (1536x1024). This one is a flat top-down map, so it has no ground strip.
+S0, the skin of the planet. Landscape, 3:2 (1536x1024). This one is a flat map with no ground strip. In the game it is wrapped around a spinning globe.
 
-A stylised pixel-art map of the whole world: chunky, simplified continents in greens and sandy yellows on a deep blue ocean with small wave marks. Europe and Australia are both clearly visible and uncluttered, because I will place level markers on them. The oceans hold a few playful details: a tiny sailing ship, an island with one palm tree, a compass rose in one corner, small white clouds. Even daylight, cheerful treasure-map feeling.
+A flat map of the whole Earth, filling the image from edge to edge: chunky, simplified but recognisable continents in soft greens, with sandy-yellow deserts and a few darker green forests, on a gentle blue ocean with small lighter wave marks. White ice runs along the very top edge and the very bottom edge. The left and right edges are open ocean and look alike, because they meet when the map is wrapped around the globe. Europe and Australia are clear and uncluttered, because level markers go there. The ocean holds two or three tiny playful details, such as a sailing ship and a whale.
 
-Same pixel-art style and palette as set up. No text, no labels, no markers.
+Same pixel-art style and palette as set up. No text, no labels, no markers, no compass, no frame.
 ```
 
 ### S1. Title screen
@@ -68,14 +82,14 @@ Same pixel-art style and palette as set up. No text.
 
 ---
 
-## Part 2: Praha 5 (4 images)
+## Part 2: Praha 5, at home (4 images)
 
 ### S2. At home
 
 ```text
 S2, at home. Portrait, 2:3 (1024x1536).
 
-A cosy living room in a flat in Prague. On the back wall: a large window showing a tram line and green hills with a small lookout tower, three framed black-and-white portrait drawings, shelves, and many green houseplants. Against the wall: a grey sofa with a zebra-striped cushion and a television on a white cabinet. A hockey stick leans in one corner and a gymnastics ribbon hangs from a hook. Warm evening lamp light. The bottom third is a wooden floor, clear and empty.
+A cosy living room in a flat in Prague. On the back wall: a large window showing a tram line and green hills with a small lookout tower, three framed portrait drawings, shelves, and many green houseplants. Against the wall: a grey sofa with a zebra-striped cushion and a television on a white cabinet. A hockey stick leans in one corner and a white toy bunny sits on the sofa. Warm evening lamp light. The bottom third is a wooden floor, clear and empty.
 
 Same pixel-art style and palette as set up. No text.
 ```
@@ -92,7 +106,7 @@ The bottom third is the roadway: cobblestones and tram tracks running perfectly 
 Same pixel-art style and palette as set up. No text.
 ```
 
-### S4. The salon door
+### S4. The locked door
 
 ```text
 S4, outside the hair salon. Portrait, 2:3 (1024x1536).
@@ -114,7 +128,53 @@ Same pixel-art style and palette as set up. No text.
 
 ---
 
-## Part 3: Australia (4 images)
+## Part 3: Praha 6, Strahov (4 images)
+
+### S10. Up the hill (this one scrolls)
+
+```text
+S10, the path up the hill. Landscape, 3:2 (1536x1024).
+
+A park on a steep green hill above Prague, seen side-on. Along the back: old leafy trees, blossoming orchard trees, an old stone wall with battlements running along the slope, park benches and iron street lamps. Above the treetops stands a steel lattice lookout tower, like a small Eiffel tower. Far below in the distance, a hazy strip of red city roofs and a river. Fresh morning light.
+
+The bottom third is a sandy park path running perfectly straight from the left edge to the right edge, clear and empty. Spread the trees evenly and make the left and right edges look alike, because the game repeats this image side by side as the players run.
+
+Same pixel-art style and palette as set up. No text.
+```
+
+### S11. The stadium gate
+
+```text
+S11, outside the old stadium. Portrait, 2:3 (1024x1536).
+
+The entrance of an enormous old concrete stadium from the 1930s, seen from the street. A long, tall, pale grey concrete wall with rows of small square windows fills the upper part, weathered, with patches of moss, and weeds growing along its foot. In the centre is a tall gateway with a heavy rusty iron gate, shut and wrapped in a thick chain. A tall flagpole with a plain faded flag stands on each side of the gate, and the tops of floodlight masts show above the wall. Young birch trees have grown out of the old stands. Late afternoon light. The bottom third is cracked asphalt, clear and empty.
+
+Same pixel-art style and palette as set up. No text.
+```
+
+### S12. The field
+
+```text
+S12, inside the old stadium. Portrait, 2:3 (1024x1536).
+
+The inside of a gigantic, abandoned stadium, so big that its far side looks tiny in the distance. Long, low concrete stands run along the back, pale grey and weathered, with grass and small trees growing between the rows of benches. Above them stand four tall floodlight masts under a wide sky with big white clouds. A faded scoreboard with a blank panel stands to one side. Bright midday light. The bottom third is the pitch: flat, patchy grass, clear and empty.
+
+Same pixel-art style and palette as set up. No text.
+```
+
+### S13. The drum room
+
+```text
+S13, the drum room. Portrait, 2:3 (1024x1536).
+
+A band rehearsal room hidden under the stands of the old stadium. Bare concrete walls and a low ceiling with pipes, made cosy: egg-box soundproofing panels, strings of warm fairy lights, blank posters, a worn sofa against the back wall, two guitar amplifiers, a shelf of cymbals and spare drums, and coiled cables on hooks. A red patterned rug lies at the back of the floor, left empty, because the drum kit is added separately. Warm lamp light. The bottom third is a wooden floor, clear and empty.
+
+Same pixel-art style and palette as set up. No text.
+```
+
+---
+
+## Part 4: Australia (4 images)
 
 ### S6. The beach
 
@@ -158,7 +218,17 @@ Same pixel-art style and palette as set up. No text.
 
 ---
 
-## Part 4: objects (4 images)
+## Part 5: objects (7 images)
+
+### P7. The heroes' things
+
+```text
+P7, the two heroes' things. Landscape, 3:2 (1536x1024). Magenta background.
+
+Eight separate objects in two rows of four, each with clear magenta space around it. Top row: a wooden ice hockey stick with white tape on its blade, lying level; a black hockey puck lying flat; the same puck flying, tilted, with three short speed lines behind it; a small yellow star-shaped impact flash. Bottom row: a white fluffy toy bunny with long floppy ears and pink inner ears, sitting, the same bunny as on the character sheet; the same bunny flying through the air with its ears streaming back; the same bunny tumbling upside down in the air; a small puff of white fluff.
+
+Same pixel-art style and palette as set up. No text.
+```
 
 ### P1. Prague objects
 
@@ -180,6 +250,26 @@ One long city tram seen exactly from the side, filling most of the width of the 
 Same pixel-art style and palette as set up. No text, no numbers, no logos.
 ```
 
+### P5. Strahov objects
+
+```text
+P5, objects for the Strahov level. Landscape, 3:2 (1536x1024). Magenta background.
+
+Eight separate objects in two rows of four, each with clear magenta space around it. Top row: a red bass drum seen from the front; a snare drum on its stand; a golden cymbal on its stand; a pair of wooden drumsticks, crossed. Bottom row: a music note; a small guitar amplifier; a brown pine cone; a dark grey crow flying with its wings up, seen from the side.
+
+Same pixel-art style and palette as set up. No text.
+```
+
+### P6. The drum kit
+
+```text
+P6, a drum kit. Landscape, 3:2 (1536x1024). Magenta background.
+
+One complete drum kit seen from the front, filling most of the image: a big red bass drum with a plain cream front skin in the middle, two toms above it, a floor tom on one side, a snare drum on the other, a hi-hat and two golden cymbals on stands, and a round drummer's stool behind it. The stool is empty.
+
+Same pixel-art style and palette as set up. No text, no logos.
+```
+
 ### P3. Australia objects
 
 ```text
@@ -195,9 +285,59 @@ Same pixel-art style and palette as set up. No text.
 ```text
 P4, rewards and map markers. Landscape, 3:2 (1536x1024). Magenta background.
 
-Ten separate objects in two rows of five, each with clear magenta space around it. Top row: a wooden treasure chest with gold bands, closed; the same chest half open with light spilling out; the same chest fully open with a golden glow; a red heart; a gold star. Bottom row: a pink flower on a green stem; a postcard with a blank picture side and a blank stamp; a red map pin; a grey map pin with a small padlock on it; a green flag on a short pole.
+Ten separate objects in two rows of five, each with clear magenta space around it. Top row: a wooden treasure chest with gold bands, closed; the same chest half open with light spilling out; the same chest fully open with a golden glow; a red heart; a gold star. Bottom row: a pink flower on a green stem; a glass bottle with a rolled paper message inside; a red map pin; a grey map pin with a small padlock on it; a green flag on a short pole.
 
 Same pixel-art style and palette as set up. No text.
+```
+
+---
+
+## Optional: action frames for the characters
+
+Your sheets already give me enough to start: the side view, the running pose, the jumping pose and the five faces of each character. The faces go into the speech boxes and the album.
+
+These extra frames would make the two heroes move smoothly and give them their shots. They use your sheet as the design, so paste them in the same conversation.
+
+### A1. Kendrick in action
+
+```text
+A1, action frames for the character labelled KENDRICK on the sheet. Landscape, 3:2 (1536x1024). Magenta background.
+
+Draw exactly that character: the same face, curly hair, clothes, colours, proportions and pixel style, at the size of the small action poses on the sheet.
+
+Eight drawings in two rows of four. All are full body, seen from the side and facing right, the same size, evenly spaced, with the feet of each row on one straight line.
+Top row, one running cycle: right leg stretched forward; both feet off the ground with the legs passing; left leg stretched forward; both feet off the ground with the legs passing.
+Bottom row: jumping with his knees tucked up; sitting on the ground looking dizzy; holding an ice hockey stick swung back behind him, ready to shoot; the hockey stick swung forward low, just after the shot.
+
+No puck, no ground, no shadows, no text, no labels.
+```
+
+### A2. Kellyn in action
+
+```text
+A2, action frames for the character labelled KELLYN on the sheet. Landscape, 3:2 (1536x1024). Magenta background.
+
+Draw exactly that character: the same face, ponytail, clothes, colours, proportions and pixel style, at the size of the small action poses on the sheet.
+
+Eight drawings in two rows of four. All are full body, seen from the side and facing right, the same size, evenly spaced, with the feet of each row on one straight line.
+Top row, one running cycle: right leg stretched forward; both feet off the ground with the legs passing; left leg stretched forward; both feet off the ground with the legs passing.
+Bottom row: jumping with her knees tucked up; sitting on the ground looking dizzy; holding her white toy bunny by the ears behind her head, ready to throw; her throwing arm stretched forward and her hand empty, just after the throw.
+
+No ground, no shadows, no text, no labels.
+```
+
+### A3 to A6. The people being rescued
+
+Paste once for each name: LEILA, ALAN, SAMI, ŽOFIA.
+
+```text
+Action frames for the character labelled [NAME] on the sheet. Landscape, 3:2 (1536x1024). Magenta background.
+
+Draw exactly that character: the same face, hair, clothes, colours, proportions and pixel style, at the size of the small action poses on the sheet.
+
+Four full-body drawings in one row, seen from the side and facing right, the same size, evenly spaced, feet on one straight line: standing and waving both arms above the head, calling out; the same wave with the arms swung to the other side; cheering with a small jump; standing with arms open wide for a hug.
+
+No ground, no shadows, no text, no labels.
 ```
 
 ---
@@ -211,11 +351,11 @@ Only if you decide the game should have one. This is a suggestion; change anythi
 ```text
 C11, the villain of the game, a comic trickster who locks things up with codes. Landscape, 3:2 (1536x1024). Magenta background.
 
-This one is a character, drawn in the same style as the attached reference character: chunky, with a large head, seen from the side and facing right.
+This one is a character, drawn exactly like the characters on the sheet: the same proportions with a large head, the same simple face, the same pixel size and the same coloured outlines.
 
-A funny, harmless-looking inventor, more silly than scary: tall and thin, in a long purple coat with oversized pockets, wearing a helmet shaped like a padlock, round green goggles, and a large wind-up key on his back. He carries a ring of keys.
+A funny, harmless-looking inventor, more silly than scary: tall and thin, in a long purple coat with oversized pockets, wearing a helmet shaped like a padlock, round green goggles, and a large wind-up key on the back. A ring of keys hangs from one hand.
 
-Five drawings in one horizontal row. The first four are full body, seen from the side and facing right: standing with his hands on his hips; laughing with his head thrown back; shaking his fist; running away with his coat flapping. The fifth is a large head-and-shoulders portrait facing forward with a mischievous grin. The four full-body drawings are the same size, evenly spaced, feet on one straight line.
+Five drawings in one horizontal row. The first four are full body, seen from the side and facing right: standing with hands on hips; laughing with the head thrown back; shaking a fist; running away with the coat flapping. The fifth is a large head-and-shoulders portrait facing forward with a mischievous grin. The four full-body drawings are the same size, evenly spaced, feet on one straight line.
 
 Same pixel-art style and palette as set up. No text, no logos.
 ```
@@ -226,28 +366,33 @@ Same pixel-art style and palette as set up. No text, no logos.
 
 | Code | What | Shape |
 |---|---|---|
-| S0 | World map | Landscape |
+| S0 | The planet | Landscape |
 | S1 | Title screen | Portrait |
-| S2 | Praha: at home | Portrait |
-| S3 | Praha: the street | Landscape |
-| S4 | Praha: the salon door | Portrait |
-| S5 | Praha: inside the salon | Portrait |
+| S2 | Praha 5: at home | Portrait |
+| S3 | Praha 5: the street | Landscape |
+| S4 | Praha 5: the locked door | Portrait |
+| S5 | Praha 5: inside the salon | Portrait |
+| S10 | Praha 6: up the hill | Landscape |
+| S11 | Praha 6: the stadium gate | Portrait |
+| S12 | Praha 6: the field | Portrait |
+| S13 | Praha 6: the drum room | Portrait |
 | S6 | Australia: the beach | Portrait |
 | S7 | Australia: the open sea | Landscape |
 | S8 | Australia: the outback | Portrait |
 | S9 | Australia: the shark reef | Portrait |
+| P7 | The heroes' things: stick, puck, bunny | Landscape |
 | P1 | Prague objects | Landscape |
 | P2 | The tram | Landscape |
+| P5 | Strahov objects | Landscape |
+| P6 | The drum kit | Landscape |
 | P3 | Australia objects | Landscape |
 | P4 | Rewards and map markers | Landscape |
+| A1, A2 | Kendrick and Kellyn in action (optional) | Landscape |
+| A3 to A6 | The people being rescued (optional) | Landscape |
 | C11 | The Scrambler (optional) | Landscape |
 
-## Your characters
+## Sending me your characters
 
-Send them to me as they are. These make them easiest to drop in, but I can adapt:
-
-- Side view, facing right. I mirror them for left.
-- The whole body, the same size in every frame, feet on the same line.
-- A plain single-colour or transparent background.
-- For Kendrick and Kellyn: standing, running, jumping, hurt, cheering.
-- For the people being rescued: standing, calling for help, happy.
+- Send the character sheets as image files in a normal message, at full size. Pictures sent while I am in the middle of working do not reach me as files.
+- One sheet with all six is fine. I cut each figure out, remove the cream background and shrink it to the game's pixel size.
+- From each sheet I use the side view, the running pose, the jumping pose and the five faces.

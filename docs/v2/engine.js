@@ -3,6 +3,7 @@
 // until then every background and character is a drawn placeholder, so the game is playable before the art exists.
 const K = (() => {
   const W = 192, H = 288, GROUND = 232;          // GROUND: where feet stand in side-on scenes
+  const INK = '#2B1F1A';                         // the darkest colour: a deep warm brown, never black, to sit with the characters
   const canvas = document.getElementById('screen'), ctx = canvas.getContext('2d'), ui = document.getElementById('ui');
   ctx.imageSmoothingEnabled = false;
 
@@ -45,6 +46,7 @@ const K = (() => {
   const image = (path) => { if (!cache[path]) { const i = new Image(); i.src = path; cache[path] = i; } return cache[path]; };
   const ready = (i) => i.complete && i.naturalWidth > 0;
   const hasBg = (id) => have.bg.includes(id);
+  const picture = (id) => { if (!hasBg(id)) return null; const i = image(`assets/bg/${id}.png`); return ready(i) ? i : null; };   // a finished picture, once loaded
 
   // A stand-in background: sky, a row of blocky shapes, and the ground strip the characters stand on.
   const shapes = {};
@@ -75,23 +77,21 @@ const K = (() => {
     }
   }
 
-  // A stand-in hero: a blocky kid, 14 x 26, drawn with their feet at (x, footY).
+  // A stand-in hero: a blocky kid, about 14 x 30, drawn with their feet at (x, footY).
   function hero(who, x, footY, pose, t, flip) {
-    const h = window.WORLD.heroes[who], sprite = have.sprites[who];
+    const h = window.WORLD.heroes[who], sprite = have.sprites[who], SKIN = '#E8B58A';
     x = Math.round(x); footY = Math.round(footY);
     if (sprite) return drawSprite(sprite, x, footY, pose, t, flip);
-    const step = pose === 'run' ? Math.floor(t * 9) % 2 : 0, up = pose === 'jump' ? 2 : 0;
+    const step = pose === 'run' ? Math.floor(t * 9) % 2 : 0, up = pose === 'jump' ? 2 : 0, arm = pose === 'cheer' ? footY - 24 : footY - 16;
     ctx.save(); if (flip) { ctx.translate(x * 2, 0); ctx.scale(-1, 1); }
-    rect(x - 5, footY - 7 + (step ? 0 : up), 4, 7 - (step ? 2 : 0), '#2B2F38');             // legs
-    rect(x + 1, footY - 7 + (step ? up : 0), 4, 7 - (step ? 0 : 2), '#2B2F38');
-    rect(x - 6, footY - 17, 12, 10, h.color);                                                // body
-    rect(pose === 'cheer' ? x - 8 : x - 8, pose === 'cheer' ? footY - 24 : footY - 16, 2, 7, '#F3C6A5');   // arms
-    rect(x + 6, pose === 'cheer' ? footY - 24 : footY - 16, 2, 7, '#F3C6A5');
-    rect(x - 5, footY - 26, 10, 9, '#F3C6A5');                                               // head
-    rect(x - 6, footY - 28, 12, 4, h.hair);                                                  // hair
-    if (who === 'ken') { rect(x - 7, footY - 26, 2, 4, h.hair); rect(x + 5, footY - 26, 2, 4, h.hair); }
-    else { rect(x - 8, footY - 27, 3, 8, h.hair); rect(x - 2, footY - 30, 4, 2, h.color); }  // ponytail and bow
-    rect(x + 1, footY - 23, 2, 2, '#15171C');                                                // eye
+    rect(x - 5, footY - 7 + (step ? 0 : up), 4, 7 - (step ? 2 : 0), h.legs);                 // legs
+    rect(x + 1, footY - 7 + (step ? up : 0), 4, 7 - (step ? 0 : 2), h.legs);
+    rect(x - 6, footY - 17, 12, 10, h.shirt); rect(x - 2, footY - 15, 4, 4, h.badge);        // body
+    rect(x - 8, arm, 2, 7, SKIN); rect(x + 6, arm, 2, 7, SKIN);                              // arms
+    rect(x - 5, footY - 26, 10, 9, SKIN);                                                    // head
+    if (who === 'ken') { rect(x - 7, footY - 31, 14, 7, h.hair); rect(x - 8, footY - 28, 3, 6, h.hair); rect(x + 5, footY - 28, 3, 5, h.hair); }   // a mop of curls
+    else { rect(x - 6, footY - 29, 12, 5, h.hair); rect(x - 10, footY - 28, 4, 9, h.hair); rect(x - 7, footY - 30, 3, 3, h.tie); }                // ponytail and scrunchie
+    rect(x + 1, footY - 23, 2, 2, INK);                                                      // eye
     ctx.restore();
   }
   // A sprite sheet from the pipeline: { file, w, h, poses: { run: [frame, ...], ... }, fps }
@@ -130,5 +130,5 @@ const K = (() => {
   function add(html) { const t = document.createElement('template'); t.innerHTML = html.trim(); const el = t.content.firstElementChild; ui.appendChild(el); return el; }
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
-  return { W, H, GROUND, ctx, ui, clamp, hash, rng, rect, beep, save, write, hasBg, background, hero, go, add, esc, get scene() { return scene; } };
+  return { W, H, GROUND, INK, ctx, ui, clamp, hash, rng, rect, beep, save, write, hasBg, picture, background, hero, go, add, esc, get scene() { return scene; } };
 })();

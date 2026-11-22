@@ -1,10 +1,11 @@
-/* The pixel game's screen is 192 x 288 pixels, scaled up by a whole number (--s) so every pixel stays square.
+/* Colours: the darkest is a deep warm brown, never black, to sit with the characters' coloured outlines.
+   The pixel game's screen is 192 x 288 pixels, scaled up by a whole number (--s) so every pixel stays square.
    Everything in the UI layer is sized in em, where 1em is 8 screen pixels, so text and boxes sit on the same grid. */
 :root{
   --s:2;
-  --ink:#15171C; --ink-soft:#46536A; --paper:#FFF8E7;
+  --ink:#2B1F1A; --ink-soft:#7A6F6A; --paper:#FFF8E7;
   --yellow:#FFD43A; --red:#CC2233; --blue:#1F55D6; --pink:#F0448F; --green:#1FA463;
-  --dim:rgba(21,23,28,.74);
+  --dim:rgba(43,31,26,.74);
   color-scheme:dark;
 }
 *{box-sizing:border-box}
@@ -61,6 +62,10 @@ button{font:inherit;color:inherit}
 .card p{margin:0}
 
 .tip{position:absolute;inset:auto 0 1em;text-align:center;font-weight:700;text-shadow:.125em .125em 0 var(--ink)}
+.tip.up{inset:4em 0 auto}
+.count{min-width:4em}
+.card.choose{inset:auto 1em 3.5em;gap:.5em}
+.card.choose h2{color:var(--ink)}
 .album{position:absolute;inset:4.5em .75em auto;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.5em}
 .album div{background:var(--paper);color:var(--ink);border:.25em solid var(--ink);padding:.5em .25em;text-align:center;font-weight:700}
 .album div[data-got="0"]{background:var(--ink-soft);color:var(--paper)}

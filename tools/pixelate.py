@@ -4,8 +4,8 @@
     python3 tools/pixelate.py
 
 Reads art/scenes.json. For every scene whose picture is in art/source/ (named by its code: S3.png, S3.jpg ...)
-it crops the picture to the game's shape, shrinks it to the game's true size (192 x 288, or 432 x 288 for the
-ones that scroll), and repaints it with one small palette shared by all scenes, so pictures made at different
+it crops the picture to the game's shape, shrinks it to the game's true size (192 x 288, 432 x 288 for the
+ones that scroll, 384 x 192 for the planet's skin), and repaints it with one small palette shared by all scenes, so pictures made at different
 times still look like one game. Results go to game/assets/bg/, and game/assets/manifest.js lists what exists.
 Scenes with no picture yet are simply left out; the game draws a stand-in for those.
 """
@@ -24,10 +24,14 @@ def find(source, code):
     return None
 
 
-def shrink(path, size):
-    """Centre-crop to the target shape, then average each block of source pixels down to one game pixel."""
+def shrink(path, size, fit='crop'):
+    """Centre-crop to the target shape, then average each block of source pixels down to one game pixel.
+    With fit 'stretch' nothing is cut off: the whole picture is squeezed to the shape (the planet's skin needs
+    every edge of the map)."""
     im = Image.open(path).convert('RGB')
     tw, th = size
+    if fit == 'stretch':
+        return im.resize((tw, th), Image.BOX)
     want = tw / th
     w, h = im.size
     if w / h > want:
@@ -50,7 +54,7 @@ def main():
     for sc in scenes:
         path = find(args.source, sc['code'])
         if path:
-            small[sc['id']] = shrink(path, sc['size'])
+            small[sc['id']] = shrink(path, sc['size'], sc.get('fit', 'crop'))
 
     done = []
     if small:

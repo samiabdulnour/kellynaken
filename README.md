@@ -11,14 +11,25 @@ Each operation has two minigames that hand over pieces of a code.
 ## The pixel game (in progress)
 
 The game is being rebuilt as a continuing pixel-art adventure: Kendrick and Kellyn travel the world rescuing people.
-It lives beside the current game, at `/v2/`, until it is ready to take over.
+It lives beside the current game, at `/v2/`, until it is ready to take over. The postcard will simply carry the link.
+
+Levels are picked on a spinning planet. Each place has four scenes, and who is waiting to be rescued there is a
+surprise: the game never names them before they are free.
+
+| Place | Rescued there | Built so far |
+|---|---|---|
+| Praha 5, at home | Leila | a dash down the street, shooting the locks off the door |
+| Praha 6, Strahov | Alan | a dash up the hill, the locks on the stadium gate, the drums |
+| Australia | Sami and Žofia | a dash across the sea |
+
+Kendrick shoots a puck with his hockey stick; Kellyn throws her white bunny.
 
 | Path | What it is |
 |---|---|
-| `game/world.js` | The world: every place, its four scenes, the story lines. A new place is a new entry here plus its pictures. |
+| `game/world.js` | The world: the planet's pins, every place, its four scenes, the story lines. A new place is a new entry here plus its pictures. |
 | `game/engine.js` | The pixel screen (192 x 288, scaled by whole numbers), scenes, input, saving, art loading. |
-| `game/game.js` | Title, world map, places, playing a scene, the album of rescued people. |
-| `art/CHATGPT-PACK.md` | The prompts for drawing the scenes and objects, and the format for characters. |
+| `game/game.js` | Title, the planet, places, the games inside a scene (dash, drums, shot), the album of rescued people. |
+| `art/CHATGPT-PACK.md` | The prompts for drawing the scenes and objects in the style of the character sheets. |
 | `art/scenes.json` | Which picture is which scene, and its size in the game. |
 | `art/source/` | The pictures as they come back from ChatGPT, named by code: `S3.png`. |
 | `tools/pixelate.py` | Turns those pictures into true pixel art with one shared palette. |
