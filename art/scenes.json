@@ -1,0 +1,16 @@
+[
+  { "code": "S0", "id": "world-map", "size": [384, 192], "fit": "stretch" },
+  { "code": "S1", "id": "title", "size": [192, 288] },
+  { "code": "S2", "id": "praha-home", "size": [192, 288] },
+  { "code": "S3", "id": "praha-street", "size": [432, 288] },
+  { "code": "S4", "id": "praha-door", "size": [192, 288] },
+  { "code": "S5", "id": "praha-salon", "size": [192, 288] },
+  { "code": "S10", "id": "strahov-hill", "size": [432, 288] },
+  { "code": "S11", "id": "strahov-gate", "size": [192, 288] },
+  { "code": "S12", "id": "strahov-field", "size": [192, 288] },
+  { "code": "S13", "id": "strahov-drums", "size": [192, 288] },
+  { "code": "S6", "id": "australia-beach", "size": [192, 288] },
+  { "code": "S7", "id": "australia-sea", "size": [432, 288] },
+  { "code": "S8", "id": "australia-outback", "size": [192, 288] },
+  { "code": "S9", "id": "australia-reef", "size": [192, 288] }
+]

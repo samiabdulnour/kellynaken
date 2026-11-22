@@ -86,7 +86,11 @@ fs.writeFileSync(here + 'docs/index.html', full);
 fs.writeFileSync(here + 'docs/.nojekyll', '');
 fs.writeFileSync(here + '.artifact/index.html', html);
 
-console.log('Built docs/index.html');
+// The new pixel game lives beside the old one, at /v2/, until it is ready to take over.
+fs.rmSync(here + 'docs/v2', { recursive: true, force: true });
+fs.cpSync(here + 'game', here + 'docs/v2', { recursive: true });
+
+console.log('Built docs/index.html and docs/v2/');
 for (const [id, pl] of Object.entries(cfg.players)) {
   const numbers = Lite.code.jersey(pl.postcard.password, pl.postcard.key);
   console.log(`${cfg.names[id].nom}: "${pl.postcard.password}" (key ${pl.postcard.key}) -> ${numbers.join(' - ')}`);
