@@ -1,19 +1,18 @@
 # Kellyn a Ken: art package for ChatGPT
 
-Everything ChatGPT needs to draw the game's scenes and objects so they match your characters. There are 21 images, plus a few optional ones at the end.
+Everything ChatGPT needs to draw the game's scenes and objects so they match your characters.
 
-## What changed in this version
+## Where things stand
 
-- **The style now follows your character sheets.** No black outlines, soft shading, warm natural colours. Step 0 is rewritten, so use this one.
-- **S0 is now the skin of a spinning planet** that the levels are picked on. If you already drew S0, draw it again with the new prompt.
-- **New place: Praha 6, Strahov** (the old stadium, the drums): S10 to S13, P5 and P6.
-- **New objects for the heroes:** Kendrick's hockey stick and puck, Kellyn's white bunny (P7).
-- Scenes never show who is waiting to be rescued, so the surprise is kept.
+- **Scenes S0 to S13: done.** All 14 are drawn and in the game. Their prompts stay below for reference, and for any scene you want to redo.
+- **Still to draw: the objects, P1 to P7.** Start with P7 (stick, puck, bunny), because both heroes use it everywhere.
+- **Optional:** the action frames A1 to A6, and the villain C11.
+- **Style:** grounded, classic pixel art that follows your character sheets and the finished scenes: natural proportions, muted colours, no black outlines.
 
 ## How to use this
 
-1. Open **one new ChatGPT conversation** and keep all of this in it, so the style stays the same.
-2. Paste **Step 0** first and **attach your character sheet** (the one with all six characters) to that message. Wait for "ready".
+1. Carry on in **the ChatGPT conversation where you drew the scenes**, so the style stays the same. Step 0 is only needed if you start a new conversation.
+2. In a new conversation, paste **Step 0** first and **attach your character sheet** (the one with all six characters) to that message. Wait for "ready".
 3. Then paste one prompt at a time. The order inside each part does not matter.
 4. Save each result under its code (`S3.png`, `P2.png`) and send them to me in a normal message.
 
@@ -35,11 +34,11 @@ I'm making a pixel-art adventure game for two children. I'll ask you for images 
 
 REFERENCE. The attached sheet shows the game's finished characters. It is the style guide: everything you draw must look as if the same artist made it. Do not draw these characters, or any other people, unless I ask for them.
 
-STYLE. Cute, chunky pixel art with clearly visible square pixels on one consistent grid, as if the whole image were drawn about 192 pixels wide and then enlarged. Rounded, friendly shapes. Every colour area has two or three flat tones: a base, a soft shadow and a small highlight. Crisp, hard pixel edges, with flat colour inside them.
+STYLE. Grounded, classic pixel art with clearly visible square pixels on one consistent grid, as if the whole image were drawn about 192 pixels wide and then enlarged. Natural proportions and shapes. Every colour area has two or three flat tones: a base, a soft shadow and a small highlight. Crisp, hard pixel edges, with flat colour inside them.
 
 OUTLINES. There are no black outlines anywhere. Each shape is edged with a darker shade of its own colour, exactly as on the character sheet: dark brown around hair, skin and wood, dark blue around blue things, dark green around leaves.
 
-PALETTE. Warm, natural and slightly soft, taken from the character sheet: chestnut and caramel browns, warm skin tones, cream and off-white, denim blue, mint green, soft pink, brick red and sunny yellow. Skies and water are clear but gentle. The darkest colour in any image is a deep warm brown.
+PALETTE. Warm, natural and slightly muted, taken from the character sheet: chestnut and caramel browns, warm skin tones, cream and off-white, denim blue, mint green, soft pink, brick red and sunny yellow. Skies and water are clear but gentle. The darkest colour in any image is a deep warm brown.
 
 SCALE. In the game a character stands about one seventh of the image height tall. Draw everything to fit them: a door is about one fifth of the image height, and a chair seat reaches a character's waist.
 

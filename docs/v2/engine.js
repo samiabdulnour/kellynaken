@@ -65,14 +65,16 @@ const K = (() => {
     for (let x = -((off || 0) % 24); x < W; x += 24) rect(x, GROUND + 14, 10, 2, look.line);
   }
   // Draw a background. A scrolling one repeats side by side, every other copy mirrored so the seams match.
-  function background(id, off, look) {
+  // `plain` repeats it without mirroring, for a picture whose own two edges already meet (and whose landmark,
+  // mirrored, would stand next to its twin).
+  function background(id, off, look, plain) {
     const img = hasBg(id) ? image(`assets/bg/${id}.png`) : null;
     if (!img || !ready(img)) return placeholder(id, off, look);
     const w = img.naturalWidth, o = Math.floor(off || 0);
     if (w <= W) { ctx.drawImage(img, 0, 0); return; }
     for (let k = Math.floor(o / w); k * w - o < W; k++) {
       const x = k * w - o;
-      if (k % 2) { ctx.save(); ctx.translate(x + w, 0); ctx.scale(-1, 1); ctx.drawImage(img, 0, 0); ctx.restore(); }
+      if (k % 2 && !plain) { ctx.save(); ctx.translate(x + w, 0); ctx.scale(-1, 1); ctx.drawImage(img, 0, 0); ctx.restore(); }
       else ctx.drawImage(img, x, 0);
     }
   }

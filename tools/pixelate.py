@@ -4,15 +4,18 @@
     python3 tools/pixelate.py
 
 Reads art/scenes.json. For every scene whose picture is in art/source/ (named by its code: S3.png, S3.jpg ...)
-it crops the picture to the game's shape, shrinks it to the game's true size (192 x 288, 432 x 288 for the
-ones that scroll, 384 x 192 for the planet's skin), and repaints it with one small palette shared by all scenes, so pictures made at different
-times still look like one game. Results go to game/assets/bg/, and game/assets/manifest.js lists what exists.
-Scenes with no picture yet are simply left out; the game draws a stand-in for those.
+it crops the picture to the game's shape and shrinks it to the game's true size: 192 x 288, 432 x 288 for the
+ones that scroll, 384 x 192 for the planet's skin. Results go to game/assets/bg/, and game/assets/manifest.js
+lists what exists. Scenes with no picture yet are simply left out; the game draws a stand-in for those.
+
+How it shrinks: the pictures are drawn as big square "pixels" about six real pixels wide. Averaging them down
+smears neighbouring colours together and loses the small bright ones (a red tram, a blue window). So each game
+pixel instead takes the colour found at the middle of its patch of the picture (the median of the few pixels
+right at the centre), which keeps every colour as it was painted and every edge hard.
 """
 import argparse, json, os, sys
+import numpy as np
 from PIL import Image
-
-COLOURS = 48
 
 
 def find(source, code):
@@ -25,20 +28,23 @@ def find(source, code):
 
 
 def shrink(path, size, fit='crop'):
-    """Centre-crop to the target shape, then average each block of source pixels down to one game pixel.
-    With fit 'stretch' nothing is cut off: the whole picture is squeezed to the shape (the planet's skin needs
-    every edge of the map)."""
+    """Centre-crop to the target shape (or, with fit 'stretch', keep every edge and squeeze: the planet's skin
+    needs the whole map), then sample the middle of each patch."""
     im = Image.open(path).convert('RGB')
     tw, th = size
-    if fit == 'stretch':
-        return im.resize((tw, th), Image.BOX)
-    want = tw / th
     w, h = im.size
-    if w / h > want:
-        nw = round(h * want); left = (w - nw) // 2; im = im.crop((left, 0, left + nw, h))
-    else:
-        nh = round(w / want); top = (h - nh) // 2; im = im.crop((0, top, w, top + nh))
-    return im.resize((tw, th), Image.BOX)
+    if fit != 'stretch':
+        want = tw / th
+        if w / h > want:
+            nw = round(h * want); left = (w - nw) // 2; im = im.crop((left, 0, left + nw, h))
+        else:
+            nh = round(w / want); top = (h - nh) // 2; im = im.crop((0, top, w, top + nh))
+    a = np.asarray(im)
+    h, w = a.shape[:2]
+    xs = ((np.arange(tw) + 0.5) * w / tw).astype(int)
+    ys = ((np.arange(th) + 0.5) * h / th).astype(int)
+    taps = [a[np.clip(ys + dy, 0, h - 1)][:, np.clip(xs + dx, 0, w - 1)] for dy in (-1, 0, 1) for dx in (-1, 0, 1)]
+    return Image.fromarray(np.median(np.stack(taps), axis=0).astype(np.uint8))
 
 
 def main():
@@ -50,23 +56,12 @@ def main():
     scenes = json.load(open(os.path.join(here, 'art', 'scenes.json')))
     os.makedirs(os.path.join(args.out, 'bg'), exist_ok=True)
 
-    small = {}
+    done = []
     for sc in scenes:
         path = find(args.source, sc['code'])
         if path:
-            small[sc['id']] = shrink(path, sc['size'], sc.get('fit', 'crop'))
-
-    done = []
-    if small:
-        # one palette for everything: lay all the scenes side by side and let them vote on the colours
-        sheet = Image.new('RGB', (sum(i.width for i in small.values()), max(i.height for i in small.values())))
-        x = 0
-        for im in small.values():
-            sheet.paste(im, (x, 0)); x += im.width
-        palette = sheet.quantize(colors=COLOURS, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE)
-        for sid, im in small.items():
-            im.quantize(palette=palette, dither=Image.Dither.NONE).save(os.path.join(args.out, 'bg', f'{sid}.png'), optimize=True)
-            done.append(sid)
+            shrink(path, sc['size'], sc.get('fit', 'crop')).save(os.path.join(args.out, 'bg', f"{sc['id']}.png"), optimize=True)
+            done.append(sc['id'])
 
     with open(os.path.join(args.out, 'manifest.js'), 'w') as f:
         f.write('// Written by tools/pixelate.py: the art that exists. Anything not listed is drawn as a stand-in.\n')

@@ -32,9 +32,10 @@ Kendrick shoots a puck with his hockey stick; Kellyn throws her white bunny.
 | `art/CHATGPT-PACK.md` | The prompts for drawing the scenes and objects in the style of the character sheets. |
 | `art/scenes.json` | Which picture is which scene, and its size in the game. |
 | `art/source/` | The pictures as they come back from ChatGPT, named by code: `S3.png`. |
-| `tools/pixelate.py` | Turns those pictures into true pixel art with one shared palette. |
+| `tools/pixelate.py` | Shrinks those pictures to the game's true pixel size, keeping every colour and edge as painted. |
 
-Until a scene's picture exists the game draws a stand-in for it, so everything is playable before the art arrives.
+All 14 scene backgrounds are in. The characters and the objects (obstacles, targets, the puck, the bunny) are still
+drawn stand-ins. Until a picture exists the game draws a stand-in for it, so everything is playable before the art arrives.
 To add art: drop the pictures into `art/source/`, run `python3 tools/pixelate.py`, then `node build.mjs`.
 
 ## Layout

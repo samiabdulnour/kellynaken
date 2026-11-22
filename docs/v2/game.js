@@ -37,9 +37,9 @@
   };
 
   // ---- the planet: drag to spin it, tap a pin to travel ----
-  // The world picture (384 x 192, the whole Earth laid flat) is wrapped around a ball. Pins sit at [longitude, latitude].
+  // The world picture (384 x 192, the whole Earth laid flat) is wrapped around a ball. Pins sit at [x, y] on that picture.
   const Planet = (() => {
-    const R = 84, CX = 96, CY = 150, TW = 384, TH = 192, D = 2 * R + 3, MID = R + 1, TAU = Math.PI * 2, RAD = Math.PI / 180;
+    const R = 84, CX = 96, CY = 150, TW = 384, TH = 192, D = 2 * R + 3, MID = R + 1, TAU = Math.PI * 2;
     const disc = document.createElement('canvas'); disc.width = disc.height = D;
     const dctx = disc.getContext('2d'), out = dctx.createImageData(D, D);
     // For every pixel of the ball: where it sits in the picture buffer, which row of the skin it shows, how far round
@@ -81,9 +81,10 @@
       }
       dctx.putImageData(out, 0, 0); drawn = rot;
     }
+    const lonOf = (pin) => (pin.at[0] / TW - 0.5) * TAU;       // how far round the ball a pin sits
     // Where a pin is on the screen right now, and whether it is on the side facing us.
     const spot = (pin, rot) => {
-      const lat = pin.at[1] * RAD, dl = pin.at[0] * RAD - rot, z = Math.cos(lat) * Math.cos(dl);
+      const lat = (0.5 - pin.at[1] / TH) * Math.PI, dl = lonOf(pin) - rot, z = Math.cos(lat) * Math.cos(dl);
       return { x: Math.round(CX + Math.cos(lat) * Math.sin(dl) * R), y: Math.round(CY - Math.sin(lat) * R), seen: z > 0.18 };
     };
     const stars = (() => { const r = K.rng(11); return Array.from({ length: 46 }, () => [Math.floor(r() * W), 22 + Math.floor(r() * (H - 22)), r() * 6]); })();
@@ -108,7 +109,7 @@
         bar.addEventListener('click', (e) => { const b = e.target.closest('[data-go]'); if (b) go(b.dataset.go === 'album' ? Album : Title); });
         add(`<p class="tip">${TIP}</p>`);
         const lead = pins.find((pin) => pinState(pin) === 'todo') || pins[0];
-        aim = lead.at[0] * RAD; rot = aim - 1; list = null;       // spin round to the next place to save
+        aim = lonOf(lead); rot = aim - 1; list = null;            // spin round to the next place to save
         if (!skin || (!real && K.picture(WORLD.planet.bg))) makeSkin();
         draft(WORLD.planet.bg);
       },
@@ -207,7 +208,7 @@
       draw() {
         if (act) return act.draw();
         K.background(sc.bg, 0, place.look);
-        K.hero(who, 60, GROUND, 'stand', t);
+        K.hero(who, 60, sc.ground || GROUND, 'stand', t);
       },
     };
   };
@@ -232,7 +233,7 @@
   // The dash: the scene scrolls past, obstacles arrive on a beat, tap to jump. Low things are jumped,
   // high things are ducked by staying on the ground. Three lives.
   function Runner(sc, place, who, onDone, again) {
-    const cfg = sc.run, SPEED = 86, G = 560, JUMP = 200, X = 46;
+    const cfg = sc.run, SPEED = 86, G = 560, JUMP = 200, X = 46, GY = sc.ground || GROUND;
     const s = { t: 0, y: 0, vy: 0, lives: 3, inv: 0, over: false, obs: [] };
     const r = K.rng(K.hash(sc.id) + Date.now());
     for (let at = 2.6; at < cfg.seconds - 2; at += 1.15 + r() * 0.95) s.obs.push({ at, high: !!cfg.high && s.obs.length > 1 && r() < 0.28, hit: false });
@@ -256,14 +257,15 @@
         paint();
       },
       draw() {
-        K.background(sc.bg, s.t * SPEED, place.look);
+        K.background(sc.bg, s.t * SPEED, place.look, sc.tile === 'repeat');
         for (const o of s.obs) {
           const x = Math.round(X + (o.at - s.t) * SPEED);
           if (x < -12 || x > W + 12) continue;
-          if (o.high) { rect(x - 7, GROUND - 38, 14, 5, INK); rect(x - 6, GROUND - 37, 12, 3, '#D2A064'); }
-          else { rect(x - 6, GROUND - 10, 12, 10, INK); rect(x - 5, GROUND - 9, 10, 9, '#8A7F7A'); rect(x - 2, GROUND - 13, 4, 4, '#8A7F7A'); }
+          if (o.high) { rect(x - 7, GY - 38, 14, 5, INK); rect(x - 6, GY - 37, 12, 3, '#D2A064'); }
+          else { rect(x - 6, GY - 10, 12, 10, INK); rect(x - 5, GY - 9, 10, 9, '#E0862E'); rect(x - 3, GY - 14, 6, 5, INK); rect(x - 2, GY - 13, 4, 4, '#E0862E'); }
         }
-        if (!(s.inv > 0 && Math.floor(s.t * 14) % 2)) K.hero(who, X, GROUND - s.y, s.y > 0 ? 'jump' : 'run', s.t);
+        if (cfg.board) { rect(X - 12, GY - s.y - 1, 24, 4, INK); rect(X - 11, GY - s.y, 22, 2, '#F2C94C'); }       // a stand-in surfboard
+        if (!(s.inv > 0 && Math.floor(s.t * 14) % 2)) K.hero(who, X, GY - s.y - (cfg.board ? 1 : 0), s.y > 0 ? 'jump' : cfg.board ? 'stand' : 'run', s.t);
       },
     };
   }
@@ -330,7 +332,7 @@
   // Kendrick fires a puck with his hockey stick, flat and fast. Kellyn lobs her white bunny in an arc: slower,
   // but fluffier, so it catches things a puck would just miss. Three targets may get away.
   function Shoot(sc, place, who, onDone, again) {
-    const cfg = sc.shoot, puck = who === 'ken', HX = 30, HY = GROUND - 14, G = 420;
+    const cfg = sc.shoot, puck = who === 'ken', GY = sc.ground || GROUND, HX = 30, HY = GY - 14, G = 420;
     const s = { t: 0, hits: 0, lives: 3, over: false, targets: [], shots: [], next: 1.2, cool: 0, swing: 0 };
     const r = K.rng(K.hash(sc.id) + Date.now());
     const st = stage('<span class="lives"></span><span class="meter"><i></i></span>', puck ? 'Klepni, kam má letět puk.' : 'Klepni, kam má letět králíček.');
@@ -372,8 +374,8 @@
           rect(x - 5, y - 13, 10, 8, '#7A5320'); rect(x - 3, y - 11, 6, 6, place.look.sky);  // a stand-in padlock
           rect(x - 8, y - 6, 16, 13, '#7A5320'); rect(x - 7, y - 5, 14, 11, '#E6B340'); rect(x - 1, y - 2, 2, 5, '#7A5320');
         }
-        K.hero(who, HX - 8, GROUND, s.swing > 0 ? 'cheer' : 'stand', s.t);
-        if (puck) { const up = s.swing > 0; rect(HX + 1, GROUND - (up ? 22 : 14), 2, 12, '#B98850'); rect(HX + 1, GROUND - (up ? 12 : 3), 7, 2, '#B98850'); }   // hockey stick
+        K.hero(who, HX - 8, GY, s.swing > 0 ? 'cheer' : 'stand', s.t);
+        if (puck) { const up = s.swing > 0; rect(HX + 1, GY - (up ? 22 : 14), 2, 12, '#B98850'); rect(HX + 1, GY - (up ? 12 : 3), 7, 2, '#B98850'); }   // hockey stick
         for (const sh of s.shots) {
           const x = Math.round(sh.x), y = Math.round(sh.y);
           if (puck) { rect(x - 4, y - 2, 8, 4, INK); rect(x - 3, y - 2, 6, 1, '#7A6F6A'); }
@@ -400,10 +402,10 @@
       },
       update(dt) { t += dt; },
       draw() {
-        const sc = place.scenes[place.scenes.length - 1];
+        const sc = place.scenes[place.scenes.length - 1], gy = sc.ground || GROUND;
         K.background(sc.bg, 0, place.look);
-        K.hero(save.who, 60, GROUND - Math.abs(Math.sin(t * 6)) * 6, 'cheer', t);
-        place.saves.forEach((sv, i) => { rect(104 + i * 26, GROUND - 30, 12, 30, INK); rect(105 + i * 26, GROUND - 29, 10, 28, '#FFD43A'); });
+        K.hero(save.who, 60, gy - Math.abs(Math.sin(t * 6)) * 6, 'cheer', t);
+        place.saves.forEach((sv, i) => { rect(104 + i * 26, gy - 30, 12, 30, INK); rect(105 + i * 26, gy - 29, 10, 28, '#FFD43A'); });
       },
     };
   };

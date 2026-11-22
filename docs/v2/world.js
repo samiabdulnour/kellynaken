@@ -1,13 +1,16 @@
 // The world: every place the kids can travel to, in the order they open, and the planet they are picked on.
 // A new place is a new entry in `places`, a pin on the planet, and its pictures in art/. Nothing else needs to change.
 //
-// `planet.pins` sit at [longitude, latitude]. A pin leads to one place or, where several are too close together
-// to tell apart from space (Praha 5 and Praha 6), to a short list. A pin marked `soon` is somewhere that opens later.
+// `planet.pins` sit at [x, y] on the world picture (art/source/S0, 384 x 192 in the game), which is wrapped around
+// the planet. A pin leads to one place or, where several are too close together to tell apart from space
+// (Praha 5 and Praha 6), to a short list. A pin marked `soon` is somewhere that opens later.
 //
 // Who is waiting to be rescued in a place (`saves`) is a surprise: the game never names them before they appear.
 // Locked scenes show as ??? and the story lines only hint. Keep new texts that way.
 //
-// Each place has four scenes. A scene has a background (bg), some lines of story (talk), and a way to play:
+// Each place has four scenes. A scene has a background (bg), some lines of story (talk), and a way to play.
+// `ground` is how far down the picture feet stand, when it is not the usual 232 (the sea, the jetty).
+// A scrolling picture is repeated with every other copy mirrored; `tile: 'repeat'` repeats it as it is.
 //   run     a side-scrolling dash: tap to jump the obstacles
 //   drums   notes fall down three lanes in time with the beat: tap each drum as its note reaches the line
 //   shoot   targets pop up and slip away: tap where the shot should go. Kendrick fires a puck with his hockey stick,
@@ -24,10 +27,10 @@ window.WORLD = {
   planet: {
     bg: 'world-map',
     pins: [
-      { name: 'Praha', at: [14.4, 50.1], places: ['praha5', 'praha6'] },
-      { name: 'Austrálie', at: [146, -31], places: ['australia'] },
-      { at: [-62, -10], soon: true },
-      { at: [100, 30], soon: true },
+      { name: 'Praha', at: [198, 52], places: ['praha5', 'praha6'] },
+      { name: 'Austrálie', at: [352, 145], places: ['australia'] },
+      { at: [105, 115], soon: true },
+      { at: [315, 62], soon: true },
     ],
   },
   places: [
@@ -75,12 +78,12 @@ window.WORLD = {
       scenes: [
         { id: 'australia-beach', name: 'Pláž', bg: 'australia-beach', play: 'stub',
           talk: [['', 'Na druhém konci světa vyplavilo moře láhev. Uvnitř je jediné slovo: POMOC!']] },
-        { id: 'australia-sea', name: 'Na vlně', bg: 'australia-sea', scroll: true, play: 'run',
-          run: { seconds: 30, low: 'žralok', high: 'bumerang' },
+        { id: 'australia-sea', name: 'Na vlně', bg: 'australia-sea', scroll: true, play: 'run', ground: 200, tile: 'repeat',
+          run: { seconds: 30, low: 'žralok', high: 'bumerang', board: true },
           talk: [['', 'Na prkno! Žraloka přeskoč, pod bumerangem zůstaň dole.']] },
         { id: 'australia-outback', name: 'Buš', bg: 'australia-outback', play: 'stub',
           talk: [['', 'Cesta vede přes rudou poušť.']] },
-        { id: 'australia-reef', name: 'Žraločí útes', bg: 'australia-reef', play: 'stub',
+        { id: 'australia-reef', name: 'Žraločí útes', bg: 'australia-reef', play: 'stub', ground: 246,
           talk: [['', 'Támhle někdo mává! Na skále uprostřed moře.']] },
       ],
       done: [['sami', 'To byla jízda. Díky!'], ['zofia', 'Juchůů! Zachránili jste nás!']],
