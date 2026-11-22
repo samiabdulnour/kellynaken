@@ -15,15 +15,16 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const SITE = path.join(here, 'docs');
 const cfg = JSON.parse(fs.readFileSync(path.join(here, 'config.json'), 'utf8'));
 const coop = cfg.coop || {};
-const env = (k) => Number(process.env[k]) || 0;      // COOP_SECONDS, COOP_ROUNDS, COOP_TARGET shorten a round for testing
+const env = (k) => Number(process.env[k]) || 0;      // COOP_SECONDS, COOP_ROUNDS, COOP_TARGET shorten a round for testing; COOP_STAGE starts at a later boss
 const PORT = env('PORT') || 8080;
 const WHO = ['ken', 'kel'];
 const PAD_OWNER = ['ken', 'ken', 'kel', 'kel'];
 const ROOM = { w: 360, h: 400, top: 74 };            // the chase room, in the page's canvas units
 const has = (file) => fs.existsSync(path.join(SITE, file));
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const FIRST_STAGE = env('COOP_STAGE');
 const BOSSES = (coop.bosses && coop.bosses.length ? coop.bosses : [{ id: 'boss', name: 'Boss', kind: 'drums' }]).map((b) => {
-  const full = { kind: 'drums', tip: '', rounds: 4, first: 3, lives: 4, target: 18, speed: [80, 128], freeze: 2.2, seconds: 70, ...b };
+  const full = { kind: 'drums', tip: '', rounds: 4, first: 3, lives: 4, target: 18, flowers: 5, penalty: 1, ease: 2, speed: [80, 128], freeze: 2.2, seconds: 70, ...b };
   if (env('COOP_SECONDS')) full.seconds = env('COOP_SECONDS');
   if (env('COOP_ROUNDS')) full.rounds = env('COOP_ROUNDS');
   if (env('COOP_TARGET')) full.target = env('COOP_TARGET');
@@ -50,14 +51,14 @@ function loadBoss() {
     const gifts = surfGifts(b);
     room.surf = { t: 0, obs: surfCourse(b, gifts), gifts, hit: { ken: new Set(), kel: new Set() }, jumped: { ken: 0, kel: 0 } };
   } else {
-    const target = Math.max(8, b.target - 2 * fails);
+    const target = Math.max(8, b.target - b.ease * fails);
     room.hp = room.max = target;
-    room.chase = { l: { x: 180, y: 130 }, p: { ken: { x: 110, y: 330 }, kel: { x: 250, y: 330 } }, frozen: { ken: 0, kel: 0 }, items: [], id: 0, happy: 0, target, rest: 1.5, shout: 0 };
-    while (room.chase.items.length < 5) spawnFlower();
+    room.chase = { l: { x: 180, y: 130 }, p: { ken: { x: 110, y: 330 }, kel: { x: 250, y: 330 } }, frozen: { ken: 0, kel: 0 }, grace: { ken: 0, kel: 0 }, items: [], id: 0, happy: 0, target, rest: 1.5, shout: 0 };
+    while (room.chase.items.length < b.flowers) spawnFlower();
   }
 }
 function reset() {
-  Object.assign(room, { phase: 'lobby', stage: 0, best: -1, count: 0, pause: 0, hits: { ken: 0, kel: 0 }, ev: [], fails: {} });
+  Object.assign(room, { phase: 'lobby', stage: Math.min(FIRST_STAGE, BOSSES.length - 1), best: -1, count: 0, pause: 0, hits: { ken: 0, kel: 0 }, ev: [], fails: {} });
   loadBoss(); room.best = -1;
 }
 reset();
@@ -84,7 +85,7 @@ function broadcast() {
 // Start, retry the boss that beat you, or play again from the first boss after a win.
 function start() {
   if (!['lobby', 'won', 'lost'].includes(room.phase) || !isHere('ken') || !isHere('kel')) return false;
-  if (room.phase !== 'lost') { room.stage = 0; room.hits = { ken: 0, kel: 0 }; room.fails = {}; }
+  if (room.phase !== 'lost') { room.stage = Math.min(FIRST_STAGE, BOSSES.length - 1); room.hits = { ken: 0, kel: 0 }; room.fails = {}; }
   loadBoss();
   room.phase = 'count'; room.count = 3;
   broadcast(); return true;
@@ -203,7 +204,10 @@ function move(who, x, y) {
 }
 function chaseTick(dt, b) {
   const c = room.chase;
-  for (const w of WHO) if (c.frozen[w] > 0) c.frozen[w] -= dt;
+  for (const w of WHO) {
+    if (c.frozen[w] > 0) { c.frozen[w] -= dt; if (c.frozen[w] <= 0) c.grace[w] = 1.6; }      // just released: a short head start
+    else if (c.grace[w] > 0) c.grace[w] -= dt;
+  }
   if (c.shout > 0) c.shout -= dt;
   let picked = false;
   for (const w of WHO) {
@@ -212,18 +216,18 @@ function chaseTick(dt, b) {
   }
   if (picked) {
     c.items = c.items.filter((i) => !i.gone);
-    while (c.items.length < 5) spawnFlower();
+    while (c.items.length < b.flowers) spawnFlower();
     room.hp = Math.max(0, c.target - c.happy);
     if (c.happy >= c.target) return bossDown();
   }
   if (c.rest > 0) { c.rest -= dt; return; }
   const far = (w) => Math.hypot(c.p[w].x - c.l.x, c.p[w].y - c.l.y);
-  const prey = WHO.filter((w) => isHere(w) && c.frozen[w] <= 0).sort((a, z) => far(a) - far(z))[0];
+  const prey = WHO.filter((w) => isHere(w) && c.frozen[w] <= 0 && c.grace[w] <= 0).sort((a, z) => far(a) - far(z))[0];
   if (!prey) return;
   const p = c.p[prey], d = far(prey);
   if (d < 28) {                                                   // caught: a moment in the chair, and one flower wilts
     c.frozen[prey] = b.freeze; c.rest = 1.0; c.shout = 1.8;
-    c.happy = Math.max(0, c.happy - 1); room.hp = c.target - c.happy;
+    c.happy = Math.max(0, c.happy - b.penalty); room.hp = c.target - c.happy;
     say({ who: prey, caught: true });
     return;
   }
