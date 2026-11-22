@@ -13,6 +13,12 @@ Each operation has two minigames that hand over pieces of a code.
 The game is being rebuilt as a continuing pixel-art adventure: Kendrick and Kellyn travel the world rescuing people.
 It lives beside the current game, at `/v2/`, until it is ready to take over. The postcard will simply carry the link.
 
+It is always played by the two of them together, each on their own device: one is Kendrick, the other Kellyn.
+Nothing starts until both are there; they travel, read the story and play every scene together, and share the lives,
+the hits and the items. What they share lives in one room on the server (`server.mjs`, under `/v2/api/`), so the
+game has to be opened from the server's address. Each device also remembers the progress, so a restarted server is
+told how far they had got. Adding `?solo` to the address plays it alone on one device, for trying things out.
+
 Levels are picked on a spinning planet. Each place has four scenes, and who is waiting to be rescued there is a
 surprise: the game never names them before they are free.
 
@@ -30,8 +36,9 @@ in the drums the drumstick makes every hit count twice for a while.
 | Path | What it is |
 |---|---|
 | `game/world.js` | The world: the planet's pins, every place, its four scenes, the story lines. A new place is a new entry here plus its pictures. |
+| `game/room.js` | The rules of a session, shared by the server and the page: who is here, where they are, lives and hits, what each scene throws at them. |
 | `game/engine.js` | The pixel screen (192 x 288, scaled by whole numbers), scenes, input, saving, art loading. |
-| `game/game.js` | Title, the planet, places, the games inside a scene (dash, drums, shot), the album of rescued people. |
+| `game/game.js` | Title, the planet, places, the games inside a scene (dash, drums, shot), the album. Shows the room's state and reports what its own hero does. |
 | `art/CHATGPT-PACK.md` | The prompts for drawing the scenes and objects in the style of the character sheets. |
 | `art/scenes.json` | Which picture is which scene, and its size in the game. |
 | `art/source/` | The pictures as they come back from ChatGPT, named by code: `S3.png`. |

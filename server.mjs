@@ -1,4 +1,4 @@
-// Serves the site from docs/ and runs the play-together rounds.
+// Serves the site from docs/ and runs the play-together rounds, for the old game (/coop/) and the pixel game (/v2/api/).
 //   node server.mjs            (PORT defaults to 8080)
 // No dependencies. One shared room: the two kids join as "ken" and "kel" and take on the bosses from
 // config.json one after another. The page listens on a server-sent event stream and posts its moves back.
@@ -254,6 +254,33 @@ setInterval(() => {
 }, TICK);
 setInterval(() => { for (const who of WHO) for (const res of streams[who]) res.write(': ping\n\n'); }, 15000);
 
+// ---- the pixel game, at /v2/: always played by the two of them together, each on their own device ----
+// The rules live in game/room.js, which the page also loads; here they run for real, with one seat per hero.
+globalThis.window = globalThis;                      // the game's files hang their things on `window`
+await import('./game/world.js');
+await import('./game/room.js');
+const seats = { ken: null, kel: null };              // who is connected: { res, id }
+const leaving = {};
+const game = globalThis.Room.create({
+  world: globalThis.WORLD, solo: false, now: () => Date.now(),
+  emit: (to, msg) => { const line = `data: ${JSON.stringify(msg)}\n\n`; for (const w of WHO) if ((to === 'all' || to === w) && seats[w]) seats[w].res.write(line); },
+});
+setInterval(() => { for (const w of WHO) if (seats[w]) seats[w].res.write(': ping\n\n'); }, 15000);
+function sit(req, res, who, id, save) {
+  res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache, no-transform', Connection: 'keep-alive', 'X-Accel-Buffering': 'no', ...CORS });
+  res.write('retry: 1500\n\n');
+  if (seats[who] && seats[who].id !== id) { res.write(`data: ${JSON.stringify({ type: 'taken' })}\n\n`); return res.end(); }   // another device already plays this hero
+  if (seats[who]) seats[who].res.end();              // the same device coming back
+  seats[who] = { res, id };
+  clearTimeout(leaving[who]);
+  game.join(who, save);
+  req.on('close', () => {
+    if (!seats[who] || seats[who].res !== res) return;
+    seats[who] = null;
+    leaving[who] = setTimeout(() => { if (!seats[who]) game.leave(who); }, 4000);     // a short blip in the connection is forgiven
+  });
+}
+
 // ---- http ----
 const CORS = { 'Access-Control-Allow-Origin': '*' };
 const MIME = { '.html': 'text/html; charset=utf-8', '.jpg': 'image/jpeg', '.png': 'image/png', '.svg': 'image/svg+xml', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.ico': 'image/x-icon' };
@@ -307,6 +334,16 @@ http.createServer((req, res) => {
     return readBody(req, (b) => json(res, 200, { ok: (url.pathname === '/coop/start' || WHO.includes(b.who)) && !!action(b) }));
   }
   if (url.pathname.startsWith('/coop/')) return json(res, 404, { error: 'unknown' });
+  if (url.pathname === '/v2/api/stream' && req.method === 'GET') {
+    const who = url.searchParams.get('who'), id = url.searchParams.get('id') || '';
+    if (!WHO.includes(who) || !id) return json(res, 400, { error: 'who must be ken or kel, with an id' });
+    let save = null; try { save = JSON.parse(url.searchParams.get('save') || 'null'); } catch (e) {}
+    return sit(req, res, who, id, save);
+  }
+  if (url.pathname === '/v2/api/act' && req.method === 'POST') {
+    return readBody(req, (b) => { const ok = WHO.includes(b.who) && !!seats[b.who] && seats[b.who].id === b.key; if (ok) game.act(b.who, b); json(res, 200, { ok }); });
+  }
+  if (url.pathname.startsWith('/v2/api/')) return json(res, 404, { error: 'unknown' });
   if (req.method !== 'GET' && req.method !== 'HEAD') { res.writeHead(405); return res.end(); }
   serveFile(res, url.pathname);
 }).listen(PORT, () => console.log(`Tajné operace on http://localhost:${PORT} (${BOSSES.map((b) => `${b.name}: ${b.kind}`).join(', ')})`));

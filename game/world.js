@@ -25,6 +25,7 @@
 window.WORLD = {
   title: 'Kellyn a Ken',
   subtitle: 'Rodinná mise',
+  server: 'https://kellynaken.onrender.com',     // where the room lives, when the page itself is served from somewhere else
   heroes: {
     ken: { name: 'Kendrick', shirt: '#33313A', legs: '#3F5E9E', badge: '#F08BA0', hair: '#8A5A2B' },
     kel: { name: 'Kellyn', shirt: '#BFE8D0', legs: '#F6C1D0', badge: '#F08BA0', hair: '#9A6535', tie: '#F3A6C0' },
