@@ -37,7 +37,7 @@ button{font:inherit;color:inherit}
 .logo{position:absolute;inset:3.5em 0 auto;text-align:center;font-size:2.6em;font-weight:700;line-height:.92;text-transform:uppercase;
   color:var(--yellow);text-shadow:.07em .07em 0 var(--red),.14em .14em 0 var(--blue)}
 .logo small{display:block;margin-top:.9em;font-size:.36em;letter-spacing:.12em;color:var(--paper);text-shadow:.12em .12em 0 var(--ink)}
-.pick{position:absolute;inset:auto 1em 1em;display:grid;gap:.6em;justify-items:center;text-align:center}
+.pick{position:absolute;inset:auto 1em .75em;display:grid;gap:.5em;justify-items:center;text-align:center}
 .pick p{margin:0;font-weight:700;text-shadow:.125em .125em 0 var(--ink)}
 .pick div{display:flex;gap:1em}
 
@@ -65,12 +65,20 @@ button{font:inherit;color:inherit}
 .tip.up{inset:4em 0 auto}
 .count{min-width:4em}
 .card.choose{inset:auto 1em 3.5em;gap:.5em}
+.card.top{inset:1.5em 1em auto}
 .card.choose h2{color:var(--ink)}
 .album{position:absolute;inset:4.5em .75em auto;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.5em}
 .album div{background:var(--paper);color:var(--ink);border:.25em solid var(--ink);padding:.5em .25em;text-align:center;font-weight:700}
 .album div[data-got="0"]{background:var(--ink-soft);color:var(--paper)}
-.album span{display:block;width:3em;height:3em;margin:0 auto .4em;background:var(--yellow);border:.25em solid var(--ink);line-height:2.5em;font-size:1em}
+.album span:not(.face){display:block;width:3em;height:3em;margin:0 auto .4em;background:var(--yellow);border:.25em solid var(--ink);line-height:2.5em;font-size:1em}
 .album div[data-got="0"] span{background:var(--ink)}
+.face{display:inline-block;flex:none;background-repeat:no-repeat;image-rendering:pixelated;image-rendering:crisp-edges}
+.btn .face{display:block;margin:0 auto .35em}
+.say .face{float:left;margin:0 .75em .25em 0}
+.card .line{display:flex;align-items:center;gap:.6em;text-align:left}
+.album .face{display:block;margin:.2em auto .5em}
+.power{color:var(--yellow)}
+.album img{display:block;margin:.4em auto 0;image-rendering:pixelated;image-rendering:crisp-edges}
 .draft{position:absolute;right:.5em;top:3.2em;background:var(--dim);padding:.2em .5em;font-size:.8em}
 
 @media (prefers-reduced-motion:reduce){*{animation-duration:.001ms!important}}

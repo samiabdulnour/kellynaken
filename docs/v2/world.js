@@ -16,6 +16,9 @@
 //   shoot   targets pop up and slip away: tap where the shot should go. Kendrick fires a puck with his hockey stick,
 //           Kellyn throws her white bunny
 //   stub    not built yet: shows a card and lets you carry on
+//
+// `pickup` puts one of the `items` into a scene, to grab like a power-up: jump into it in a dash, hit it in a shot.
+// In a dash any item lets you smash through whatever you run into for a few seconds. In a shot each has its own trick.
 // Texts are drafts. The story of who or what is behind it all is still open.
 window.WORLD = {
   title: 'Kellyn a Ken',
@@ -23,6 +26,10 @@ window.WORLD = {
   heroes: {
     ken: { name: 'Kendrick', shirt: '#33313A', legs: '#3F5E9E', badge: '#F08BA0', hair: '#8A5A2B' },
     kel: { name: 'Kellyn', shirt: '#BFE8D0', legs: '#F6C1D0', badge: '#F08BA0', hair: '#9A6535', tie: '#F3A6C0' },
+  },
+  items: {
+    drumstick: { name: 'Palička', dash: 'Palička! Chvíli rozbiješ všechno, do čeho vběhneš.', shot: 'Palička! Každá rána je dvojitá.' },
+    boomerang: { name: 'Bumerang', dash: 'Bumerang! Chvíli smete všechno, co ti stojí v cestě.', shot: 'Bumerang! Každá rána se vrací.' },
   },
   planet: {
     bg: 'world-map',
@@ -57,10 +64,10 @@ window.WORLD = {
       saves: [{ id: 'alan', name: 'Alan' }],
       look: { sky: '#BFE3F2', far: '#A9A6A0', far2: '#8A9A72', ground: '#7FAE66', line: '#5C8650' },
       scenes: [
-        { id: 'strahov-hill', name: 'Do kopce', bg: 'strahov-hill', scroll: true, play: 'run',
+        { id: 'strahov-hill', name: 'Do kopce', bg: 'strahov-hill', scroll: true, play: 'run', pickup: 'drumstick',
           run: { seconds: 26, low: 'šiška', high: 'vrána' },
           talk: [['', 'Z kopce nad městem někdo volá o pomoc.'], ['', 'Nahoru se musí pěšky. Šišku přeskoč, pod vránou zůstaň dole.']] },
-        { id: 'strahov-gate', name: 'Brána stadionu', bg: 'strahov-gate', play: 'shoot',
+        { id: 'strahov-gate', name: 'Brána stadionu', bg: 'strahov-gate', play: 'shoot', pickup: 'drumstick',
           shoot: { need: 10, every: 1.3, stay: 3.2, sway: 10, target: 'zámek' },
           talk: [['', 'Starý strahovský stadion. Brána je zavřená na řetěz a zámky se na něm houpou.']] },
         { id: 'strahov-field', name: 'Na ploše', bg: 'strahov-field', play: 'stub',
@@ -78,7 +85,7 @@ window.WORLD = {
       scenes: [
         { id: 'australia-beach', name: 'Pláž', bg: 'australia-beach', play: 'stub',
           talk: [['', 'Na druhém konci světa vyplavilo moře láhev. Uvnitř je jediné slovo: POMOC!']] },
-        { id: 'australia-sea', name: 'Na vlně', bg: 'australia-sea', scroll: true, play: 'run', ground: 200, tile: 'repeat',
+        { id: 'australia-sea', name: 'Na vlně', bg: 'australia-sea', scroll: true, play: 'run', ground: 200, tile: 'repeat', pickup: 'boomerang',
           run: { seconds: 30, low: 'žralok', high: 'bumerang', board: true },
           talk: [['', 'Na prkno! Žraloka přeskoč, pod bumerangem zůstaň dole.']] },
         { id: 'australia-outback', name: 'Buš', bg: 'australia-outback', play: 'stub',

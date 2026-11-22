@@ -6,7 +6,7 @@ Everything ChatGPT needs to draw the game's scenes and objects so they match you
 
 - **Scenes S0 to S13: done.** All 14 are drawn and in the game. Their prompts stay below for reference, and for any scene you want to redo.
 - **Still to draw: the objects, P1 to P7.** Start with P7 (stick, puck, bunny), because both heroes use it everywhere.
-- **Optional:** the action frames A1 to A6, and the villain C11.
+- **Next after the objects:** the action frames A1 and A2, so Kendrick and Kellyn really run, shoot and throw. A3 to A6 and the villain C11 are optional.
 - **Style:** grounded, classic pixel art that follows your character sheets and the finished scenes: natural proportions, muted colours, no black outlines.
 
 ## How to use this
@@ -291,18 +291,18 @@ Same pixel-art style and palette as set up. No text.
 
 ---
 
-## Optional: action frames for the characters
+## Action frames for the characters
 
-Your sheets already give me enough to start: the side view, the running pose, the jumping pose and the five faces of each character. The faces go into the speech boxes and the album.
+All six characters are in the game, cut from the big standing figures on your sheet (front, three-quarter, side, back). Those are the most detailed drawings, so the heroes are now recognisable. The faces are used in the speech boxes and the album.
 
-These extra frames would make the two heroes move smoothly and give them their shots. They use your sheet as the design, so paste them in the same conversation.
+What the sheet cannot give is movement. For now the game makes two running frames out of the side view by moving the legs, and the hockey stick and the bunny are drawn stand-ins. These frames would replace that with real drawings. Paste them in the same conversation as the sheet.
 
 ### A1. Kendrick in action
 
 ```text
 A1, action frames for the character labelled KENDRICK on the sheet. Landscape, 3:2 (1536x1024). Magenta background.
 
-Draw exactly that character: the same face, curly hair, clothes, colours, proportions and pixel style, at the size of the small action poses on the sheet.
+Draw exactly that character: the same face, curly hair, clothes, colours, proportions and pixel style, at exactly the size and level of detail of the big standing figures in the top row of that character's card. The game uses those big figures, so the action frames must match them.
 
 Eight drawings in two rows of four. All are full body, seen from the side and facing right, the same size, evenly spaced, with the feet of each row on one straight line.
 Top row, one running cycle: right leg stretched forward; both feet off the ground with the legs passing; left leg stretched forward; both feet off the ground with the legs passing.
@@ -316,7 +316,7 @@ No puck, no ground, no shadows, no text, no labels.
 ```text
 A2, action frames for the character labelled KELLYN on the sheet. Landscape, 3:2 (1536x1024). Magenta background.
 
-Draw exactly that character: the same face, ponytail, clothes, colours, proportions and pixel style, at the size of the small action poses on the sheet.
+Draw exactly that character: the same face, ponytail, clothes, colours, proportions and pixel style, at exactly the size and level of detail of the big standing figures in the top row of that character's card. The game uses those big figures, so the action frames must match them.
 
 Eight drawings in two rows of four. All are full body, seen from the side and facing right, the same size, evenly spaced, with the feet of each row on one straight line.
 Top row, one running cycle: right leg stretched forward; both feet off the ground with the legs passing; left leg stretched forward; both feet off the ground with the legs passing.
@@ -332,7 +332,7 @@ Paste once for each name: LEILA, ALAN, SAMI, ŽOFIA.
 ```text
 Action frames for the character labelled [NAME] on the sheet. Landscape, 3:2 (1536x1024). Magenta background.
 
-Draw exactly that character: the same face, hair, clothes, colours, proportions and pixel style, at the size of the small action poses on the sheet.
+Draw exactly that character: the same face, hair, clothes, colours, proportions and pixel style, at exactly the size and level of detail of the big standing figures in the top row of that character's card. The game uses those big figures, so the action frames must match them.
 
 Four full-body drawings in one row, seen from the side and facing right, the same size, evenly spaced, feet on one straight line: standing and waving both arms above the head, calling out; the same wave with the arms swung to the other side; cheering with a small jump; standing with arms open wide for a hug.
 
@@ -386,12 +386,12 @@ Same pixel-art style and palette as set up. No text, no logos.
 | P6 | The drum kit | Landscape |
 | P3 | Australia objects | Landscape |
 | P4 | Rewards and map markers | Landscape |
-| A1, A2 | Kendrick and Kellyn in action (optional) | Landscape |
+| A1, A2 | Kendrick and Kellyn in action | Landscape |
 | A3 to A6 | The people being rescued (optional) | Landscape |
 | C11 | The Scrambler (optional) | Landscape |
 
-## Sending me your characters
+## Sending me pictures
 
-- Send the character sheets as image files in a normal message, at full size. Pictures sent while I am in the middle of working do not reach me as files.
-- One sheet with all six is fine. I cut each figure out, remove the cream background and shrink it to the game's pixel size.
-- From each sheet I use the side view, the running pose, the jumping pose and the five faces.
+- Send files in a normal message or as a zip. Pictures sent while I am in the middle of working do not reach me as files.
+- **The character sheet:** I have it as a compressed copy, 1536 pixels wide. If you still have the original PNG as ChatGPT made it, send that one whole (not cut up): the same tool then gives sharper characters.
+- **Please don't remove backgrounds first.** Automatic cut-outs also remove the white inside the figures (Kellyn's leggings, shoe soles), and tight crops cut off hair. I cut them out from the full picture myself.

@@ -65,7 +65,7 @@ def main():
 
     with open(os.path.join(args.out, 'manifest.js'), 'w') as f:
         f.write('// Written by tools/pixelate.py: the art that exists. Anything not listed is drawn as a stand-in.\n')
-        f.write('window.ASSETS = ' + json.dumps({'bg': sorted(done), 'sprites': {}}, indent=2) + ';\n')
+        f.write('window.ASSETS = ' + json.dumps({'bg': sorted(done)}, indent=2) + ';\n')
     missing = [f"{sc['code']} {sc['id']}" for sc in scenes if sc['id'] not in done]
     print(f'{len(done)} of {len(scenes)} scenes ready.' + (' Still waiting for: ' + ', '.join(missing) if missing else ''))
 
