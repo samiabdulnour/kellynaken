@@ -8,6 +8,24 @@ The code opens their own operation on the site:
 
 Each operation has two minigames that hand over pieces of a code.
 
+## The pixel game (in progress)
+
+The game is being rebuilt as a continuing pixel-art adventure: Kendrick and Kellyn travel the world rescuing people.
+It lives beside the current game, at `/v2/`, until it is ready to take over.
+
+| Path | What it is |
+|---|---|
+| `game/world.js` | The world: every place, its four scenes, the story lines. A new place is a new entry here plus its pictures. |
+| `game/engine.js` | The pixel screen (192 x 288, scaled by whole numbers), scenes, input, saving, art loading. |
+| `game/game.js` | Title, world map, places, playing a scene, the album of rescued people. |
+| `art/CHATGPT-PACK.md` | The prompts for drawing the scenes and objects, and the format for characters. |
+| `art/scenes.json` | Which picture is which scene, and its size in the game. |
+| `art/source/` | The pictures as they come back from ChatGPT, named by code: `S3.png`. |
+| `tools/pixelate.py` | Turns those pictures into true pixel art with one shared palette. |
+
+Until a scene's picture exists the game draws a stand-in for it, so everything is playable before the art arrives.
+To add art: drop the pictures into `art/source/`, run `python3 tools/pixelate.py`, then `node build.mjs`.
+
 ## Layout
 
 | Path | What it is |
