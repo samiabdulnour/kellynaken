@@ -24,7 +24,7 @@
 // Texts are drafts. The story of who or what is behind it all is still open.
 window.WORLD = {
   title: 'Kellyn a Ken',
-  subtitle: 'Záchranná mise',
+  subtitle: 'Rodinná mise',
   heroes: {
     ken: { name: 'Kendrick', shirt: '#33313A', legs: '#3F5E9E', badge: '#F08BA0', hair: '#8A5A2B' },
     kel: { name: 'Kellyn', shirt: '#BFE8D0', legs: '#F6C1D0', badge: '#F08BA0', hair: '#9A6535', tie: '#F3A6C0' },

@@ -39,7 +39,7 @@
     update(dt) { this.t += dt; },
     draw() {
       K.background('title', 0, { sky: '#1B2A5C', far: '#3A2F5B', far2: '#4A3B6B', ground: '#3A2F33', line: '#5B4A4E' });
-      K.hero('ken', 66, 210, 'front', this.t); K.hero('kel', 126, 210, 'front', this.t, true);      // up on the terrace wall, clear of the buttons
+      K.hero('ken', 64, 210, 'cheer', this.t); K.hero('kel', 128, 210, 'cheer', this.t, true);      // up on the terrace wall, clear of the buttons
     },
   };
 
@@ -257,7 +257,7 @@
     const st = stage('<span class="lives"></span><span class="meter"><i></i></span>', `Klepni a skoč${cfg.high ? '. Pod letící věcí zůstaň dole' : ''}.`);
     const paint = () => { hearts(st.hud.firstElementChild, s.lives); st.hud.lastElementChild.firstElementChild.style.width = clamp(s.t / cfg.seconds, 0, 1) * 100 + '%'; };
     paint();
-    const end = (won) => { s.over = true; paint(); st.end(won, won ? 'Zvládnuto!' : 'Au!', won ? 'Jsi na místě.' : 'Zkus to ještě jednou.', onDone, again); };
+    const end = (won) => { s.over = true; s.lost = !won; paint(); st.end(won, won ? 'Zvládnuto!' : 'Au!', won ? 'Jsi na místě.' : 'Zkus to ještě jednou.', onDone, again); };
     return {
       s, kind: 'run',
       down() { if (!s.over && s.y <= 0) { s.vy = JUMP; beep(520); if (!s.power) st.tip.textContent = ''; } },
@@ -287,13 +287,14 @@
           const x = Math.round(X + (o.at - s.t) * SPEED);
           if (x < -12 || x > W + 12) continue;
           if (o.smashed) { if (s.t - o.smashed < 0.3) { rect(x - 9, GY - 20, 18, 2, '#FFD43A'); rect(x - 1, GY - 28, 2, 18, '#FFD43A'); } continue; }
-          if (o.high) { rect(x - 7, GY - 56, 14, 5, INK); rect(x - 6, GY - 55, 12, 3, '#D2A064'); }
+          if (o.high) { rect(x - 7, GY - 62, 14, 5, INK); rect(x - 6, GY - 61, 12, 3, '#D2A064'); }
           else { rect(x - 6, GY - 10, 12, 10, INK); rect(x - 5, GY - 9, 10, 9, '#E0862E'); rect(x - 3, GY - 14, 6, 5, INK); rect(x - 2, GY - 13, 4, 4, '#E0862E'); }
         }
         if (s.pick && !s.pick.got) { const x = X + (s.pick.at - s.t) * SPEED; if (x > -12 && x < W + 12) item(s.pick.item, x, GY - 50 + Math.round(Math.sin(s.t * 5) * 2)); }
-        if (s.t < s.power && (s.power - s.t > 2 || Math.floor(s.t * 8) % 2)) item(s.pick.item, X, GY - s.y - 60);   // held overhead; blinks when nearly spent
+        if (s.t < s.power && (s.power - s.t > 2 || Math.floor(s.t * 8) % 2)) item(s.pick.item, X, GY - s.y - 66);   // held overhead; blinks when nearly spent
         if (cfg.board) { rect(X - 12, GY - s.y - 1, 24, 4, INK); rect(X - 11, GY - s.y, 22, 2, '#F2C94C'); }       // a stand-in surfboard
-        if (!(s.inv > 0 && Math.floor(s.t * 14) % 2)) K.hero(who, X, GY - s.y - (cfg.board ? 1 : 0), s.y > 0 ? 'jump' : cfg.board ? 'stand' : 'run', s.t);
+        if (s.lost) K.hero(who, X, GY, 'dizzy', s.t);
+        else if (!(s.inv > 0 && Math.floor(s.t * 14) % 2)) K.hero(who, X, GY - s.y - (cfg.board ? 1 : 0), s.y > 0 ? 'jump' : cfg.board ? 'surf' : 'run', s.t);
       },
     };
   }
@@ -312,7 +313,7 @@
     const need = Math.ceil(notes.length * (cfg.pass || 0.6)), last = notes[notes.length - 1].at;
     // The pick-up falls down the middle lane between two beats, about a third of the way into the song.
     const pick = sc.pickup ? { item: sc.pickup, lane: 1, at: 2.6 + (Math.floor(cfg.beats * 0.3) + 0.5) * BEAT, got: false, gone: false } : null;
-    const s = { t: 0, hits: 0, need, over: false, notes, flash: [0, 0, 0], power: 0, pick };
+    const s = { t: 0, hits: 0, need, over: false, notes, flash: [0, 0, 0], power: 0, pick, taps: 0 };
     const st = stage('<span class="count"></span><span class="meter"><i></i></span>', 'Klepni na buben, až je nota na čáře.');
     st.tip.classList.add('up');
     const paint = () => { st.hud.firstElementChild.textContent = `${s.hits} / ${need}`; st.hud.lastElementChild.firstElementChild.style.width = clamp(s.hits / need, 0, 1) * 100 + '%'; };
@@ -322,7 +323,7 @@
       down(x) {
         if (s.over) return;
         const lane = clamp(Math.floor(x / LANE), 0, 2);
-        s.flash[lane] = 0.12;
+        s.flash[lane] = 0.12; s.taps++;
         if (pick && !pick.got && !pick.gone && lane === pick.lane && Math.abs(pick.at - s.t) <= WINDOW + 0.05) {      // caught the pick-up on the line
           pick.got = true; s.power = s.t + 8; beep(660, 880, 1100); st.tip.textContent = WORLD.items[pick.item].drums; return;
         }
@@ -345,7 +346,8 @@
       },
       draw() {
         K.background(sc.bg, 0, place.look);
-        rect(0, TOP, W, H - TOP, 'rgba(43,31,26,.55)');
+        K.hero(who, W / 2, 206, 'drum', s.taps / 9);                                         // the stroke changes with every tap
+        rect(0, TOP, W, H - TOP, 'rgba(43,31,26,.5)');
         for (let i = 1; i < 3; i++) rect(i * LANE - 1, TOP, 2, LINE - TOP, 'rgba(255,248,231,.18)');
         rect(0, LINE - 1, W, 2, '#FFF8E7');
         for (const n of notes) {
@@ -369,7 +371,8 @@
   // Kendrick fires a puck with his hockey stick, flat and fast. Kellyn lobs her white bunny in an arc: slower,
   // but fluffier, so it catches things a puck would just miss. Three targets may get away.
   function Shoot(sc, place, who, onDone, again) {
-    const cfg = sc.shoot, puck = who === 'ken', GY = sc.ground || GROUND, HX = 34, HY = GY - 20, G = 420;
+    const cfg = sc.shoot, puck = who === 'ken', GY = sc.ground || GROUND, BODY = 26, G = 420;
+    const HX = puck ? BODY + 28 : BODY + 20, HY = puck ? GY - 4 : GY - 34;                // where a shot leaves: the blade of the stick, or her hand
     const s = { t: 0, hits: 0, lives: 3, over: false, targets: [], shots: [], next: 1.2, cool: 0, swing: 0, thrown: 0, power: null, again: null,
       pick: sc.pickup ? { item: sc.pickup, x: W + 12, y: 64, got: false } : null };
     const r = K.rng(K.hash(sc.id) + Date.now());
@@ -377,7 +380,7 @@
     const paint = () => { hearts(st.hud.firstElementChild, s.lives); st.hud.lastElementChild.firstElementChild.style.width = clamp(s.hits / cfg.need, 0, 1) * 100 + '%'; };
     paint();
     const tx = (tg) => tg.x + Math.sin(s.t * 2 + tg.phase) * (cfg.sway || 0);
-    const end = (won) => { s.over = true; paint(); st.end(won, won ? 'Trefa!' : 'Uteklo ti jich moc.', won ? 'Cesta je volná.' : 'Zkus to ještě jednou.', onDone, again); };
+    const end = (won) => { s.over = true; s.lost = !won; paint(); st.end(won, won ? 'Trefa!' : 'Uteklo ti jich moc.', won ? 'Cesta je volná.' : 'Zkus to ještě jednou.', onDone, again); };
     function fire(x, y) {
       const dx = x - HX, dy = y - HY, back = s.power === 'boomerang';
       const star = !puck && s.thrown++ % 2 === 1;                                         // Kellyn takes turns: bunny, star, bunny, star
@@ -392,7 +395,7 @@
         if (s.over || s.cool > 0 || y < 22) return;
         fire(x, y);
         if (s.power === 'drumstick') s.again = { at: s.t + 0.13, x: x + 7, y: y - 7 };       // the drumstick's second beat, a little to one side
-        s.cool = 0.3; s.swing = 0.2; beep(puck ? 330 : 660); if (!s.power) st.tip.textContent = '';
+        s.cool = 0.3; s.swing = 0.25; beep(puck ? 330 : 660); if (!s.power) st.tip.textContent = '';
       },
       update(dt) {
         if (s.over) return;
@@ -427,21 +430,15 @@
         }
         if (s.pick && !s.pick.got && s.t > 2) item(s.pick.item, s.pick.x, s.pick.y);
         if (s.power) item(s.power, 12, 34);                                                 // what you are holding, up in the corner
-        K.hero(who, HX - 10, GY, 'side', s.t);
-        if (puck) {                                                                         // a stand-in hockey stick
-          const top = GY - (s.swing > 0 ? 32 : 24);
-          rect(HX - 2, top, 4, 22, INK); rect(HX - 1, top + 1, 2, 20, '#C99A5B'); rect(HX - 2, top + 19, 11, 4, INK); rect(HX - 1, top + 20, 9, 2, '#C99A5B');
-        }
+        // wound up and ready; swinging through for a moment after each shot. Kellyn's hand stays empty while her bunny is in the air.
+        const away = s.swing > 0 || (!puck && s.shots.some((sh) => !sh.star));
+        K.hero(who, BODY, GY, s.lost ? 'dizzy' : away ? 'shoot' : 'aim', s.t);
         for (const sh of s.shots) {
           const x = Math.round(sh.x), y = Math.round(sh.y);
           if (puck) { rect(x - 4, y - 2, 8, 4, INK); rect(x - 3, y - 2, 6, 1, '#7A6F6A'); }
           else if (sh.star && K.sprites.star) K.prop(K.sprites.star, x, y + 4, Math.floor(s.t * 10) % 2);
-          else {                                                                             // the bunny tumbles as it flies
-            const flip = Math.floor(s.t * 10) % 2 ? 1 : -1;
-            rect(x - 5, y - 4, 10, 8, '#D9CFC6'); rect(x - 4, y - 3, 8, 6, '#FFFDF8');
-            rect(x - 3, y - 4 * flip - (flip > 0 ? 5 : -4), 2, 5, '#FFFDF8'); rect(x + 1, y - 4 * flip - (flip > 0 ? 5 : -4), 2, 5, '#FFFDF8');
-            rect(x + 1, y - 1, 1, 1, INK);
-          }
+          else if (K.sprites.bunny) K.prop(K.sprites.bunny, x, y + 11, Math.floor(s.t * 6) % 2);    // the bunny flips over as it flies
+          else { rect(x - 5, y - 4, 10, 8, '#D9CFC6'); rect(x - 4, y - 3, 8, 6, '#FFFDF8'); }
         }
       },
     };

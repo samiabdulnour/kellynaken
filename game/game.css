@@ -1,5 +1,5 @@
 /* Colours: the darkest is a deep warm brown, never black, to sit with the characters' coloured outlines.
-   The pixel game's screen is 192 x 288 pixels, scaled up by a whole number (--s) so every pixel stays square.
+   The pixel game's screen is 192 x 288 pixels, scaled up by --s (set by the engine so every pixel stays square).
    Everything in the UI layer is sized in em, where 1em is 8 screen pixels, so text and boxes sit on the same grid. */
 :root{
   --s:2;

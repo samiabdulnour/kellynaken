@@ -10,6 +10,11 @@ a row of five faces.
 For each character it writes game/assets/sprites/<id>.png (the big figures, plus running frames made from the
 side view) and <id>-faces.png, and it writes game/assets/sprites.js to say what is where.
 
+It also reads art/source/poses/A1.png ... A6.png: rows of four drawn poses for the two heroes (running, jumping,
+dizzy, cheering, surfing, shooting or throwing, drumming), already cut out and drawn much finer, about 105 pixels
+tall. Those become <id>-poses.png and are what the game draws the heroes from; the game shows them at half size,
+two of their pixels to one pixel of a background.
+
 The big figures are the base: they are the most detailed drawings on the sheet, about 45 game pixels tall.
 The sheet is drawn in big square "pixels" (about 4.4 real pixels wide on a sheet 1536 wide), so each figure is
 sampled back down onto that grid; nothing is redrawn. A sharper or larger sheet gives sharper sprites.
@@ -224,6 +229,104 @@ def sheet(frames, anchors):
     return out, cw, ch
 
 
+# ---- the drawn poses: rows of four figures, already cut out, drawn about 105 game-art pixels tall ----
+POSES = os.path.join(SOURCE, 'poses')
+POSE_ROWS = {                                   # which row holds which frames, for each hero
+    'ken': [('A1', ['run', 'run', 'run', 'run']), ('A2', ['jump', 'dizzy', 'cheer', 'surf']), ('A3', ['aim', 'shoot', 'drum', 'drum'])],
+    'kel': [('A4', ['run', 'run', 'run', 'run']), ('A5', ['jump', 'dizzy', 'cheer', 'surf']), ('A6', ['aim', 'shoot', 'drum', 'drum'])],
+}
+POSE_PIXEL = 6.0                                # how wide one drawn "pixel" is in those rows
+
+
+def shrink(a, p=POSE_PIXEL):
+    """An RGBA cut-out sampled down onto its own pixel grid: the middle of each patch, as for the scenes."""
+    h, w = a.shape[:2]
+    nx, ny = int(w // p), int(h // p)
+    xs = ((np.arange(nx) + 0.5) * p).astype(int); ys = ((np.arange(ny) + 0.5) * p).astype(int)
+    taps = [a[np.clip(ys + dy, 0, h - 1)][:, np.clip(xs + dx, 0, w - 1)] for dy in (-1, 0, 1) for dx in (-1, 0, 1)]
+    out = np.median(np.stack(taps).astype(int), axis=0).astype(np.uint8)
+    out[..., 3] = np.where(out[..., 3] > 127, 255, 0)
+    return out
+
+
+def pose_frames(name):
+    """Every drawn pose of one hero as (pose, picture, where the body's middle is, how far the feet are off the ground)."""
+    frames = []
+    for code, poses in POSE_ROWS[name]:
+        path = os.path.join(POSES, code + '.png')
+        if not os.path.exists(path): return None
+        a = np.asarray(Image.open(path).convert('RGBA'))
+        al = a[..., 3] > 0
+        cols = runs(al.sum(axis=0) > 0, 40, 12)
+        assert len(cols) == len(poses), (code, cols)
+        ground = max(np.nonzero(al[:, c0:c1].any(axis=1))[0].max() for c0, c1 in cols) + 1     # the line they all stand on
+        for pose, (c0, c1) in zip(poses, cols):
+            rows = np.nonzero(al[:, c0:c1].any(axis=1))[0]
+            small = shrink(a[rows.min():rows.max() + 1, c0:c1])
+            op = small[..., 3] > 0
+            h = small.shape[0]
+            band = op[int(h * 0.15):int(h * 0.5)]                        # the head and shoulders: steadier than hands, feet or a hockey stick
+            xs = np.nonzero(band)[1]
+            lift = 0 if pose == 'jump' else int(round((ground - 1 - rows.max()) / POSE_PIXEL))
+            frames.append((pose, Image.fromarray(small, 'RGBA'), float(np.median(xs)) + 0.5, lift))
+    return frames
+
+
+def pose_sheet(name):
+    """One row of equal cells with every drawn pose of a hero, each planted at the bottom centre of its cell."""
+    frames = pose_frames(name)
+    if not frames: return None
+    left = max(int(np.ceil(ax)) for _, f, ax, _ in frames)
+    right = max(int(np.ceil(f.width - ax)) for _, f, ax, _ in frames)
+    cw, ch = 2 * max(left, right) + 2, max(f.height + lift for _, f, _, lift in frames)
+    # Standing still: no drawn pose for it yet, so the mid-step running frame, set down on the ground.
+    step = [fr for fr in frames if fr[0] == 'run'][1]
+    frames.append(('stand', step[1], step[2], 0))
+    out = Image.new('RGBA', (cw * len(frames), ch))
+    poses = {}
+    for k, (pose, f, ax, lift) in enumerate(frames):
+        out.paste(f, (k * cw + cw // 2 - int(round(ax)), ch - f.height - lift))
+        poses.setdefault(pose, []).append(k)
+    out.save(os.path.join(OUT, 'sprites', f'{name}-poses.png'), optimize=True)
+    return {'file': f'{name}-poses.png', 'w': cw, 'h': ch, 'scale': 0.5, 'fps': 9, 'poses': poses}
+
+
+def bunny():
+    """Kellyn's bunny, lifted out of her wind-up pose where it hangs from her hand: the white and pink thing behind her."""
+    frames = pose_frames('kel')
+    if not frames: return None
+    pose, f, ax, _ = next(fr for fr in frames if fr[0] == 'aim')
+    a = np.asarray(f).astype(int)
+    h, w = a.shape[:2]
+    r, g, b = a[..., 0], a[..., 1], a[..., 2]
+    light = (a[..., 3] > 0) & (r > 190) & (g > 110) & (b > 155)                 # white fur and pink bow; not hair, not skin
+    zone = np.zeros_like(light); zone[int(h * 0.24):int(h * 0.74), :int(ax - 8)] = True
+    m = light & zone                                                            # nothing else of hers is that pale back there
+    # keep the one big piece (corners count as touching); a loose ear tip behind her hair is dropped
+    ys, xs = np.nonzero(m)
+    cur = np.zeros_like(m); cur[int(np.median(ys)):, :] = m[int(np.median(ys)):, :] & (np.arange(w) == int(np.median(xs)))[None, :]
+    while True:
+        nxt = cur.copy()
+        for dy in (-1, 0, 1):
+            for dx in (-1, 0, 1):
+                sh = np.zeros_like(cur)
+                sh[max(dy, 0):h + min(dy, 0), max(dx, 0):w + min(dx, 0)] = cur[max(-dy, 0):h + min(-dy, 0), max(-dx, 0):w + min(-dx, 0)]
+                nxt |= sh
+        nxt &= m
+        if (nxt == cur).all(): break
+        cur = nxt
+    m = cur
+    # its eyes and nose are dark: fill what the fur surrounds on all four sides
+    left = np.maximum.accumulate(m, axis=1); right = np.maximum.accumulate(m[:, ::-1], axis=1)[:, ::-1]
+    up = np.maximum.accumulate(m, axis=0); down = np.maximum.accumulate(m[::-1], axis=0)[::-1]
+    m = m | (left & right & up & down & zone & (a[..., 3] > 0))
+    ys, xs = np.nonzero(m)
+    out = np.zeros((h, w, 4), np.uint8); out[m] = a[m].astype(np.uint8)
+    out = Image.fromarray(out[ys.min():ys.max() + 1, xs.min():xs.max() + 1], 'RGBA')
+    out.save(os.path.join(OUT, 'sprites', 'bunny.png'), optimize=True)
+    return {'file': 'bunny.png', 'w': out.width, 'h': out.height, 'scale': 0.5}
+
+
 LEG_TOP = {'ken': 0.66, 'kel': 0.60, 'leila': 0.62, 'sami': 0.58, 'zofia': 0.62, 'alan': 0.58}     # where the legs start, as a share of the height
 FILL = {'kel': 0.55}                                                                                  # white leggings on cream paper
 EXTRAS = {'alan': ('drum', 1), 'sami': ('moto', 3), 'zofia': ('cheer', 1), 'kel': ('cheer', 1)}   # a small action pose worth keeping
@@ -252,6 +355,10 @@ def main():
         info[name] = {'file': f'{name}.png', 'w': cw, 'h': ch, 'fps': 7,
                       'poses': {'front': [0], 'stand': [1], 'side': [2], 'back': [4], 'run': [5, 6], 'jump': [5], 'cheer': [0]},
                       'faces': {'file': f'{name}-faces.png', 'w': fw, 'h': fh, 'n': 5}}
+        drawn = pose_sheet(name) if name in POSE_ROWS else None
+        if drawn:                                       # the drawn poses take over; the sheet's figures stay as `still`
+            info[name] = dict(drawn, faces=info[name]['faces'], still={k: info[name][k] for k in ('file', 'w', 'h', 'fps', 'poses')})
+            print('   drawn poses:', {k: len(v) for k, v in drawn['poses'].items()}, 'cell', drawn['w'], 'x', drawn['h'])
         if extra:
             extra[0].save(os.path.join(OUT, 'sprites', f'{name}-{EXTRAS[name][0]}.png'), optimize=True)
             info[name]['extra'] = {'name': EXTRAS[name][0], 'file': f'{name}-{EXTRAS[name][0]}.png', 'w': extra[0].width, 'h': extra[0].height}
@@ -265,6 +372,8 @@ def main():
     star.save(os.path.join(OUT, 'sprites', 'star.png'), optimize=True)
     info['star'] = {'file': 'star.png', 'w': star.width, 'h': star.height}
     print('star', star.size)
+    b = bunny()
+    if b: info['bunny'] = b; print('bunny', b['w'], 'x', b['h'])
     with open(os.path.join(OUT, 'sprites.js'), 'w') as f:
         f.write('// Written by tools/sprites.py: the characters cut from the character sheet.\n')
         f.write('window.SPRITES = ' + json.dumps(info, indent=2) + ';\n')

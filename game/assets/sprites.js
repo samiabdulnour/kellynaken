@@ -1,32 +1,42 @@
 // Written by tools/sprites.py: the characters cut from the character sheet.
 window.SPRITES = {
   "ken": {
-    "file": "ken.png",
-    "w": 38,
-    "h": 45,
-    "fps": 7,
+    "file": "ken-poses.png",
+    "w": 126,
+    "h": 107,
+    "scale": 0.5,
+    "fps": 9,
     "poses": {
-      "front": [
-        0
-      ],
-      "stand": [
-        1
-      ],
-      "side": [
-        2
-      ],
-      "back": [
-        4
-      ],
       "run": [
-        5,
-        6
+        0,
+        1,
+        2,
+        3
       ],
       "jump": [
+        4
+      ],
+      "dizzy": [
         5
       ],
       "cheer": [
-        0
+        6
+      ],
+      "surf": [
+        7
+      ],
+      "aim": [
+        8
+      ],
+      "shoot": [
+        9
+      ],
+      "drum": [
+        10,
+        11
+      ],
+      "stand": [
+        12
       ]
     },
     "faces": {
@@ -34,35 +44,75 @@ window.SPRITES = {
       "w": 20,
       "h": 15,
       "n": 5
+    },
+    "still": {
+      "file": "ken.png",
+      "w": 38,
+      "h": 45,
+      "fps": 7,
+      "poses": {
+        "front": [
+          0
+        ],
+        "stand": [
+          1
+        ],
+        "side": [
+          2
+        ],
+        "back": [
+          4
+        ],
+        "run": [
+          5,
+          6
+        ],
+        "jump": [
+          5
+        ],
+        "cheer": [
+          0
+        ]
+      }
     }
   },
   "kel": {
-    "file": "kel.png",
-    "w": 36,
-    "h": 45,
-    "fps": 7,
+    "file": "kel-poses.png",
+    "w": 92,
+    "h": 104,
+    "scale": 0.5,
+    "fps": 9,
     "poses": {
-      "front": [
-        0
-      ],
-      "stand": [
-        1
-      ],
-      "side": [
-        2
-      ],
-      "back": [
-        4
-      ],
       "run": [
-        5,
-        6
+        0,
+        1,
+        2,
+        3
       ],
       "jump": [
+        4
+      ],
+      "dizzy": [
         5
       ],
       "cheer": [
-        0
+        6
+      ],
+      "surf": [
+        7
+      ],
+      "aim": [
+        8
+      ],
+      "shoot": [
+        9
+      ],
+      "drum": [
+        10,
+        11
+      ],
+      "stand": [
+        12
       ]
     },
     "faces": {
@@ -70,6 +120,36 @@ window.SPRITES = {
       "w": 20,
       "h": 16,
       "n": 5
+    },
+    "still": {
+      "file": "kel.png",
+      "w": 36,
+      "h": 45,
+      "fps": 7,
+      "poses": {
+        "front": [
+          0
+        ],
+        "stand": [
+          1
+        ],
+        "side": [
+          2
+        ],
+        "back": [
+          4
+        ],
+        "run": [
+          5,
+          6
+        ],
+        "jump": [
+          5
+        ],
+        "cheer": [
+          0
+        ]
+      }
     },
     "extra": {
       "name": "cheer",
@@ -244,5 +324,11 @@ window.SPRITES = {
     "file": "star.png",
     "w": 7,
     "h": 7
+  },
+  "bunny": {
+    "file": "bunny.png",
+    "w": 27,
+    "h": 46,
+    "scale": 0.5
   }
 };

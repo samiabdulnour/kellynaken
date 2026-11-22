@@ -1,4 +1,4 @@
-// The pixel engine: a 192 x 288 screen scaled up by whole numbers, one scene at a time, taps and drags,
+// The pixel engine: a 192 x 288 screen, one scene at a time, taps and drags,
 // saving, and the art. Real pictures are used when the art pipeline has produced them (see window.ASSETS);
 // anything still missing is a drawn placeholder, so the game is playable before the art exists.
 // The characters are cut from the character sheet (window.SPRITES).
@@ -6,11 +6,17 @@ const K = (() => {
   const W = 192, H = 288, GROUND = 232;          // GROUND: where feet stand in side-on scenes
   const INK = '#2B1F1A';                         // the darkest colour: a deep warm brown, never black, to sit with the characters
   const canvas = document.getElementById('screen'), ctx = canvas.getContext('2d'), ui = document.getElementById('ui');
+  // Everything is placed on the 192 x 288 grid the backgrounds are drawn on, but the canvas itself is twice as fine
+  // (384 x 576). The heroes' drawn poses use that: two of their pixels to one background pixel, so they keep their detail.
+  const FINE = canvas.width / W;
+  ctx.scale(FINE, FINE);
   ctx.imageSmoothingEnabled = false;
 
+  // The screen is made as big as fits, in steps that keep every canvas pixel a whole number of real screen pixels.
   function fit() {
-    const s = Math.max(1, Math.floor(Math.min(window.innerWidth / W, window.innerHeight / H)));
-    document.documentElement.style.setProperty('--s', s);
+    const most = Math.min(window.innerWidth / W, window.innerHeight / H), dpr = window.devicePixelRatio || 1;
+    const steps = Math.floor(most * dpr / FINE);                       // real pixels per canvas pixel
+    document.documentElement.style.setProperty('--s', steps >= 1 ? steps * FINE / dpr : most);
   }
   window.addEventListener('resize', fit); fit();
 
@@ -87,16 +93,17 @@ const K = (() => {
     x = Math.round(x); footY = Math.round(footY);
     if (!sp) return standIn(id, x, footY, pose, t, flip);
     const img = image(`assets/sprites/${sp.file}`); if (!ready(img)) return;
-    const frames = sp.poses[pose] || sp.poses.stand, f = frames[Math.floor(t * (sp.fps || 7)) % frames.length];
+    const frames = sp.poses[pose] || sp.poses.stand, f = frames[Math.floor(t * (sp.fps || 7)) % frames.length], k = sp.scale || 1;
     ctx.save(); ctx.translate(x, footY); if (flip) ctx.scale(-1, 1);
-    ctx.drawImage(img, f * sp.w, 0, sp.w, sp.h, -Math.floor(sp.w / 2), -sp.h, sp.w, sp.h);
+    ctx.drawImage(img, f * sp.w, 0, sp.w, sp.h, -Math.floor(sp.w / 2) * k, -sp.h * k, sp.w * k, sp.h * k);
     ctx.restore();
   }
   // Any other small picture from the sheet (a star, somebody on a motorbike), centred on x with its foot at footY.
   function prop(sp, x, footY, flip) {
     const img = image(`assets/sprites/${sp.file}`); if (!ready(img)) return;
+    const k = sp.scale || 1;
     ctx.save(); ctx.translate(Math.round(x), Math.round(footY)); if (flip) ctx.scale(-1, 1);
-    ctx.drawImage(img, -Math.floor(sp.w / 2), -sp.h);
+    ctx.drawImage(img, -Math.floor(sp.w / 2) * k, -sp.h * k, sp.w * k, sp.h * k);
     ctx.restore();
   }
   function standIn(who, x, footY, pose, t, flip) {
