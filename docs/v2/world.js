@@ -17,8 +17,10 @@
 //           Kellyn throws her white bunny
 //   stub    not built yet: shows a card and lets you carry on
 //
-// `pickup` puts one of the `items` into a scene, to grab like a power-up: jump into it in a dash, hit it in a shot.
-// In a dash any item lets you smash through whatever you run into for a few seconds. In a shot each has its own trick.
+// `pickup` puts one of the `items` into a scene, to grab like a power-up: jump into it in a dash, hit it in a shot,
+// catch it on the line in the drums. Each item belongs to one saga: the drumstick to Praha 6 (the drumming),
+// the boomerang to Australia. In a dash any item lets you smash through whatever you run into for a few seconds;
+// in a shot each has its own trick; in the drums the drumstick makes every hit count twice for a while.
 // Texts are drafts. The story of who or what is behind it all is still open.
 window.WORLD = {
   title: 'Kellyn a Ken',
@@ -28,7 +30,7 @@ window.WORLD = {
     kel: { name: 'Kellyn', shirt: '#BFE8D0', legs: '#F6C1D0', badge: '#F08BA0', hair: '#9A6535', tie: '#F3A6C0' },
   },
   items: {
-    drumstick: { name: 'Palička', dash: 'Palička! Chvíli rozbiješ všechno, do čeho vběhneš.', shot: 'Palička! Každá rána je dvojitá.' },
+    drumstick: { name: 'Palička', dash: 'Palička! Chvíli rozbiješ všechno, do čeho vběhneš.', shot: 'Palička! Každá rána je dvojitá.', drums: 'Palička! Chvíli se každá trefa počítá dvakrát.' },
     boomerang: { name: 'Bumerang', dash: 'Bumerang! Chvíli smete všechno, co ti stojí v cestě.', shot: 'Bumerang! Každá rána se vrací.' },
   },
   planet: {
@@ -43,7 +45,7 @@ window.WORLD = {
   places: [
     {
       id: 'praha5', name: 'Praha 5',
-      saves: [{ id: 'leila', name: 'Leila' }],
+      saves: [{ id: 'leila', name: 'Mamka' }],           // Leila on the character sheet; in the game she is Mamka
       look: { sky: '#8FD3F4', far: '#F2C078', far2: '#E7A6B5', ground: '#A39B96', line: '#7A6F6A' },
       scenes: [
         { id: 'praha-home', name: 'Doma', bg: 'praha-home', play: 'stub',
@@ -72,7 +74,7 @@ window.WORLD = {
           talk: [['', 'Starý strahovský stadion. Brána je zavřená na řetěz a zámky se na něm houpou.']] },
         { id: 'strahov-field', name: 'Na ploše', bg: 'strahov-field', play: 'stub',
           talk: [['', 'Tak obrovský stadion se jen tak nevidí. Odněkud zespodu se ozývá ťukání.']] },
-        { id: 'strahov-drums', name: 'Pod tribunou', bg: 'strahov-drums', play: 'drums',
+        { id: 'strahov-drums', name: 'Pod tribunou', bg: 'strahov-drums', play: 'drums', pickup: 'drumstick',
           drums: { bpm: 96, beats: 40, pass: 0.6 },
           talk: [['', 'Dveře pod tribunou povolí, jen když udržíš rytmus.'], ['hero', 'Tak jdeme na to. Raz, dva, tři, čtyři!']] },
       ],

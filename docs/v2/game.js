@@ -310,7 +310,9 @@
       if (b > 7 && r() < 0.22) notes.push({ at: at + BEAT / 2, lane: 2, hit: false, gone: false });
     }
     const need = Math.ceil(notes.length * (cfg.pass || 0.6)), last = notes[notes.length - 1].at;
-    const s = { t: 0, hits: 0, need, over: false, notes, flash: [0, 0, 0] };
+    // The pick-up falls down the middle lane between two beats, about a third of the way into the song.
+    const pick = sc.pickup ? { item: sc.pickup, lane: 1, at: 2.6 + (Math.floor(cfg.beats * 0.3) + 0.5) * BEAT, got: false, gone: false } : null;
+    const s = { t: 0, hits: 0, need, over: false, notes, flash: [0, 0, 0], power: 0, pick };
     const st = stage('<span class="count"></span><span class="meter"><i></i></span>', 'Klepni na buben, až je nota na čáře.');
     st.tip.classList.add('up');
     const paint = () => { st.hud.firstElementChild.textContent = `${s.hits} / ${need}`; st.hud.lastElementChild.firstElementChild.style.width = clamp(s.hits / need, 0, 1) * 100 + '%'; };
@@ -321,9 +323,12 @@
         if (s.over) return;
         const lane = clamp(Math.floor(x / LANE), 0, 2);
         s.flash[lane] = 0.12;
+        if (pick && !pick.got && !pick.gone && lane === pick.lane && Math.abs(pick.at - s.t) <= WINDOW + 0.05) {      // caught the pick-up on the line
+          pick.got = true; s.power = s.t + 8; beep(660, 880, 1100); st.tip.textContent = WORLD.items[pick.item].drums; return;
+        }
         let best = null;
         for (const n of notes) if (n.lane === lane && !n.hit && !n.gone && Math.abs(n.at - s.t) <= WINDOW && (!best || Math.abs(n.at - s.t) < Math.abs(best.at - s.t))) best = n;
-        if (best) { best.hit = true; s.hits++; beep(PADS[lane][1], PADS[lane][1] * 2); st.tip.textContent = ''; paint(); }
+        if (best) { best.hit = true; s.hits += s.t < s.power ? 2 : 1; beep(PADS[lane][1], PADS[lane][1] * 2); if (!s.power) st.tip.textContent = ''; paint(); }
         else beep(PADS[lane][1]);
       },
       update(dt) {
@@ -331,6 +336,8 @@
         s.t += dt;
         for (let i = 0; i < 3; i++) if (s.flash[i] > 0) s.flash[i] -= dt;
         for (const n of notes) if (!n.hit && !n.gone && s.t - n.at > WINDOW) n.gone = true;
+        if (pick && !pick.got && s.t - pick.at > WINDOW + 0.05) pick.gone = true;
+        if (s.power && s.t >= s.power) { s.power = 0; st.tip.textContent = ''; }
         if (s.t > last + 0.9) {
           s.over = true; const won = s.hits >= need;
           st.end(won, won ? 'To je rytmus!' : 'Skoro!', won ? 'Dveře povolily.' : `Máš ${s.hits} z ${need} potřebných. Zkus to ještě jednou.`, onDone, again);
@@ -347,6 +354,8 @@
           if (y < TOP + 6 || y > H) continue;
           rect(x - 15, y - 5, 30, 10, INK); rect(x - 14, y - 4, 28, 8, n.gone ? '#7A6F6A' : PADS[n.lane][0]); rect(x - 12, y - 3, 24, 2, n.gone ? '#8A7F7A' : '#FFF8E7');
         }
+        if (pick && !pick.got && !pick.gone) { const y = Math.round(LINE - (pick.at - s.t) * FALL); if (y > TOP + 10) item(pick.item, pick.lane * LANE + LANE / 2, y); }
+        if (s.t < s.power && (s.power - s.t > 2 || Math.floor(s.t * 8) % 2)) item(pick.item, 12, 34);     // held; blinks when nearly spent
         for (let i = 0; i < 3; i++) {                      // the three drums along the bottom
           const x = i * LANE + 4, on = s.flash[i] > 0;
           rect(x, 236, LANE - 8, 44, INK); rect(x + 2, 238 + (on ? 2 : 0), LANE - 12, 38, PADS[i][0]);

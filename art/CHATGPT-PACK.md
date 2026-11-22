@@ -6,7 +6,7 @@ Everything ChatGPT needs to draw the game's scenes and objects so they match you
 
 - **Scenes S0 to S13: done.** All 14 are drawn and in the game. Their prompts stay below for reference, and for any scene you want to redo.
 - **Still to draw: the objects, P1 to P7.** Start with P7 (stick, puck, bunny), because both heroes use it everywhere.
-- **Next after the objects:** the action frames A1 and A2, so Kendrick and Kellyn really run, shoot and throw. A3 to A6 and the villain C11 are optional.
+- **The poses I need** are listed near the end: A1 to A6 for the two heroes first, then A7 to A10. The villain C11 is optional.
 - **Style:** grounded, classic pixel art that follows your character sheets and the finished scenes: natural proportions, muted colours, no black outlines.
 
 ## How to use this
@@ -291,55 +291,148 @@ Same pixel-art style and palette as set up. No text.
 
 ---
 
-## Action frames for the characters
+## The poses I need
 
-All six characters are in the game, cut from the big standing figures on your sheet (front, three-quarter, side, back). Those are the most detailed drawings, so the heroes are now recognisable. The faces are used in the speech boxes and the album.
+All six characters are in the game, cut from the big standing figures (front, three-quarter, side, back). What a standing figure cannot give is movement: for now the game makes two running frames by moving the legs of the side view, and the hockey stick and the bunny are drawn stand-ins.
 
-What the sheet cannot give is movement. For now the game makes two running frames out of the side view by moving the legs, and the hockey stick and the bunny are drawn stand-ins. These frames would replace that with real drawings. Paste them in the same conversation as the sheet.
+| Who | Poses | Frames |
+|---|---|---|
+| Kendrick | running cycle (4), jump, dizzy on the ground, cheer, surf stance, hockey shot (2), drumming (2) | 12 |
+| Kellyn | running cycle (4), jump, dizzy on the ground, cheer, surf stance, bunny throw (2), drumming (2) | 12 |
+| Mamka | waving for help (2), happy, telling off with a raised finger, running (2) | 6 |
+| Alan | waving for help (2), happy, drumming at the kit (2) | 5 |
+| Sami | waving for help (2), happy, riding the motorbike (2) | 5 |
+| Žofia | waving for help (2), happy jump, blowing a kiss, taking a photo | 5 |
 
-### A1. Kendrick in action
+The rules that make them drop straight in:
 
-```text
-A1, action frames for the character labelled KENDRICK on the sheet. Landscape, 3:2 (1536x1024). Magenta background.
+- **Same size and detail as the big standing figures.** Small poses cannot stand next to them in a scene.
+- **Side view, facing right.** I mirror them for left.
+- **One row per picture, four to six figures, with clear space between them** and nothing cut off at the edges. Your turnaround rows are exactly the right format.
+- **Plain white or cream background, no shadows under the feet.** Please leave the background in: automatic cut-outs also remove the white inside the figures.
+- **Attach that character's turnaround row** to each request, so the design stays the same.
 
-Draw exactly that character: the same face, curly hair, clothes, colours, proportions and pixel style, at exactly the size and level of detail of the big standing figures in the top row of that character's card. The game uses those big figures, so the action frames must match them.
+The two heroes come first (A1 to A6). The rest can follow.
 
-Eight drawings in two rows of four. All are full body, seen from the side and facing right, the same size, evenly spaced, with the feet of each row on one straight line.
-Top row, one running cycle: right leg stretched forward; both feet off the ground with the legs passing; left leg stretched forward; both feet off the ground with the legs passing.
-Bottom row: jumping with his knees tucked up; sitting on the ground looking dizzy; holding an ice hockey stick swung back behind him, ready to shoot; the hockey stick swung forward low, just after the shot.
-
-No puck, no ground, no shadows, no text, no labels.
-```
-
-### A2. Kellyn in action
-
-```text
-A2, action frames for the character labelled KELLYN on the sheet. Landscape, 3:2 (1536x1024). Magenta background.
-
-Draw exactly that character: the same face, ponytail, clothes, colours, proportions and pixel style, at exactly the size and level of detail of the big standing figures in the top row of that character's card. The game uses those big figures, so the action frames must match them.
-
-Eight drawings in two rows of four. All are full body, seen from the side and facing right, the same size, evenly spaced, with the feet of each row on one straight line.
-Top row, one running cycle: right leg stretched forward; both feet off the ground with the legs passing; left leg stretched forward; both feet off the ground with the legs passing.
-Bottom row: jumping with her knees tucked up; sitting on the ground looking dizzy; holding her white toy bunny by the ears behind her head, ready to throw; her throwing arm stretched forward and her hand empty, just after the throw.
-
-No ground, no shadows, no text, no labels.
-```
-
-### A3 to A6. The people being rescued
-
-Paste once for each name: LEILA, ALAN, SAMI, ŽOFIA.
+### A1. Kendrick running
 
 ```text
-Action frames for the character labelled [NAME] on the sheet. Landscape, 3:2 (1536x1024). Magenta background.
+A1, kendrick running. Wide landscape image, plain white background.
 
-Draw exactly that character: the same face, hair, clothes, colours, proportions and pixel style, at exactly the size and level of detail of the big standing figures in the top row of that character's card. The game uses those big figures, so the action frames must match them.
+The attached picture shows the character from five sides. Draw exactly this character: the same face, hair, clothes, colours, proportions and pixel size, at the same height as in the attached picture.
 
-Four full-body drawings in one row, seen from the side and facing right, the same size, evenly spaced, feet on one straight line: standing and waving both arms above the head, calling out; the same wave with the arms swung to the other side; cheering with a small jump; standing with arms open wide for a hug.
+Four full-body drawings in one row, seen from the side and facing right, the same size, evenly spaced with clear white space between them, feet on one straight line: one running cycle: right leg stretched forward; both feet off the ground with the legs passing; left leg stretched forward; both feet off the ground with the legs passing.
 
-No ground, no shadows, no text, no labels.
+No shadows, no ground, no text, no labels, nothing cut off at the edges.
 ```
 
----
+### A2. Kendrick moving
+
+```text
+A2, kendrick moving. Wide landscape image, plain white background.
+
+The attached picture shows the character from five sides. Draw exactly this character: the same face, hair, clothes, colours, proportions and pixel size, at the same height as in the attached picture.
+
+Four full-body drawings in one row, seen from the side and facing right, the same size, evenly spaced with clear white space between them, feet on one straight line: jumping with his knees tucked up; sitting on the ground looking dizzy; cheering with both arms up; crouched with knees bent and arms out for balance, as if riding a surfboard.
+Draw no surfboard: I add it.
+No shadows, no ground, no text, no labels, nothing cut off at the edges.
+```
+
+### A3. Kendrick with his things
+
+```text
+A3, kendrick with his things. Wide landscape image, plain white background.
+
+The attached picture shows the character from five sides. Draw exactly this character: the same face, hair, clothes, colours, proportions and pixel size, at the same height as in the attached picture.
+
+Four full-body drawings in one row, seen from the side and facing right, the same size, evenly spaced with clear white space between them, feet on one straight line: holding an ice hockey stick swung back behind him, ready to shoot; the hockey stick swung forward and low, just after the shot; holding two drumsticks with the right one raised; holding two drumsticks with the left one raised.
+Draw no puck and no drum: I add them.
+No shadows, no ground, no text, no labels, nothing cut off at the edges.
+```
+
+### A4. Kellyn running
+
+```text
+A4, kellyn running. Wide landscape image, plain white background.
+
+The attached picture shows the character from five sides. Draw exactly this character: the same face, hair, clothes, colours, proportions and pixel size, at the same height as in the attached picture.
+
+Four full-body drawings in one row, seen from the side and facing right, the same size, evenly spaced with clear white space between them, feet on one straight line: one running cycle: right leg stretched forward; both feet off the ground with the legs passing; left leg stretched forward; both feet off the ground with the legs passing.
+
+No shadows, no ground, no text, no labels, nothing cut off at the edges.
+```
+
+### A5. Kellyn moving
+
+```text
+A5, kellyn moving. Wide landscape image, plain white background.
+
+The attached picture shows the character from five sides. Draw exactly this character: the same face, hair, clothes, colours, proportions and pixel size, at the same height as in the attached picture.
+
+Four full-body drawings in one row, seen from the side and facing right, the same size, evenly spaced with clear white space between them, feet on one straight line: jumping with her knees tucked up; sitting on the ground looking dizzy; cheering with both arms up; crouched with knees bent and arms out for balance, as if riding a surfboard.
+Draw no surfboard: I add it.
+No shadows, no ground, no text, no labels, nothing cut off at the edges.
+```
+
+### A6. Kellyn with her things
+
+```text
+A6, kellyn with her things. Wide landscape image, plain white background.
+
+The attached picture shows the character from five sides. Draw exactly this character: the same face, hair, clothes, colours, proportions and pixel size, at the same height as in the attached picture.
+
+Four full-body drawings in one row, seen from the side and facing right, the same size, evenly spaced with clear white space between them, feet on one straight line: holding her white toy bunny by the ears behind her head, ready to throw; her throwing arm stretched forward and her hand empty, just after the throw; holding two drumsticks with the right one raised; holding two drumsticks with the left one raised.
+Draw no drum: I add it.
+No shadows, no ground, no text, no labels, nothing cut off at the edges.
+```
+
+### A7. Mamka
+
+```text
+A7, mamka. Wide landscape image, plain white background.
+
+The attached picture shows the character from five sides. Draw exactly this character: the same face, hair, clothes, colours, proportions and pixel size, at the same height as in the attached picture.
+
+Six full-body drawings in one row, seen from the side and facing right, the same size, evenly spaced with clear white space between them, feet on one straight line: waving both arms above her head, calling out; the same wave with the arms swung to the other side; smiling with her arms open wide; telling someone off with one finger raised and the other hand on her hip; running, right leg forward; running, left leg forward.
+
+No shadows, no ground, no text, no labels, nothing cut off at the edges.
+```
+
+### A8. Alan
+
+```text
+A8, alan. Wide landscape image, plain white background.
+
+The attached picture shows the character from five sides. Draw exactly this character: the same face, hair, clothes, colours, proportions and pixel size, at the same height as in the attached picture.
+
+Five full-body drawings in one row, seen from the side and facing right, the same size, evenly spaced with clear white space between them, feet on one straight line: waving both arms above his head, calling out; the same wave with the arms swung to the other side; smiling with both arms up, a drumstick in each hand; sitting on a drum stool with the right drumstick raised; sitting on a drum stool with the left drumstick raised.
+Draw the stool but no drums: I add the drum kit.
+No shadows, no ground, no text, no labels, nothing cut off at the edges.
+```
+
+### A9. Sami
+
+```text
+A9, sami. Wide landscape image, plain white background.
+
+The attached picture shows the character from five sides. Draw exactly this character: the same face, hair, clothes, colours, proportions and pixel size, at the same height as in the attached picture.
+
+Five full-body drawings in one row, seen from the side and facing right, the same size, evenly spaced with clear white space between them, feet on one straight line: waving both arms above the head, calling out; the same wave with the arms swung to the other side; smiling with a thumb up; riding a small black motorbike, wearing a black helmet; the same motorbike and rider with the front wheel lifted off the ground.
+
+No shadows, no ground, no text, no labels, nothing cut off at the edges.
+```
+
+### A10. Žofia
+
+```text
+A10, žofia. Wide landscape image, plain white background.
+
+The attached picture shows the character from five sides. Draw exactly this character: the same face, hair, clothes, colours, proportions and pixel size, at the same height as in the attached picture.
+
+Five full-body drawings in one row, seen from the side and facing right, the same size, evenly spaced with clear white space between them, feet on one straight line: waving both arms above her head, calling out; the same wave with the arms swung to the other side; jumping for joy with both arms up; blowing a kiss with one hand; holding a camera up to her eye.
+
+No shadows, no ground, no text, no labels, nothing cut off at the edges.
+```
 
 ## Optional: a villain
 
@@ -386,12 +479,13 @@ Same pixel-art style and palette as set up. No text, no logos.
 | P6 | The drum kit | Landscape |
 | P3 | Australia objects | Landscape |
 | P4 | Rewards and map markers | Landscape |
-| A1, A2 | Kendrick and Kellyn in action | Landscape |
-| A3 to A6 | The people being rescued (optional) | Landscape |
+| A1, A2, A3 | Kendrick: running, moving, with his things | Wide row |
+| A4, A5, A6 | Kellyn: running, moving, with her things | Wide row |
+| A7 to A10 | Mamka, Alan, Sami, Žofia | Wide row |
 | C11 | The Scrambler (optional) | Landscape |
 
 ## Sending me pictures
 
 - Send files in a normal message or as a zip. Pictures sent while I am in the middle of working do not reach me as files.
-- **The character sheet:** I have it as a compressed copy, 1536 pixels wide. If you still have the original PNG as ChatGPT made it, send that one whole (not cut up): the same tool then gives sharper characters.
+- **The characters:** I have the six-card sheet as a compressed copy, 1536 pixels wide. The larger turnaround rows (five figures per character on white) are sharper: send those as files, whole, and check that no figure is cut off at an edge.
 - **Please don't remove backgrounds first.** Automatic cut-outs also remove the white inside the figures (Kellyn's leggings, shoe soles), and tight crops cut off hair. I cut them out from the full picture myself.
