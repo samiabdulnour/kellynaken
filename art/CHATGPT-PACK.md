@@ -317,7 +317,7 @@ The two heroes come first (A1 to A6). The rest can follow.
 ### A1. Kendrick running
 
 ```text
-A1, kendrick running. Wide landscape image, plain white background.
+A1, Kendrick running. Wide landscape image, plain white background.
 
 The attached picture shows the character from five sides. Draw exactly this character: the same face, hair, clothes, colours, proportions and pixel size, at the same height as in the attached picture.
 
@@ -329,7 +329,7 @@ No shadows, no ground, no text, no labels, nothing cut off at the edges.
 ### A2. Kendrick moving
 
 ```text
-A2, kendrick moving. Wide landscape image, plain white background.
+A2, Kendrick moving. Wide landscape image, plain white background.
 
 The attached picture shows the character from five sides. Draw exactly this character: the same face, hair, clothes, colours, proportions and pixel size, at the same height as in the attached picture.
 
@@ -341,7 +341,7 @@ No shadows, no ground, no text, no labels, nothing cut off at the edges.
 ### A3. Kendrick with his things
 
 ```text
-A3, kendrick with his things. Wide landscape image, plain white background.
+A3, Kendrick with his things. Wide landscape image, plain white background.
 
 The attached picture shows the character from five sides. Draw exactly this character: the same face, hair, clothes, colours, proportions and pixel size, at the same height as in the attached picture.
 
@@ -353,7 +353,7 @@ No shadows, no ground, no text, no labels, nothing cut off at the edges.
 ### A4. Kellyn running
 
 ```text
-A4, kellyn running. Wide landscape image, plain white background.
+A4, Kellyn running. Wide landscape image, plain white background.
 
 The attached picture shows the character from five sides. Draw exactly this character: the same face, hair, clothes, colours, proportions and pixel size, at the same height as in the attached picture.
 
@@ -365,7 +365,7 @@ No shadows, no ground, no text, no labels, nothing cut off at the edges.
 ### A5. Kellyn moving
 
 ```text
-A5, kellyn moving. Wide landscape image, plain white background.
+A5, Kellyn moving. Wide landscape image, plain white background.
 
 The attached picture shows the character from five sides. Draw exactly this character: the same face, hair, clothes, colours, proportions and pixel size, at the same height as in the attached picture.
 
@@ -377,7 +377,7 @@ No shadows, no ground, no text, no labels, nothing cut off at the edges.
 ### A6. Kellyn with her things
 
 ```text
-A6, kellyn with her things. Wide landscape image, plain white background.
+A6, Kellyn with her things. Wide landscape image, plain white background.
 
 The attached picture shows the character from five sides. Draw exactly this character: the same face, hair, clothes, colours, proportions and pixel size, at the same height as in the attached picture.
 
@@ -389,7 +389,7 @@ No shadows, no ground, no text, no labels, nothing cut off at the edges.
 ### A7. Mamka
 
 ```text
-A7, mamka. Wide landscape image, plain white background.
+A7, Mamka. Wide landscape image, plain white background.
 
 The attached picture shows the character from five sides. Draw exactly this character: the same face, hair, clothes, colours, proportions and pixel size, at the same height as in the attached picture.
 
@@ -401,7 +401,7 @@ No shadows, no ground, no text, no labels, nothing cut off at the edges.
 ### A8. Alan
 
 ```text
-A8, alan. Wide landscape image, plain white background.
+A8, Alan. Wide landscape image, plain white background.
 
 The attached picture shows the character from five sides. Draw exactly this character: the same face, hair, clothes, colours, proportions and pixel size, at the same height as in the attached picture.
 
@@ -413,7 +413,7 @@ No shadows, no ground, no text, no labels, nothing cut off at the edges.
 ### A9. Sami
 
 ```text
-A9, sami. Wide landscape image, plain white background.
+A9, Sami. Wide landscape image, plain white background.
 
 The attached picture shows the character from five sides. Draw exactly this character: the same face, hair, clothes, colours, proportions and pixel size, at the same height as in the attached picture.
 
@@ -425,7 +425,7 @@ No shadows, no ground, no text, no labels, nothing cut off at the edges.
 ### A10. Žofia
 
 ```text
-A10, žofia. Wide landscape image, plain white background.
+A10, Žofia. Wide landscape image, plain white background.
 
 The attached picture shows the character from five sides. Draw exactly this character: the same face, hair, clothes, colours, proportions and pixel size, at the same height as in the attached picture.
 
