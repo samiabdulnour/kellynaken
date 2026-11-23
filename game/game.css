@@ -51,13 +51,6 @@ button{font:inherit;color:inherit}
 .say i{position:absolute;right:.75em;bottom:.4em;font-style:normal;font-weight:700;animation:blink 1s steps(2,jump-none) infinite}
 @keyframes blink{50%{opacity:0}}
 
-.list{position:absolute;inset:4.5em .75em auto;display:grid;gap:.5em}
-.list h2{margin:0 0 .25em;font-size:1.5em;text-transform:uppercase;color:var(--yellow);text-shadow:.1em .1em 0 var(--ink)}
-.row{display:grid;grid-template-columns:1.5em minmax(0,1fr) auto;align-items:center;gap:.5em;width:100%;text-align:left;
-  background:var(--paper);color:var(--ink);border:.25em solid var(--ink);padding:.5em .75em;cursor:pointer;font-weight:700}
-.row em{font-style:normal;font-weight:400;text-transform:uppercase;font-size:.85em}
-.row[disabled]{opacity:.5;cursor:default}
-.row.now{background:var(--yellow)}
 
 .card{position:absolute;inset:28% 1em auto;display:grid;gap:.75em;justify-items:center;text-align:center;
   background:var(--paper);color:var(--ink);border:.25em solid var(--ink);box-shadow:0 0 0 .125em var(--paper);padding:1em}
@@ -71,13 +64,10 @@ button{font:inherit;color:inherit}
 .turn{display:flex;align-items:center;gap:.4em;color:var(--paper);text-transform:none}
 .shout{position:absolute;right:.25em;top:19.5em;margin:0;background:var(--paper);color:var(--red);border:.25em solid var(--ink);padding:.2em .5em;font-weight:700;pointer-events:none}
 .shout[hidden]{display:none}
-.card.choose{inset:auto 1em 3.5em;gap:.5em}
 .card.top{inset:1.5em 1em auto}
 .btn.throw{position:absolute;right:.75em;bottom:4.5em;padding:.5em .8em}
 .btn.throw[disabled]{opacity:.45}
 .btn.drop{bottom:1em;font-size:1.2em}
-.card.choose h2{color:var(--ink)}
-.row.later{opacity:.55;background:var(--paper)}
 .album{position:absolute;inset:4.5em .75em auto;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.5em}
 .album div{background:var(--paper);color:var(--ink);border:.25em solid var(--ink);padding:.5em .25em;text-align:center;font-weight:700}
 .album div[data-got="0"]{background:var(--ink-soft);color:var(--paper)}
@@ -105,5 +95,4 @@ button{font:inherit;color:inherit}
 .pin.todo{background:var(--yellow)}
 .pin.done{background:var(--green);color:var(--paper)}
 .pin.locked,.pin.soon{background:#D8CFC4;color:var(--ink-soft);border-color:var(--ink-soft)}
-.pin.town{cursor:default;pointer-events:none;background:none;border:0;color:var(--ink);font-size:.7em;transform:translate(calc(-100% - .4em),-50%)}
 @keyframes arrive{from{opacity:0}}

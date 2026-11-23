@@ -19,9 +19,12 @@ the hits and the items. What they share lives in one room on the server (`server
 game has to be opened from the server's address. Each device also remembers the progress, so a restarted server is
 told how far they had got. Adding `?solo` to the address plays it alone on one device, for trying things out.
 
-Levels are picked on two maps. The map of Czechia has a pin for each place at home, with Prague's under a magnifying
-glass; "Svět" zooms out to a spinning planet for the rest of the world, where the Česko pin zooms back in. Who is
-waiting to be rescued is a surprise: the game never names them before they are free.
+Levels are picked on maps, and each level is a pin at the spot where it happens. The game starts on the map of
+Czechia; Prague, under a magnifying glass, opens the map of Prague with all its levels. "Svět" zooms out to a spinning
+planet, where Austrálie opens the map of Australia (Sydney under a glass), and Česko zooms back in. Who is waiting to
+be rescued is a surprise: the game never names them before they are free, and levels not reached yet show as ???.
+
+`/v3/` is the same game for trying levels out: played alone on one device, every level open, with its own save.
 
 | Place | Rescued there | Built so far |
 |---|---|---|
@@ -45,7 +48,7 @@ three throws that fly ahead, knock out the first thing in the way and come back.
 | `game/game.js` | Title, the map of Czechia, the planet, places, the games inside a scene, the album. Shows the room's state and reports what its own hero does. |
 | `art/CHATGPT-PACK.md` | The prompts for drawing the scenes and objects in the style of the character sheets. |
 | `art/scenes.json` | Which picture is which scene, and its size in the game. |
-| `tools/czmap.py` | Draws the map of Czechia from the real border (`art/source/geo/borders.json`, Natural Earth) and prints where its pins go. |
+| `tools/maps.py` | Draws the maps: Czechia and Australia from the real borders and coast (`art/source/geo/`, Natural Earth), and a picture map of Prague. Prints where the pins go. |
 | `art/source/` | The pictures as they come back from ChatGPT, named by code: `S3.png`. |
 | `art/source/characters.webp` | The character sheet: six cards of standing figures, action poses and faces. |
 | `tools/sprites.py` | Cuts the characters: the heroes' drawn poses from `art/source/poses/`, the grown-ups' sheets of eight figures from `art/source/people/`, the faces, and rows of objects from `art/source/objects/`. Dark outlines round the characters become darker shades of their own colours. | Praděda Václav has a sheet of his own (`art/source/people/vaclav-stand.png`), drawn through Figma from a description; his face is shown with the story lines about him.

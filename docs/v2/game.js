@@ -8,10 +8,11 @@
 (() => {
   const { W, H, GROUND, INK, ctx, save, write, go, add, esc, rect, beep, clamp } = K;
   const WORLD = window.WORLD, places = WORLD.places, pins = WORLD.planet.pins;
+  const INSPECT = !!window.INSPECT;           // v3: one player, every level open, for trying levels out
 
   // ---- the line to the room ----
   const Net = (() => {
-    const solo = /[?&]solo\b/.test(location.search);                    // one device, for trying things out
+    const solo = INSPECT || /[?&]solo\b/.test(location.search);         // one device, for trying things out
     const base = location.protocol === 'file:' || /github\.io$/.test(location.hostname) ? WORLD.server : '';
     if (!save.id) { save.id = Math.random().toString(36).slice(2, 10); write(); }      // this device, so it can take its seat again
     let who = null, state = null, off = null, es = null, room = null, again = 0, ticker = 0;
@@ -37,7 +38,7 @@
       leave(); who = w;
       const mine = { places: save.places, album: save.album };
       if (solo) {
-        const r = Room.create({ world: WORLD, solo: true, now: () => Date.now(), emit: (to, m) => { if (to === 'all' || to === who) { const copy = JSON.parse(JSON.stringify(m)); setTimeout(() => { if (room === r) take(copy); }, 0); } } });
+        const r = Room.create({ world: WORLD, solo: true, open: INSPECT, now: () => Date.now(), emit: (to, m) => { if (to === 'all' || to === who) { const copy = JSON.parse(JSON.stringify(m)); setTimeout(() => { if (room === r) take(copy); }, 0); } } });
         room = r; clearInterval(ticker); ticker = setInterval(() => { if (room === r) r.tick(); }, 250);
         return r.join(who, mine);
       }
@@ -56,13 +57,16 @@
   const heroName = (w = me()) => WORLD.heroes[w].name;
   const clock = (sn) => (Net.now() - sn.startAt) / 1000;                 // seconds into a game, the same on both devices
 
+  // Who may play what. In the version for trying levels out (v3, window.INSPECT) everything is open.
   const progress = (p) => (st() && st().save.places[p.id]) || { scene: 0, done: false };
-  const isOpen = (p) => { const i = places.indexOf(p); return i === 0 || (i > 0 && progress(places[i - 1]).done); };
+  const isOpen = (p) => { const i = places.indexOf(p); return INSPECT || i === 0 || (i > 0 && progress(places[i - 1]).done); };
   const todo = (p) => isOpen(p) && !progress(p).done;
-  const stateOf = (p) => (progress(p).done ? 'hotovo' : isOpen(p) ? 'hraj' : 'zamčeno');
+  // A level: done, the one to play next (todo), open to play again or in any order (open), or not yet (locked).
+  const levelState = (p, i) => { const pr = progress(p); return pr.done || i < pr.scene ? 'done' : INSPECT ? 'todo' : isOpen(p) && i === pr.scene ? 'todo' : 'locked'; };
   const fullName = (p) => (p.area ? `${p.name} · ${p.area}` : p.name);
-  const onMap = (p) => WORLD.map.pins.some((pin) => pin.place === p.id);           // picked on the map of Czechia, not the planet
-  const behind = (pin) => (pin.map ? WORLD.map.pins.filter((m) => m.place).map((m) => m.place) : pin.places || []).map((id) => places.find((p) => p.id === id));
+  const inRegion = (r) => places.filter((p) => p.region === r);
+  const regionState = (r) => { const ps = inRegion(r); return ps.some(todo) ? 'todo' : ps.length && ps.every((p) => progress(p).done) ? 'done' : 'locked'; };
+  const behind = (pin) => (pin.map ? places.filter((p) => WORLD.regions[p.region].up === 'map') : pin.region ? inRegion(pin.region) : (pin.places || []).map((id) => places.find((p) => p.id === id)));
   const later = (pin) => (pin.later || []).map((id) => (WORLD.later || []).find((p) => p.id === id)).filter(Boolean);   // places that open in the future
   const pinState = (pin) => {
     const ps = behind(pin);
@@ -70,6 +74,22 @@
     if (ps.some(todo)) return 'todo';
     return ps.some((p) => progress(p).done) ? 'done' : 'locked';
   };
+  // A pin on a flat map: a little flag on a post. Red and bobbing for what is next, green when done, grey when shut.
+  const flag = (x, y, state, t) => {
+    const bob = state === 'todo' ? Math.round(Math.sin(t * 5) * 2) : 0, lit = state === 'todo' || state === 'done';
+    rect(x - 1, y - 2, 2, 6, INK);
+    rect(x - 5, y - 12 + bob, 10, 10, INK);
+    rect(x - 4, y - 11 + bob, 8, 8, state === 'done' ? '#1FA463' : state === 'todo' ? '#CC2233' : '#7A6F6A');
+    rect(x - 2, y - 9 + bob, 4, 4, lit ? '#FFD43A' : '#B8ADA6');
+  };
+  const pinAt = ([x, y]) => `left:${(x / W) * 100}%;top:${(y / H) * 100}%`;    // a name next to its pin, in the UI layer
+  // Arriving on a map: it grows into place for a moment, as if zooming in.
+  const zoomIn = (t, draw) => {
+    const e = Math.min(1, t / 0.35), k = 0.55 + 0.45 * (1 - (1 - e) ** 3);
+    rect(0, 0, W, H, '#1A1B36');
+    ctx.save(); ctx.translate(W / 2, H / 2); ctx.scale(k, k); ctx.translate(-W / 2, -H / 2); draw(); ctx.restore();
+  };
+  const PAPER = { sky: '#F2E4BE', far: '#E2D3A2', far2: '#9BD16B', ground: '#F2E4BE', line: '#CBB57F' };
   const draft = (id) => { if (!K.hasBg(id)) add('<span class="draft">náhradní obrázek</span>'); };
   // A character's face from the sheet, for the UI. mood: 0 calm, 1 laughing, 2 surprised, 3 smiling, 4 eyes closed.
   // f is how many screen pixels each drawn pixel takes.
@@ -84,11 +104,11 @@
   const waiting = document.getElementById('wait');
   function route() {
     const s = st(); if (!s) return;
-    const key = s.where.screen === 'scene' ? 'scene:' + s.scene.key : s.where.screen + ':' + (s.where.place || '');
+    const key = s.where.screen === 'scene' ? 'scene:' + s.scene.key : s.where.screen + ':' + (s.where.place || s.where.region || '');
     if (key !== shown) {
       shown = key; away = false;
       const p = places.find((x) => x.id === s.where.place);
-      go(s.where.screen === 'place' ? Place(p) : s.where.screen === 'scene' ? Play(p, s.scene) : s.where.screen === 'rescued' ? Rescued(p) : s.where.screen === 'planet' ? Planet : Czechia);
+      go(s.where.screen === 'region' ? Region(s.where.region) : s.where.screen === 'scene' ? Play(p, s.scene) : s.where.screen === 'rescued' ? Rescued(p) : s.where.screen === 'planet' ? Planet : Czechia);
     } else if (!away && K.scene && K.scene.sync) K.scene.sync(s);
     waiting.hidden = s.ready;
     waiting.textContent = `Čekám na ${heroName(mate())}. Hraje se ve dvou, každý na svém telefonu.`;
@@ -103,7 +123,8 @@
     t: 0, note: '', timers: [],
     enter() {
       add(`<div class="logo">${esc(WORLD.title).replace(' a ', '<br>a ')}<small>${esc(WORLD.subtitle)}</small></div>`);
-      const pick = add(`<div class="pick"><p>${esc(this.note || 'Kdo hraje?')}</p><div>
+      if (INSPECT) add('<p class="tip up">Zkušební verze: hraješ sám a všechno je odemčené.</p>');
+      const pick = add(`<div class="pick"><p>${esc(this.note || (INSPECT ? 'Za koho hraješ?' : 'Kdo hraje?'))}</p><div>
         <button class="btn red" data-who="ken">${face('ken', 3)}${esc(WORLD.heroes.ken.name)}</button>
         <button class="btn pink" data-who="kel">${face('kel', 3)}${esc(WORLD.heroes.kel.name)}</button></div></div>`);
       pick.addEventListener('click', (e) => { const b = e.target.closest('[data-who]'); if (b) { beep(520, 660); this.join(b.dataset.who); } });
@@ -177,22 +198,10 @@
       return { x: Math.round(CX + Math.cos(lat) * Math.sin(dl) * R), y: Math.round(CY - Math.sin(lat) * R), seen: z > 0.18 };
     };
     const stars = (() => { const r = K.rng(11); return Array.from({ length: 46 }, () => [Math.floor(r() * W), 22 + Math.floor(r() * (H - 22)), r() * 6]); })();
-    let rot = 0, aim = null, t = 0, list = null;
+    let rot = 0, aim = null, t = 0;
     const TIP = 'Otoč planetou. Klepni na místo.';
-    const zoomIn = () => { beep(660, 520); Net.send({ type: 'zoom', to: 'map' }); };
+    const toCzechia = () => { beep(660, 520); Net.send({ type: 'zoom', to: 'map' }); };
     const say = (text) => { const tip = K.ui.querySelector('.tip'); if (tip) tip.textContent = text; };
-    const close = () => { if (list) { list.remove(); list = null; say(TIP); } };
-    // Travelling takes both of them: the room moves everyone, or says who is still missing.
-    const travel = (id) => { if (!st().ready) { beep(180); close(); return say(`Čekám na ${heroName(mate())}.`); } beep(520, 780); Net.send({ type: 'go', place: id }); };
-    // Several places share this pin: a short list to pick from, right here on the planet.
-    function choose(pin) {
-      close(); say('');
-      list = add(`<div class="card choose"><h2>${esc(pin.name)}</h2>${behind(pin).map((p) => {
-        const state = stateOf(p);
-        return `<button class="row${state === 'hraj' ? ' now' : ''}" data-p="${p.id}"${state === 'zamčeno' ? ' disabled' : ''}><span>${places.indexOf(p) + 1}</span><span>${esc(fullName(p))}</span><em>${state}</em></button>`;
-      }).join('')}${later(pin).map((p) => `<button class="row later" disabled><span>?</span><span>${esc(fullName(p))}</span><em>brzy</em></button>`).join('')}</div>`);
-      list.addEventListener('click', (e) => { const b = e.target.closest('[data-p]'); if (b && !b.disabled) travel(b.dataset.p); });
-    }
     return {
       get rot() { return rot; }, set rot(v) { rot = v; aim = null; },
       where(i) { return spot(pins[i], rot); },
@@ -200,23 +209,23 @@
         const bar = add(`<div class="bar"><span>Svět</span><span><button data-go="album">Album</button><button data-go="title">${esc(heroName())}</button></span></div>`);
         bar.addEventListener('click', (e) => { const b = e.target.closest('[data-go]'); if (!b) return; if (b.dataset.go === 'album') { away = true; go(Album); } else toTitle(); });
         add(`<p class="tip up">${TIP}</p>`);
-        add('<button class="btn zoom">&lt; Česko</button>').addEventListener('click', zoomIn);
+        add('<button class="btn zoom">&lt; Česko</button>').addEventListener('click', toCzechia);
         const lead = pins.find((pin) => pinState(pin) === 'todo') || pins[0];
-        aim = lonOf(lead); rot = aim - 1; list = null;            // spin round to the next place to save
+        aim = lonOf(lead); rot = aim - 1;                          // spin round to the next place to save
         if (!skin || (!real && K.picture(WORLD.planet.bg))) makeSkin();
         draft(WORLD.planet.bg);
       },
-      move(x, y, dx) { if (list) return; rot -= dx / R; aim = null; },
+      move(x, y, dx) { rot -= dx / R; aim = null; },
+      // A pin opens its map: Czechia's, or a region's with every level on it. The rest open later.
       tap(x, y) {
-        if (list) return close();
         let hit = null, best = 14;
         for (const pin of pins) { const p = spot(pin, rot), d = Math.hypot(p.x - x, p.y - 6 - y); if (p.seen && d < best) { best = d; hit = pin; } }
         if (!hit) return;
-        if (hit.map) return zoomIn();                                                   // Czechia: down to its own map
-        const state = pinState(hit), ps = behind(hit);
-        if (ps.length + later(hit).length > 1) { beep(state === 'soon' ? 440 : 520, 780); return choose(hit); }   // a list, with what opens later shown locked
-        if (state === 'soon' || state === 'locked') { const l = later(hit)[0]; beep(180); say(state === 'locked' ? 'Nejdřív dokonči předchozí místo.' : l ? `${fullName(l)} se teprve otevře.` : 'Tohle místo se teprve otevře.'); return; }
-        travel(ps[0].id);
+        if (hit.map) return toCzechia();
+        const state = pinState(hit), l = later(hit)[0];
+        if (state === 'soon') { beep(180); return say(l ? `${fullName(l)} se teprve otevře.` : 'Tohle místo se teprve otevře.'); }
+        if (state === 'locked') { beep(180); return say('Nejdřív dokonči předchozí místo.'); }
+        beep(660, 520); Net.send({ type: 'zoom', to: hit.region });
       },
       update(dt) {
         t += dt;
@@ -242,84 +251,88 @@
     };
   })();
 
-  // ---- Czechia close up: every place at home has a pin of its own, with its name. "Svět" zooms out to the planet. ----
+  // ---- Czechia close up: Prague under the glass, and the places outside it. "Svět" zooms out to the planet. ----
   const Czechia = (() => {
     const M = WORLD.map, laterOf = (pin) => (WORLD.later || []).find((p) => p.id === pin.later);
-    const placeOf = (pin) => places.find((p) => p.id === pin.place);
-    const state = (pin) => { const p = placeOf(pin); return !p ? 'soon' : progress(p).done ? 'done' : isOpen(p) ? 'todo' : 'locked'; };
-    const allDone = () => M.pins.every((pin) => !pin.place || progress(placeOf(pin)).done);
+    const state = (pin) => (pin.region ? regionState(pin.region) : 'soon');
+    const allDone = () => M.pins.every((pin) => !pin.region || regionState(pin.region) === 'done');
     const TIP = 'Klepni na místo na mapě.';
     let t = 0;
     const say = (text) => { const tip = K.ui.querySelector('.tip'); if (tip) tip.textContent = text; };
     function pick(pin) {
-      const st8 = state(pin), p = placeOf(pin);
-      if (st8 === 'soon') { beep(180); return say(`${fullName(laterOf(pin))} se teprve otevře.`); }
-      if (st8 === 'locked') { beep(180); return say('Nejdřív dokonči předchozí místo.'); }
-      if (!st().ready) { beep(180); return say(`Čekám na ${heroName(mate())}.`); }
-      beep(520, 780); Net.send({ type: 'go', place: p.id });
+      if (!pin.region) { beep(180); return say(`${fullName(laterOf(pin))} se teprve otevře.`); }
+      if (state(pin) === 'locked') { beep(180); return say('Nejdřív dokonči předchozí místo.'); }
+      beep(660, 520); Net.send({ type: 'zoom', to: pin.region });
     }
     return {
-      where(id) { const pin = M.pins.find((q) => (q.place || q.later) === id); return { x: pin.at[0], y: pin.at[1] }; },
+      where(id) { const pin = M.pins.find((q) => (q.region || q.later) === id); return { x: pin.at[0], y: pin.at[1] }; },
       enter() {
         t = 0;
         const bar = add(`<div class="bar"><span>${esc(M.name)}</span><span><button data-go="album">Album</button><button data-go="title">${esc(heroName())}</button></span></div>`);
         bar.addEventListener('click', (e) => { const b = e.target.closest('[data-go]'); if (!b) return; if (b.dataset.go === 'album') { away = true; go(Album); } else toTitle(); });
-        // Each place's name next to its pin; tapping the name works like tapping the pin.
-        const at = ([x, y]) => `left:${(x / W) * 100}%;top:${(y / H) * 100}%`;
         for (const pin of M.pins) {
-          const p = placeOf(pin) || laterOf(pin);
-          add(`<button class="pin ${pin.label || 'below'} ${state(pin)}" data-id="${pin.place || pin.later}" style="${at(pin.at)}">${esc(p.name)}</button>`)
-            .addEventListener('click', () => pick(pin));
+          const name = pin.region ? WORLD.regions[pin.region].name : laterOf(pin).name;
+          add(`<button class="pin ${pin.label || 'below'} ${state(pin)}" data-id="${pin.region || pin.later}" style="${pinAt(pin.at)}">${esc(name)}</button>`).addEventListener('click', () => pick(pin));
         }
-        if (M.town) add(`<span class="pin town left" style="${at(M.town.at)}">${esc(M.town.name)}</span>`);
         add(`<p class="tip map">${allDone() ? 'V Česku je hotovo. Další mise čeká ve světě!' : TIP}</p>`);
         add(`<button class="btn zoom${allDone() ? ' go' : ''}">Svět &gt;</button>`).addEventListener('click', () => { beep(520, 660); Net.send({ type: 'zoom', to: 'planet' }); });
         draft(M.bg);
       },
       tap(x, y) {
         let hit = null, best = 12;
-        for (const pin of M.pins) { const d = Math.hypot(pin.at[0] - x, pin.at[1] - 8 - y); if (d < best) { best = d; hit = pin; } }
+        for (const pin of M.pins) {
+          const d = Math.hypot(pin.at[0] - x, pin.at[1] - 8 - y); if (d < best) { best = d; hit = pin; }
+          if (!hit && pin.glass && Math.hypot(pin.glass[0] - x, pin.glass[1] - y) < pin.glass[2]) hit = pin;   // anywhere on the magnifying glass
+        }
         if (hit) pick(hit);
       },
       update(dt) { t += dt; },
-      draw() {
-        // Coming down from space: the map grows into place for a moment.
-        const e = Math.min(1, t / 0.35), k = 0.55 + 0.45 * (1 - (1 - e) ** 3);
-        rect(0, 0, W, H, '#1A1B36');
-        ctx.save(); ctx.translate(W / 2, H / 2); ctx.scale(k, k); ctx.translate(-W / 2, -H / 2);
-        K.background(M.bg, 0, { sky: '#F2E4BE', far: '#E2D3A2', far2: '#9BD16B', ground: '#F2E4BE', line: '#CBB57F' });
-        for (const pin of M.pins) {
-          const [x, y] = pin.at, st8 = state(pin), bob = st8 === 'todo' ? Math.round(Math.sin(t * 5) * 2) : 0, lit = st8 === 'todo' || st8 === 'done';
-          const col = st8 === 'done' ? '#1FA463' : st8 === 'todo' ? '#CC2233' : '#7A6F6A';
-          rect(x - 1, y - 2, 2, 6, INK);
-          rect(x - 5, y - 12 + bob, 10, 10, INK);
-          rect(x - 4, y - 11 + bob, 8, 8, col);
-          rect(x - 2, y - 9 + bob, 4, 4, lit ? '#FFD43A' : '#B8ADA6');
-        }
-        ctx.restore();
-      },
+      draw() { zoomIn(t, () => { K.background(M.bg, 0, PAPER); for (const pin of M.pins) flag(pin.at[0], pin.at[1], state(pin), t); }); },
     };
   })();
 
-  // ---- one place: its four scenes as a list. Who is waiting there stays a secret until they are free. ----
-  const Place = (place) => ({
-    enter() { this.paint(); },
-    sync() { this.paint(); },
-    paint() {
-      K.ui.innerHTML = '';
-      const pr = progress(place);
-      const bar = add(`<div class="bar"><button data-back>&lt; ${onMap(place) ? esc(WORLD.map.name) : 'Svět'}</button><span>${esc(fullName(place))}</span></div>`);
-      bar.querySelector('[data-back]').addEventListener('click', () => Net.send({ type: 'back' }));
-      const head = !place.saves.length ? (pr.done ? 'Hotovo' : place.ask || 'Co se tu stalo?') : pr.done ? `Zachráněno: ${place.saves.map((s) => s.name).join(' a ')}` : 'Kdo volá o pomoc?';
-      const list = add(`<div class="list"><h2>${esc(head)}</h2>${place.scenes.map((sc, i) => {
-        const state = pr.done || i < pr.scene ? 'hotovo' : i === pr.scene ? 'hraj' : 'zamčeno';
-        return `<button class="row${state === 'hraj' ? ' now' : ''}" data-i="${i}"${state === 'zamčeno' ? ' disabled' : ''}><span>${i + 1}</span><span>${state === 'zamčeno' ? '???' : esc(sc.name)}</span><em>${state}</em></button>`;
-      }).join('')}</div>`);
-      list.addEventListener('click', (e) => { const b = e.target.closest('[data-i]'); if (b && !b.disabled) { beep(st().ready ? 520 : 180); Net.send({ type: 'open', index: +b.dataset.i }); } });
-      draft(place.scenes[0].bg);
-    },
-    draw() { K.background(place.scenes[0].bg, 0, place.look); rect(0, 0, W, H, 'rgba(43,31,26,.55)'); },
-  });
+  // ---- a region's map (Praha, Austrálie): every level is a pin where it happens. Tap one to play it. ----
+  const Region = (id) => {
+    const R = WORLD.regions[id], up = R.up === 'map' ? WORLD.map.name : 'Svět';
+    const pins = [...inRegion(id).flatMap((p) => p.scenes.map((sc, i) => ({ key: `${p.id}:${i}`, p, i, sc, at: sc.at, label: sc.label }))),
+      ...(R.later || []).map((l) => ({ key: l.id, soon: (WORLD.later || []).find((x) => x.id === l.id), at: l.at, label: l.label }))];
+    const state = (pin) => (pin.soon ? 'soon' : levelState(pin.p, pin.i));
+    // A level not reached yet keeps its name to itself, like the rest of the story.
+    const name = (pin) => (pin.soon ? pin.soon.name : state(pin) === 'locked' ? '???' : pin.sc.name);
+    let t = 0, tip = null;
+    const say = (text) => { if (tip) tip.textContent = text; };
+    function pick(pin) {
+      const st8 = state(pin);
+      if (st8 === 'soon') { beep(180); return say(`${fullName(pin.soon)} se teprve otevře.`); }
+      if (st8 === 'locked') { beep(180); return say('Tam se dostanete později. Nejdřív to, co svítí červeně.'); }
+      if (!st().ready) { beep(180); return say(`Čekám na ${heroName(mate())}.`); }
+      beep(520, 780); Net.send({ type: 'play', place: pin.p.id, index: pin.i });
+    }
+    function labels() {
+      K.ui.querySelectorAll('.pin').forEach((el) => el.remove());
+      for (const pin of pins) add(`<button class="pin ${pin.label || 'below'} ${state(pin)}" data-id="${pin.key}" style="${pinAt(pin.at)}">${esc(name(pin))}</button>`).addEventListener('click', () => pick(pin));
+    }
+    return {
+      where(key) { const pin = pins.find((q) => q.key === key); return { x: pin.at[0], y: pin.at[1] }; },
+      enter() {
+        t = 0;
+        const bar = add(`<div class="bar"><button data-back>&lt; ${esc(up)}</button><span>${esc(R.name)}</span></div>`);
+        bar.querySelector('[data-back]').addEventListener('click', () => { beep(440); Net.send({ type: 'back' }); });
+        const done = inRegion(id).every((p) => progress(p).done);
+        tip = add(`<p class="tip map">${INSPECT ? 'Zkušební verze: všechno je odemčené.' : done ? 'Tady je hotovo! Zahrát si můžete cokoli znovu.' : 'Klepni na místo, které svítí červeně.'}</p>`);
+        labels();
+        draft(R.bg);
+      },
+      sync() { labels(); },
+      tap(x, y) {
+        let hit = null, best = 12;
+        for (const pin of pins) { const d = Math.hypot(pin.at[0] - x, pin.at[1] - 8 - y); if (d < best) { best = d; hit = pin; } }
+        if (hit) pick(hit);
+      },
+      update(dt) { t += dt; },
+      draw() { zoomIn(t, () => { K.background(R.bg, 0, PAPER); for (const pin of pins) flag(pin.at[0], pin.at[1], state(pin), t); }); },
+    };
+  };
 
   // ---- playing one scene: the story lines, then the game, then on to the next. The room says which part is on. ----
   const Play = (place, first) => {
@@ -346,7 +359,7 @@
     }
     return {
       enter() {
-        const bar = add(`<div class="bar"><button data-back>&lt; ${esc(place.name)}</button><span>${esc(sc.name)}</span></div>`);
+        const bar = add(`<div class="bar"><button data-back>&lt; ${esc(WORLD.regions[place.region].name)}</button><span>${esc(sc.name)}</span></div>`);
         bar.querySelector('[data-back]').addEventListener('click', () => Net.send({ type: 'back' }));
         draft(sc.bg);
         paint();

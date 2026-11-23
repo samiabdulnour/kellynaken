@@ -1,0 +1,98 @@
+/* Colours: the darkest is a deep warm brown, never black, to sit with the characters' coloured outlines.
+   The pixel game's screen is 192 x 288 pixels, scaled up by --s (set by the engine so every pixel stays square).
+   Everything in the UI layer is sized in em, where 1em is 8 screen pixels, so text and boxes sit on the same grid. */
+:root{
+  --s:2;
+  --ink:#2B1F1A; --ink-soft:#7A6F6A; --paper:#FFF8E7;
+  --yellow:#FFD43A; --red:#CC2233; --blue:#1F55D6; --pink:#F0448F; --green:#1FA463;
+  --dim:rgba(43,31,26,.74);
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--ink);color:var(--paper);display:grid;place-items:center;overflow:hidden;
+  font-family:'Pixelify Sans','Courier New',monospace;-webkit-user-select:none;user-select:none;touch-action:none}
+#stage{position:relative;width:calc(192px * var(--s));height:calc(288px * var(--s))}
+#screen{position:absolute;inset:0;display:block;width:100%;height:100%;image-rendering:pixelated;image-rendering:crisp-edges;touch-action:none}
+#ui{position:absolute;inset:0;pointer-events:none;font-size:calc(8px * var(--s));line-height:1.25}
+#ui > *{pointer-events:auto}
+#wait{position:absolute;inset:auto .75em 3.25em;pointer-events:none;font-size:calc(8px * var(--s));line-height:1.25;text-align:center;font-weight:700;
+  background:var(--ink);color:var(--yellow);border:.25em solid var(--yellow);padding:.5em .75em}
+#wait[hidden]{display:none}
+button{font:inherit;color:inherit}
+:focus-visible{outline:.25em solid var(--blue);outline-offset:.125em}
+
+.bar{position:absolute;inset:0 0 auto;display:flex;align-items:center;justify-content:space-between;gap:.5em;
+  padding:.5em .75em;background:var(--ink);border-bottom:.25em solid var(--yellow);font-weight:700;text-transform:uppercase}
+.bar button{background:none;border:0;padding:.25em;cursor:pointer;color:var(--yellow);font-weight:700;text-transform:uppercase}
+.lives{display:flex;gap:.25em}
+.lives i{width:1em;height:1em;background:var(--ink-soft)}
+.lives i.on{background:var(--red)}
+.meter{flex:1;height:.75em;background:var(--ink-soft);max-width:8em}
+.meter i{display:block;height:100%;background:var(--yellow)}
+
+.btn{font-weight:700;text-transform:uppercase;color:var(--ink);background:var(--yellow);border:.25em solid var(--ink);
+  box-shadow:0 0 0 .125em var(--paper),0 .5em 0 var(--ink);padding:.6em 1em;cursor:pointer}
+.btn:active{transform:translateY(.25em);box-shadow:0 0 0 .125em var(--paper),0 .25em 0 var(--ink)}
+.btn.pink{background:var(--pink);color:var(--paper)}
+.btn.red{background:var(--red);color:var(--paper)}
+
+.logo{position:absolute;inset:3.5em 0 auto;text-align:center;font-size:2.6em;font-weight:700;line-height:.92;text-transform:uppercase;
+  color:var(--yellow);text-shadow:.07em .07em 0 var(--red),.14em .14em 0 var(--blue)}
+.logo small{display:block;margin-top:.9em;font-size:.36em;letter-spacing:.12em;color:var(--paper);text-shadow:.12em .12em 0 var(--ink)}
+.pick{position:absolute;inset:auto 1em .75em;display:grid;gap:.5em;justify-items:center;text-align:center}
+.pick p{margin:0;font-weight:700;text-shadow:.125em .125em 0 var(--ink)}
+.pick div{display:flex;gap:1em}
+
+.say{position:absolute;inset:auto .75em .75em;min-height:6.5em;background:var(--paper);color:var(--ink);
+  border:.25em solid var(--ink);box-shadow:0 0 0 .125em var(--paper);padding:.75em 1em 1.25em;cursor:pointer}
+.say b{display:block;margin-bottom:.25em;color:var(--red);text-transform:uppercase}
+.say p{margin:0}
+.say i{position:absolute;right:.75em;bottom:.4em;font-style:normal;font-weight:700;animation:blink 1s steps(2,jump-none) infinite}
+@keyframes blink{50%{opacity:0}}
+
+
+.card{position:absolute;inset:28% 1em auto;display:grid;gap:.75em;justify-items:center;text-align:center;
+  background:var(--paper);color:var(--ink);border:.25em solid var(--ink);box-shadow:0 0 0 .125em var(--paper);padding:1em}
+.card h2{margin:0;font-size:1.5em;text-transform:uppercase;color:var(--red)}
+.card p{margin:0}
+
+.tip{position:absolute;inset:auto 0 1em;text-align:center;font-weight:700;text-shadow:.125em .125em 0 var(--ink)}
+.tip.up{inset:4em 0 auto}
+.count{min-width:4em}
+.clock{min-width:3em;text-align:center;color:var(--paper)}
+.turn{display:flex;align-items:center;gap:.4em;color:var(--paper);text-transform:none}
+.shout{position:absolute;right:.25em;top:19.5em;margin:0;background:var(--paper);color:var(--red);border:.25em solid var(--ink);padding:.2em .5em;font-weight:700;pointer-events:none}
+.shout[hidden]{display:none}
+.card.top{inset:1.5em 1em auto}
+.btn.throw{position:absolute;right:.75em;bottom:4.5em;padding:.5em .8em}
+.btn.throw[disabled]{opacity:.45}
+.btn.drop{bottom:1em;font-size:1.2em}
+.album{position:absolute;inset:4.5em .75em auto;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.5em}
+.album div{background:var(--paper);color:var(--ink);border:.25em solid var(--ink);padding:.5em .25em;text-align:center;font-weight:700}
+.album div[data-got="0"]{background:var(--ink-soft);color:var(--paper)}
+.album span:not(.face){display:block;width:3em;height:3em;margin:0 auto .4em;background:var(--yellow);border:.25em solid var(--ink);line-height:2.5em;font-size:1em}
+.album div[data-got="0"] span{background:var(--ink)}
+.face{display:inline-block;flex:none;background-repeat:no-repeat;image-rendering:pixelated;image-rendering:crisp-edges}
+.btn .face{display:block;margin:0 auto .35em}
+.say .face{float:left;margin:0 .75em .25em 0}
+.card .line{display:flex;align-items:center;gap:.6em;text-align:left}
+.album .face{display:block;margin:.2em auto .5em}
+.power{color:var(--yellow)}
+.album img{display:block;margin:.4em auto 0;image-rendering:pixelated;image-rendering:crisp-edges}
+.draft{position:absolute;right:.5em;top:3.2em;background:var(--dim);padding:.2em .5em;font-size:.8em}
+
+@media (prefers-reduced-motion:reduce){*{animation-duration:.001ms!important}}
+.btn.zoom{position:absolute;left:.75em;bottom:.75em;padding:.5em .8em}
+.btn.zoom.go{animation:nudge 1s steps(2,jump-none) infinite}
+@keyframes nudge{50%{background:var(--paper)}}
+.tip.map{inset:2.9em 0 auto;margin:0 auto;width:fit-content;max-width:calc(100% - 1.5em);background:var(--dim);padding:.15em .6em}
+.pin{position:absolute;animation:arrive .4s steps(2,jump-none) both;font-size:.75em;font-weight:700;line-height:1.1;white-space:nowrap;padding:.1em .35em;cursor:pointer;
+  background:var(--paper);color:var(--ink);border:.17em solid var(--ink)}
+.pin.below{transform:translate(-50%,.35em)}
+.pin.right{transform:translate(.9em,-155%)}
+.pin.left{transform:translate(calc(-100% - .9em),-155%)}
+.pin.todo{background:var(--yellow)}
+.pin.done{background:var(--green);color:var(--paper)}
+.pin.locked,.pin.soon{background:#D8CFC4;color:var(--ink-soft);border-color:var(--ink-soft)}
+@keyframes arrive{from{opacity:0}}

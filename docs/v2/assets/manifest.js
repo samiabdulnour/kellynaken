@@ -3,6 +3,7 @@ window.ASSETS = {
   "bg": [
     "australia-beach",
     "australia-bush",
+    "australia-map",
     "australia-outback",
     "australia-reef",
     "australia-sea",
@@ -10,6 +11,7 @@ window.ASSETS = {
     "czech-map",
     "praha-door",
     "praha-home",
+    "praha-map",
     "praha-salon",
     "praha-street",
     "strahov-concert",

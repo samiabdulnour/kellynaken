@@ -89,8 +89,15 @@ fs.writeFileSync(here + '.artifact/index.html', html);
 // The new pixel game lives beside the old one, at /v2/, until it is ready to take over.
 fs.rmSync(here + 'docs/v2', { recursive: true, force: true });
 fs.cpSync(here + 'game', here + 'docs/v2', { recursive: true });
+// /v3/: the same game for trying levels out: played alone on one device, every level open, its own save.
+fs.rmSync(here + 'docs/v3', { recursive: true, force: true });
+fs.cpSync(here + 'game', here + 'docs/v3', { recursive: true });
+const v3 = read('game/index.html').replace('<title>Kellyn a Ken</title>', '<title>Kellyn a Ken · zkušební verze</title>')
+  .replace('<script src="assets/manifest.js"></script>', '<script>window.INSPECT = true;</script>\n<script src="assets/manifest.js"></script>');
+if (!v3.includes('window.INSPECT = true')) throw new Error('v3: could not switch the game to trying-out mode');
+fs.writeFileSync(here + 'docs/v3/index.html', v3);
 
-console.log('Built docs/index.html and docs/v2/');
+console.log('Built docs/index.html, docs/v2/ and docs/v3/');
 for (const [id, pl] of Object.entries(cfg.players)) {
   const numbers = Lite.code.jersey(pl.postcard.password, pl.postcard.key);
   console.log(`${cfg.names[id].nom}: "${pl.postcard.password}" (key ${pl.postcard.key}) -> ${numbers.join(' - ')}`);
