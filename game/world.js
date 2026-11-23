@@ -170,7 +170,7 @@ window.WORLD = {
           talk: [['sami', 'Díky, že jste nás zachránili! Víte, že jsem architekt?'], ['sami', 'Navrhl jsem v Sydney nový dům. Jenže stavba se zasekla a sám ho nepostavím.'],
             ['zofia', 'Kendrick bude řídit jeřáb a Kellyn bude pouštět patra. Spolu to zvládnete!'], ['hero', 'Jdeme stavět!']] },
       ],
-      done: [['sami', 'Díky, dům stojí! Do Austrálie jsme přijeli kvůli pradědovi Václavovi, chtěli jsme vidět, kde žil.'], ['zofia', 'Juchůů! Zachránili jste nás! Pradědové Václav a Georges by na vás byli pyšní.']],
+      done: [['sami', 'Díky, dům stojí! Sám bych ho nikdy nepostavil.'], ['zofia', 'Juchůů! Zachránili jste nás a ještě jste postavili mrakodrap!']],
     },
   ],
 };
