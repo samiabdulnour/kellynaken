@@ -116,7 +116,7 @@ window.WORLD = {
       scenes: [
         { id: 'australia-beach', name: 'Pláž Bondi', bg: 'australia-beach', play: 'collect', ground: 226,
           collect: { seconds: 60, need: 8, stay: 3.6, every: [1.0, 1.7], jelly: 0.24, won: 'Na vzkazu stojí: POMOC! Jsme na skále za útesem.' },
-          talk: [['', 'Austrálie! Na druhém konci světa kdysi žili oba vaši pradědové, Václav a Georges.'], ['', 'A teď na pláži Bondi vyplavilo moře roztrhaný vzkaz v láhvi.'], ['hero', 'Posbíráme všechny kousky, než je vlny zase odnesou!']] },
+          talk: [['', 'Austrálie! Na druhém konci světa kdysi žili oba vaši pradědové, Václav a Georges.'], ['', 'Někdo sem přijel po stopách pradědy Václava, podívat se, kde žil.', 'vaclav'], ['', 'A teď na pláži Bondi vyplavilo moře roztrhaný vzkaz v láhvi.'], ['hero', 'Posbíráme všechny kousky, než je vlny zase odnesou!']] },
         { id: 'australia-sea', name: 'Na vlně', bg: 'australia-sea', scroll: true, play: 'run', ground: 200, tile: 'repeat', pickup: 'boomerang',
           run: { seconds: 30, low: 'žralok', high: 'bumerang', board: true, art: { low: ['aussie', 'fin', 'fin2'], high: ['aussie', 'boomerang', 'boomerang2'] } },
           talk: [['', 'Praděda Václav po válce utekl z Československa a připlul sem lodí s uprchlíky. Přes celý oceán!', 'vaclav'], ['', 'Na prkno! Žraloka přeskoč, pod bumerangem zůstaň dole.']] },
@@ -132,7 +132,7 @@ window.WORLD = {
           rescue: { hits: 2, pull: 70, seconds: 14, land: { x: 92, y: 140, w: 13 }, green: [0.22, 0.40], jetty: 206 },
           talk: [['', 'Támhle někdo mává! Na skále uprostřed moře, a kolem krouží žralok.'], ['hero', 'Hodíme jim záchranné kruhy!']] },
       ],
-      done: [['sami', 'To byla jízda. Díky! Pradědové Václav a Georges by na vás byli pyšní.'], ['zofia', 'Juchůů! Zachránili jste nás!']],
+      done: [['sami', 'To byla jízda. Díky! Přijeli jsme sem kvůli pradědovi Václavovi, chtěli jsme vidět, kde žil.'], ['zofia', 'Juchůů! Zachránili jste nás! Pradědové Václav a Georges by na vás byli pyšní.']],
     },
   ],
 };
