@@ -391,7 +391,6 @@ OBJECT_ROWS = {                                  # code: (name in the game, what
     'P12': ('salonkit', ['scissors', 'comb', 'brush', 'dryer', 'spray', 'dye', 'curlers', 'clip', 'mirror', 'shampoo']),
     'P13': ('dog', ['stand', 'trot1', 'trot2', 'sit', 'bark', 'sniff']),          # praděda Václav's Yorkshire terrier
     'P14': ('voyage', ['ship', 'smoke', 'gull1', 'gull2']),                        # the intro to Australia: the refugee ship
-    'P15': ('storeys', ['lobby', 'floor', 'plants', 'lights', 'roof']),            # Sami's tower in Sydney, one storey at a time
 }
 
 
@@ -678,6 +677,8 @@ def main():
     for code in OBJECT_ROWS:
         got = object_sheet(code)
         if got: info[got[0]] = got[1]
+    import storeys                                    # Sami's tower in Sydney: drawn in code, so every storey stacks exactly
+    info['storeys'] = storeys.sheet(os.path.join(OUT, 'sprites'))
     with open(os.path.join(OUT, 'sprites.js'), 'w') as f:
         f.write('// Written by tools/sprites.py: the characters cut from the character sheet.\n')
         f.write('window.SPRITES = ' + json.dumps(info, indent=2) + ';\n')

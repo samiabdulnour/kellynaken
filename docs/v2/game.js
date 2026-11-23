@@ -1307,7 +1307,7 @@
         // the house so far; a storey still falling is drawn by the fall
         live.floors.forEach((x, i) => {
           if (s.fall && s.fall.ok && s.fall.i === i && s.t - s.fall.at < 0.45) return;
-          if (K.has('storeys', pose(i, n))) K.figure('storeys', x, sy(GY - i * SH), pose(i, n), 0, false, 1);
+          if (K.has('storeys', pose(i, n))) K.figure('storeys', x, sy(GY - i * SH), pose(i, n), 0, false);
           else { rect(x - SW / 2, sy(GY - (i + 1) * SH), SW, SH, INK); rect(x - SW / 2 + 1, sy(GY - (i + 1) * SH) + 1, SW - 2, SH - 2, '#E6CFA0'); }
         });
         // the people down on the site, who scroll away as the house rises
@@ -1324,16 +1324,16 @@
         if (!s.over && Net.now() >= live.busyUntil && live.floors.length < n) {
           const i = live.floors.length;
           rect(Math.round(hx) - 3, hy - 1, 6, 2, INK);
-          if (K.has('storeys', pose(i, n))) K.figure('storeys', hx, hy + SH + 1, pose(i, n), 0, false, 1);
+          if (K.has('storeys', pose(i, n))) K.figure('storeys', hx, hy + SH + 1, pose(i, n), 0, false);
           // a faint line straight down, to help aim
           for (let y = hy + SH + 4; y < sy(GY - live.floors.length * SH); y += 6) rect(Math.round(hx), y, 1, 2, 'rgba(255,248,231,.35)');
         }
         // a storey on its way down: onto the house, or past it and off the screen
         if (s.fall) {
           const u = s.t - s.fall.at, i = s.fall.ok ? s.fall.i : live.floors.length;
-          const land = s.fall.ok ? sy(GY - i * SH) : H + 60, y0 = s.fall.from + SH + 1 + cam - Math.round(s.cam);
+          const land = s.fall.ok ? sy(GY - i * SH) : H + 60, y0 = s.fall.from + SH + 1 + cam;    // from the hook, where it hung (`from` is on the house, not the screen)
           const y = Math.min(land, y0 + 420 * u * u), x = s.fall.ok ? s.fall.x : s.fall.x + u * 30;
-          if (y < land || s.fall.ok) K.figure('storeys', x, y, pose(i, n), 0, false, 1);
+          if (y < land || s.fall.ok) K.figure('storeys', x, y, pose(i, n), 0, false);
           if (s.fall.ok && y >= land && s.fall.perfect && u < 1) { for (let k = 0; k < 4; k++) rect(Math.round(x - 22 + k * 14), Math.round(land - SH - 6 - (u - 0.45) * 20), 3, 3, '#FFD43A'); }
         }
       },

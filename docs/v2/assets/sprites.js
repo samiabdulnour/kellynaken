@@ -924,8 +924,8 @@ window.SPRITES = {
   },
   "storeys": {
     "file": "storeys.png",
-    "w": 43,
-    "h": 36,
+    "w": 86,
+    "h": 92,
     "scale": 0.5,
     "fps": 1,
     "poses": {
