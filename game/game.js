@@ -886,8 +886,9 @@
     };
   }
 
-  // Pexeso: pairs of cards face down on the table. Turn two over; a pair stays up, and the same one goes again;
-  // otherwise they turn back and it is the other one's go. Too many wrong guesses and the game is lost.
+  // Pexeso: pairs of cards face down on the table. With two playing, one turns the first card over and the other
+  // turns the second, looking for its pair; then they swap. A pair stays up; otherwise both turn back over.
+  // Too many wrong guesses and the game is lost.
   function Memory(sc, place, sn) {
     const cfg = sc.memory, who = me(), COLS = 4, CW = 40, CH = 50, GAP = 6, X0 = Math.round((W - (COLS * CW + (COLS - 1) * GAP)) / 2), Y0 = 36;
     const s = { t: 0, over: false, lost: false, seenMiss: 0, shake: 0 };
@@ -897,8 +898,12 @@
     const mine = () => !live.turn || live.turn === who;
     const paint = () => {
       view.hud.firstElementChild.textContent = `Pokusy ${Math.max(0, live.maxMiss - live.misses)}`;
-      view.hud.lastElementChild.innerHTML = live.turn ? `${face(live.turn, 3, 1)}<span>${mine() ? 'Hraješ ty' : 'Hraje ' + esc(heroName(live.turn))}</span>` : '';
-      if (!s.over) view.tip.textContent = mine() ? 'Otoč dvě kartičky. Najdi dvojici.' : `Teď otáčí ${heroName(live.turn)}. Dívej se a pamatuj si.`;
+      view.hud.lastElementChild.innerHTML = live.turn ? `${face(live.turn, 3, 1)}<span>${mine() ? 'Otáčíš ty' : 'Otáčí ' + esc(heroName(live.turn))}</span>` : '';
+      if (s.over) return;
+      const second = live.open.length === 1;
+      view.tip.textContent = !live.turn ? 'Otoč dvě kartičky. Najdi dvojici.'
+        : mine() ? (second ? 'Teď ty! Otoč druhou kartičku a najdi k ní dvojici.' : 'Otoč první kartičku.')
+        : (second ? `${heroName(live.turn)} hledá dvojici. Dívej se a pamatuj si.` : `${heroName(live.turn)} otočí první kartičku, ty pak druhou.`);
     };
     paint();
     return {

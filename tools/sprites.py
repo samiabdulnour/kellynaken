@@ -372,6 +372,7 @@ OBJECT_ROWS = {                                  # code: (name in the game, what
     'P9': ('stations', ['wash', 'cut', 'dye', 'dry', 'pay']),
     'P10': ('customers', ['c0', 'c1', 'c2', 'c3', 'c4', 'c5', 'd0', 'd1', 'd2', 'd3', 'd4', 'd5']),
     'P11': ('beach', ['bottle', 'paper', 'shell', 'star', 'crab', 'jelly', 'buoy', 'raft']),
+    'P12': ('salonkit', ['scissors', 'comb', 'brush', 'dryer', 'spray', 'dye', 'curlers', 'clip', 'mirror', 'shampoo']),
 }
 
 

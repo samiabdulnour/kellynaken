@@ -767,5 +767,47 @@ window.SPRITES = {
         0
       ]
     }
+  },
+  "salonkit": {
+    "file": "salonkit.png",
+    "w": 55,
+    "h": 71,
+    "scale": 0.5,
+    "fps": 1,
+    "poses": {
+      "scissors": [
+        0
+      ],
+      "comb": [
+        1
+      ],
+      "brush": [
+        2
+      ],
+      "dryer": [
+        3
+      ],
+      "spray": [
+        4
+      ],
+      "dye": [
+        5
+      ],
+      "curlers": [
+        6
+      ],
+      "clip": [
+        7
+      ],
+      "mirror": [
+        8
+      ],
+      "shampoo": [
+        9
+      ],
+      "stand": [
+        0
+      ]
+    }
   }
 };

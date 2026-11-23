@@ -17,7 +17,7 @@
 //   echo    a rhythm is played on four drums and has to be played back; each of them has two of the drums
 //   find    koalas peek out of the trees: tap them while they show; drag to look around a wide picture
 //   salon   customers want washing, cutting, dyeing, drying and paying: lead them from place to place and work there
-//   memory  pexeso: turn two cards over to find pairs; they take turns
+//   memory  pexeso: one turns the first card over, the other turns the second looking for its pair; then they swap
 //   collect run along the beach picking up what the waves wash in, and keep away from the jellyfish
 //   rescue  throw lifebuoys to the people on the rock, then pull them across before the shark gets there
 //   shoot   targets pop up and slip away: tap where the shot should go. Kendrick fires a puck with his hockey stick,
@@ -58,9 +58,9 @@ window.WORLD = {
       look: { sky: '#8FD3F4', far: '#F2C078', far2: '#E7A6B5', ground: '#A39B96', line: '#7A6F6A' },
       scenes: [
         { id: 'praha-home', name: 'Doma', bg: 'praha-home', play: 'memory',
-          memory: { pairs: 8, miss: 10, won: 'Na poslední kartičce je nakreslený salon. Tam musíme jít!',
-            faces: [['things', 'bunny'], ['things', 'puck'], ['prague', 'key'], ['prague', 'scissors'], ['prague', 'comb'], ['prague', 'dryer'], ['strahov', 'sticks'], ['aussie', 'boomerang']] },
-          talk: [['', 'Doma je divné ticho. Někdo tu chybí…'], ['', 'Na stole leží rozházené kartičky. Možná napoví, kam se ten někdo vydal.'], ['hero', 'Pexeso! Najdeme všechny dvojice.']] },
+          memory: { pairs: 8, miss: 10, won: 'Samé kadeřnické věci… a na poslední kartičce je nakreslený salon. Tam musíme jít!',
+            faces: [['salonkit', 'scissors'], ['salonkit', 'comb'], ['salonkit', 'brush'], ['salonkit', 'dryer'], ['salonkit', 'spray'], ['salonkit', 'dye'], ['salonkit', 'curlers'], ['salonkit', 'mirror']] },
+          talk: [['', 'Doma je divné ticho. Někdo tu chybí…'], ['', 'Na stole leží rozházené kartičky. Možná napoví, kam se ten někdo vydal.'], ['hero', 'Pexeso! Jeden otočí první kartičku, druhý k ní hledá dvojici.']] },
         { id: 'praha-street', name: 'Ulice', bg: 'praha-street', scroll: true, play: 'run',
           run: { seconds: 24, low: 'holub', high: '', art: { low: ['prague', 'pigeon'] } },
           talk: [['', 'Stopa vede ulicí. Klepni a přeskoč, co ti stojí v cestě.']] },
