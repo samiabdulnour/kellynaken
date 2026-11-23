@@ -626,7 +626,7 @@
   function Find(sc, place, sn) {
     const cfg = sc.find, who = me(), GY = sc.ground || GROUND;
     const { koalas } = Room.course.find(sn.seed, sc);
-    const s = { t: 0, over: false, lost: false, off: 0, got: new Set(), sent: 0, miss: null };
+    const s = { t: 0, over: false, lost: false, off: 0, got: new Set(), sent: 0, miss: null, when: {} };
     let live = sn;
     const view = stage('<span class="count"></span><span class="meter"><i></i></span>', 'Koaly vykukují ze stromů. Klepni na ně, než se schovají.');
     const pic = () => K.picture(sc.bg), width = () => (pic() ? pic().naturalWidth : W), most = () => Math.max(0, width() - W);
@@ -642,13 +642,13 @@
     }
     return {
       s, kind: 'find', peek: () => ({ off: s.off, most: most(), out: koalas.filter((k) => !found(k) && out(k)).map((k) => ({ id: k.id, x: k.x - s.off, y: k.y })) }),
-      sync(n) { live = n; paint(); },
+      sync(n) { for (const id of n.found) if (!(id in s.when)) s.when[id] = s.t; live = n; paint(); },
       over(won) { s.over = true; s.lost = !won; paint(); view.end(won, won ? 'Všechny koaly!' : 'Čas vypršel.', won ? 'Žádná se neschovala.' : `Našli jste ${live.found.length} z ${live.need}. Zkuste to ještě jednou.`); },
       move(x, y, dx) { s.off = clamp(s.off - dx, 0, most()); },
       down(x, y) {
         if (s.over || s.t < 0 || y < 22) return;
         const k = koalas.find((q) => !found(q) && out(q) && Math.hypot(q.x - s.off - x, q.y - y) < 14);
-        if (k) { s.got.add(k.id); beep(660, 880, 1100); view.tip.textContent = ''; Net.send({ type: 'ev', e: 'find', id: k.id }); }
+        if (k) { s.got.add(k.id); s.when[k.id] = s.t; beep(660, 880, 1100); view.tip.textContent = ''; Net.send({ type: 'ev', e: 'find', id: k.id }); }
         else { s.miss = { x, y, at: s.t }; beep(180); }
       },
       update() {
@@ -660,12 +660,21 @@
       draw() {
         const off = Math.round(clamp(s.off, 0, most()));
         K.background(sc.bg, off, place.look);
+        const art = !!K.sprites.koalas;                                                     // drawn koalas once they exist, stand-ins before
         for (const k of koalas) {
           const x = Math.round(k.x - off), y = Math.round(k.y);
           if (x < -12 || x > W + 12) continue;
-          if (found(k)) { koala(x, y - Math.round(Math.abs(Math.sin(s.t * 5 + k.id)) * 2), true); continue; }
-          if (out(k)) koala(x, y, false);
-          else if (soon(k)) { const j = Math.floor(s.t * 14) % 2; rect(x - 8 + j * 2, y - 2, 4, 2, '#DDE8B0'); rect(x + 4 - j * 2, y + 2, 4, 2, '#DDE8B0'); }   // a rustle in the leaves
+          if (found(k)) {
+            const bob = Math.round(Math.abs(Math.sin(s.t * 5 + k.id)) * 2);
+            if (art) K.figure('koalas', x, y + 11 - bob, s.t - (s.when[k.id] || 0) < 1.5 ? 'wave' : 'happy', s.t, k.x > width() / 2); else koala(x, y - bob, true);
+            continue;
+          }
+          if (out(k)) { if (art) K.figure('koalas', x, y + 11, k.id % 2 ? 'side' : 'peek', s.t, k.id % 2 && k.x < width() / 2); else koala(x, y, false); }
+          else if (soon(k)) {                                                                // a rustle in the leaves, just before
+            const j = Math.floor(s.t * 14) % 2;
+            if (art) K.figure('koalas', x + j - 1, y + 11, 'leaves', s.t);
+            else { rect(x - 8 + j * 2, y - 2, 4, 2, '#DDE8B0'); rect(x + 4 - j * 2, y + 2, 4, 2, '#DDE8B0'); }
+          }
         }
         if (s.miss && s.t - s.miss.at < 0.25) { const { x, y } = s.miss; rect(x - 4, y - 1, 8, 2, '#FFF8E7'); rect(x - 1, y - 4, 2, 8, '#FFF8E7'); }
         if (mateHere()) K.hero(mate(), W - 28, GY, 'stand', s.t + 0.3, true);

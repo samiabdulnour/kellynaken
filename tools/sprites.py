@@ -327,6 +327,74 @@ def bunny():
     return {'file': 'bunny.png', 'w': out.width, 'h': out.height, 'scale': 0.5}
 
 
+# ---- objects: rows of separate things on a transparent background, from art/source/objects/<code>.png ----
+OBJECTS = os.path.join(SOURCE, 'objects')
+OBJECT_ROWS = {                                  # code: (name in the game, what each drawing is, left to right)
+    'P8': ('koalas', ['peek', 'side', 'branch', 'wave', 'happy', 'leaves']),
+}
+
+
+def grid(a):
+    """How wide one drawn "pixel" is: the spacing at which the colour edges down the picture line up best."""
+    d = np.abs(np.diff(a[..., :3].astype(int), axis=0)).sum(axis=2)
+    prof = d.sum(axis=1).astype(float); prof -= prof.mean(); x = np.arange(len(prof))
+    best = max((abs((prof * np.exp(2j * np.pi * x / p)).sum()), p) for p in np.arange(3.5, 9, 0.02))
+    return best[1]
+
+
+def pieces(mask, least):
+    """The separate things in a picture: groups of touching pixels (corners count), smallest scraps joined to the
+    nearest bigger group. Returned left to right, as lists of (y, x)."""
+    h, w = mask.shape
+    seen = np.zeros_like(mask, bool)
+    groups = []
+    for y0, x0 in zip(*np.nonzero(mask)):
+        if seen[y0, x0]: continue
+        stack, got = [(y0, x0)], []
+        seen[y0, x0] = True
+        while stack:
+            y, x = stack.pop(); got.append((y, x))
+            for dy in (-1, 0, 1):
+                for dx in (-1, 0, 1):
+                    v, u = y + dy, x + dx
+                    if 0 <= v < h and 0 <= u < w and mask[v, u] and not seen[v, u]: seen[v, u] = True; stack.append((v, u))
+        groups.append(got)
+    big = [g for g in groups if len(g) >= least]
+    for g in groups:
+        if len(g) >= least: continue
+        cy, cx = np.mean(g, axis=0)
+        near = min(big, key=lambda b: min((y - cy) ** 2 + (x - cx) ** 2 for y, x in b[::7]))
+        near.extend(g)
+    return sorted(big, key=lambda g: min(x for _, x in g))
+
+
+def object_sheet(code):
+    """Cut a row of objects apart, bring them down to their own pixel grid and lay them out in equal cells, each
+    standing on the bottom middle of its cell."""
+    path = os.path.join(OBJECTS, code + '.png')
+    if not os.path.exists(path): return None
+    name, parts = OBJECT_ROWS[code]
+    a = np.asarray(Image.open(path).convert('RGBA')).copy()
+    a[a[..., 3] < 128] = 0                              # these come with soft, faint edges: keep only what is clearly there
+    p = grid(a)
+    small = shrink(a, p)                                # the whole row at once, so every thing keeps the same grid
+    groups = pieces(small[..., 3] > 0, 40)
+    assert len(groups) == len(parts), (code, [len(g) for g in groups])
+    frames = []
+    for g in groups:
+        ys, xs = np.array([y for y, _ in g]), np.array([x for _, x in g])
+        f = np.zeros((ys.max() - ys.min() + 1, xs.max() - xs.min() + 1, 4), np.uint8)
+        f[ys - ys.min(), xs - xs.min()] = small[ys, xs]
+        frames.append(Image.fromarray(f, 'RGBA'))
+    cw, ch = max(f.width for f in frames), max(f.height for f in frames)
+    out = Image.new('RGBA', (cw * len(frames), ch))
+    for k, f in enumerate(frames): out.paste(f, (k * cw + (cw - f.width) // 2, ch - f.height))
+    out.save(os.path.join(OUT, 'sprites', f'{name}.png'), optimize=True)
+    print(name, 'from', code, '| drawn pixel', round(p, 2), '| cell', cw, 'x', ch, '|', [f.size for f in frames])
+    poses = {part: [k] for k, part in enumerate(parts)}; poses.setdefault('stand', [0])      # drawn like a character, one pose per drawing
+    return name, {'file': f'{name}.png', 'w': cw, 'h': ch, 'scale': 0.5, 'fps': 1, 'poses': poses}
+
+
 LEG_TOP = {'ken': 0.66, 'kel': 0.60, 'leila': 0.62, 'sami': 0.58, 'zofia': 0.62, 'alan': 0.58}     # where the legs start, as a share of the height
 FILL = {'kel': 0.55}                                                                                  # white leggings on cream paper
 EXTRAS = {'alan': ('drum', 1), 'sami': ('moto', 3), 'zofia': ('cheer', 1), 'kel': ('cheer', 1)}   # a small action pose worth keeping
@@ -374,6 +442,9 @@ def main():
     print('star', star.size)
     b = bunny()
     if b: info['bunny'] = b; print('bunny', b['w'], 'x', b['h'])
+    for code in OBJECT_ROWS:
+        got = object_sheet(code)
+        if got: info[got[0]] = got[1]
     with open(os.path.join(OUT, 'sprites.js'), 'w') as f:
         f.write('// Written by tools/sprites.py: the characters cut from the character sheet.\n')
         f.write('window.SPRITES = ' + json.dumps(info, indent=2) + ';\n')

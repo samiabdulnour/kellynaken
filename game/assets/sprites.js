@@ -330,5 +330,35 @@ window.SPRITES = {
     "w": 27,
     "h": 46,
     "scale": 0.5
+  },
+  "koalas": {
+    "file": "koalas.png",
+    "w": 46,
+    "h": 64,
+    "scale": 0.5,
+    "fps": 1,
+    "poses": {
+      "peek": [
+        0
+      ],
+      "side": [
+        1
+      ],
+      "branch": [
+        2
+      ],
+      "wave": [
+        3
+      ],
+      "happy": [
+        4
+      ],
+      "leaves": [
+        5
+      ],
+      "stand": [
+        0
+      ]
+    }
   }
 };
