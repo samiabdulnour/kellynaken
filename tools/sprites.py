@@ -322,7 +322,23 @@ def pose_sheet(name):
         out.paste(f, (k * cw + cw // 2 - int(round(ax)), ch - f.height - lift))
         poses.setdefault(pose, []).append(k)
     out.save(os.path.join(OUT, 'sprites', f'{name}-poses.png'), optimize=True)
-    return {'file': f'{name}-poses.png', 'w': cw, 'h': ch, 'scale': 0.5, 'fps': 9, 'poses': poses}
+    # faces for the speech box, the buttons and the turn sign: the head of the first running frame, drawn as finely as the poses
+    run0 = np.asarray([fr for fr in frames if fr[0] == 'run'][0][1])
+    top = run0[:int(run0.shape[0] * HEAD_SHARE.get(name, 0.46))].copy()
+    biggest = max(pieces(top[..., 3] > 0, 1), key=len, default=[])                 # just the head: no stray fist or sleeve
+    keep = np.zeros(top.shape[:2], bool)
+    for y, x in biggest: keep[y, x] = True
+    top[~keep] = 0
+    ys, xs = np.nonzero(top[..., 3])
+    head = Image.fromarray(top[ys.min():ys.max() + 1, xs.min():xs.max() + 1], 'RGBA')
+    fimg = Image.new('RGBA', (head.width * 5, head.height))
+    for k in range(5): fimg.paste(head, (k * head.width, 0))
+    fimg.save(os.path.join(OUT, 'sprites', f'{name}-heads.png'), optimize=True)
+    return {'file': f'{name}-poses.png', 'w': cw, 'h': ch, 'scale': 0.5, 'fps': 9, 'poses': poses,
+            'faces': {'file': f'{name}-heads.png', 'w': head.width, 'h': head.height, 'n': 5, 'scale': 0.36}}
+
+
+HEAD_SHARE = {'ken': 0.47, 'kel': 0.45}         # how much of a running frame, from the top, is the head (hair included)
 
 
 def bunny():

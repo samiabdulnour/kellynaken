@@ -40,10 +40,11 @@ window.SPRITES = {
       ]
     },
     "faces": {
-      "file": "ken-faces.png",
-      "w": 20,
-      "h": 15,
-      "n": 5
+      "file": "ken-heads.png",
+      "w": 44,
+      "h": 49,
+      "n": 5,
+      "scale": 0.36
     },
     "still": {
       "file": "ken.png",
@@ -116,10 +117,11 @@ window.SPRITES = {
       ]
     },
     "faces": {
-      "file": "kel-faces.png",
-      "w": 20,
-      "h": 16,
-      "n": 5
+      "file": "kel-heads.png",
+      "w": 49,
+      "h": 44,
+      "n": 5,
+      "scale": 0.36
     },
     "still": {
       "file": "kel.png",
