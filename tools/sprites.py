@@ -449,8 +449,8 @@ def object_sheet(code):
 # ---- the grown-ups: a sheet each of eight figures on a transparent background, from art/source/people/<id>.webp ----
 PEOPLE = os.path.join(SOURCE, 'people')
 PEOPLE_POSES = ['front', 'three', 'side', 'back', 'walk', 'run', 'cheer', 'act']    # top row: from four sides; bottom row: walking, running, a jump for joy, their own thing
-PEOPLE_PIXEL = 3.9                               # one size for all four, so they keep their heights next to each other; finer than they
-                                                 # are drawn, so at half size they stand about a third taller than the heroes
+PEOPLE_HEIGHT = {'leila': 132, 'alan': 135, 'sami': 130, 'zofia': 134}   # standing height in sprite pixels: about a third taller than the heroes
+GRADE = set()                                    # sheets whose colours need lifting to the heroes' (the first, darker sheets did)
 
 
 def box_shrink(a, step):
@@ -499,6 +499,17 @@ def grade(img, lift=0.17, gamma=0.86, sat=1.12, head=0.3):
     return Image.fromarray(a.astype(np.uint8), 'RGBA')
 
 
+def lift_blacks(img, head=0.3):
+    """Black clothes become the heroes' soft charcoal (Kendrick's T-shirt): only the darkest colours are lifted,
+    and in the head the eyes and brows stay as they are."""
+    a = np.asarray(img).astype(float).copy(); h = a.shape[0]
+    for y, x in zip(*np.nonzero(a[..., 3])):
+        hh, ss, vv = colorsys.rgb_to_hsv(*(a[y, x, :3] / 255))
+        if vv >= 0.33 or y < h * head: continue
+        a[y, x, :3] = np.array(colorsys.hsv_to_rgb(hh, ss * 0.9, 0.14 + 0.62 * vv)) * 255
+    return Image.fromarray(a.astype(np.uint8), 'RGBA')
+
+
 def unline(img, head=0.3):
     """Thin dark lines inside the body (below the head, where the eyes are) become a darker shade of the colour
     on either side of them, like the outer edge."""
@@ -524,7 +535,10 @@ def people_sheet(name):
     a = np.asarray(Image.open(path).convert('RGBA')).copy()
     a[a[..., 3] < 128] = 0
     a[..., 3] = np.where(a[..., 3] > 0, 255, 0)
-    small = tidy(palette(box_shrink(a, PEOPLE_PIXEL), 80))    # even fine pixels and flat colours, like the heroes'
+    # how tall a standing figure is on this sheet: the tallest thing in the top half
+    rough = shrink(a, 4.0); tops = [g for g in pieces(rough[..., 3] > 0, 150) if np.mean([y for y, _ in g]) < rough.shape[0] / 2]
+    tall = max(max(y for y, _ in g) - min(y for y, _ in g) + 1 for g in tops) * 4.0
+    small = tidy(palette(box_shrink(a, tall / PEOPLE_HEIGHT[name]), 80))     # even fine pixels and flat colours, like the heroes'
     groups = pieces(small[..., 3] > 0, 150)
     assert len(groups) == 8, (name, [len(g) for g in groups])
     frames = []
@@ -538,7 +552,9 @@ def people_sheet(name):
             h = f.shape[0]
             band = f[int(h * 0.15):int(h * 0.5), :, 3] > 0                     # head and shoulders: where the body is, whatever the arms do
             ax = float(np.median(np.nonzero(band)[1])) + 0.5
-            frames.append((unline(soften(grade(Image.fromarray(f, 'RGBA')))), ax, int(ground - 1 - ys.max())))
+            fig = Image.fromarray(f, 'RGBA')
+            fig = grade(fig) if name in GRADE else lift_blacks(fig)
+            frames.append((unline(soften(fig)), ax, int(ground - 1 - ys.max())))
     left = max(int(np.ceil(ax)) for _, ax, _ in frames)
     right = max(int(np.ceil(f.width - ax)) for f, ax, _ in frames)
     cw, ch = int(2 * max(left, right) + 2), int(max(f.height + lift for f, _, lift in frames))

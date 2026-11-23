@@ -161,7 +161,7 @@ window.SPRITES = {
   "leila": {
     "file": "leila-poses.png",
     "w": 78,
-    "h": 132,
+    "h": 131,
     "scale": 0.5,
     "fps": 6,
     "poses": {
@@ -196,7 +196,7 @@ window.SPRITES = {
     },
     "faces": {
       "file": "leila-heads.png",
-      "w": 52,
+      "w": 49,
       "h": 55,
       "n": 5,
       "scale": 0.36
@@ -234,8 +234,8 @@ window.SPRITES = {
   },
   "alan": {
     "file": "alan-poses.png",
-    "w": 86,
-    "h": 135,
+    "w": 82,
+    "h": 134,
     "scale": 0.5,
     "fps": 6,
     "poses": {
@@ -270,7 +270,7 @@ window.SPRITES = {
     },
     "faces": {
       "file": "alan-heads.png",
-      "w": 41,
+      "w": 40,
       "h": 55,
       "n": 5,
       "scale": 0.36
@@ -350,7 +350,7 @@ window.SPRITES = {
     },
     "faces": {
       "file": "sami-heads.png",
-      "w": 38,
+      "w": 39,
       "h": 54,
       "n": 5,
       "scale": 0.36
@@ -394,8 +394,8 @@ window.SPRITES = {
   },
   "zofia": {
     "file": "zofia-poses.png",
-    "w": 82,
-    "h": 141,
+    "w": 72,
+    "h": 134,
     "scale": 0.5,
     "fps": 6,
     "poses": {
@@ -430,8 +430,8 @@ window.SPRITES = {
     },
     "faces": {
       "file": "zofia-heads.png",
-      "w": 52,
-      "h": 59,
+      "w": 49,
+      "h": 56,
       "n": 5,
       "scale": 0.36
     },
