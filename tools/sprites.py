@@ -472,7 +472,7 @@ OBJECT_SCALE = {'dog': 0.3}                       # how big a sheet is shown, wh
 # ---- the grown-ups: a sheet each of eight figures on a transparent background, from art/source/people/<id>.webp ----
 PEOPLE = os.path.join(SOURCE, 'people')
 PEOPLE_POSES = ['front', 'three', 'side', 'back', 'walk', 'run', 'cheer', 'act']    # top row: from four sides; bottom row: walking, running, a jump for joy, their own thing
-PEOPLE_HEIGHT = {'leila': 132, 'alan': 135, 'sami': 130, 'zofia': 134, 'vaclav': 142}   # Václav was a big man   # standing height in sprite pixels: about a third taller than the heroes
+PEOPLE_HEIGHT = {'sami': 146, 'alan': 146, 'vaclav': 138, 'leila': 131, 'zofia': 131}   # standing height in sprite pixels: Sami and Alan the biggest, then Václav, then Mamka and Žofia; all well above the heroes
 GRADE = set()                                    # sheets whose colours need lifting to the heroes' (the first, darker sheets did)
 
 
