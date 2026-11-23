@@ -65,7 +65,8 @@ def main():
 
     with open(os.path.join(args.out, 'manifest.js'), 'w') as f:
         f.write('// Written by tools/pixelate.py: the art that exists. Anything not listed is drawn as a stand-in.\n')
-        f.write('window.ASSETS = ' + json.dumps({'bg': sorted(done)}, indent=2) + ';\n')
+        drawn = [n[:-4] for n in os.listdir(os.path.join(args.out, 'bg')) if n.endswith('.png')]      # and pictures drawn by other tools (tools/czmap.py)
+        f.write('window.ASSETS = ' + json.dumps({'bg': sorted(set(done) | set(drawn))}, indent=2) + ';\n')
     missing = [f"{sc['code']} {sc['id']}" for sc in scenes if sc['id'] not in done]
     print(f'{len(done)} of {len(scenes)} scenes ready.' + (' Still waiting for: ' + ', '.join(missing) if missing else ''))
 

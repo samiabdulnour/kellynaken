@@ -19,15 +19,18 @@ the hits and the items. What they share lives in one room on the server (`server
 game has to be opened from the server's address. Each device also remembers the progress, so a restarted server is
 told how far they had got. Adding `?solo` to the address plays it alone on one device, for trying things out.
 
-Levels are picked on a spinning planet. Each place has four scenes, and who is waiting to be rescued there is a
-surprise: the game never names them before they are free.
+Levels are picked on two maps. The map of Czechia has a pin for each place at home, with Prague's under a magnifying
+glass; "Svět" zooms out to a spinning planet for the rest of the world, where the Česko pin zooms back in. Who is
+waiting to be rescued is a surprise: the game never names them before they are free.
 
 | Place | Rescued there | Built so far |
 |---|---|---|
-| Praha 5, at home | Mamka (Leila) | pexeso with hairdressing things at home (one turns the first card, the other the second), a dash down the street, shooting the locks off the door, running the salon together (wash, cut, dye, dry, take the money) |
-| Praha 6, Strahov | Alan | a dash up the hill, the locks on the stadium gate, repeating Alan's rhythms in the rehearsal room, the concert; the drumstick is this saga's item |
-| Australia, where both great-grandfathers lived (Václav, who came on a refugee ship after the war and lived ten years in Brisbane, and Georges) | Sami and Žofia, who came to see where Václav lived |
-| Praha 7 (Sparta), Ostrov (near Karlovy Vary), Cyprus, Lebanon | later | shown on the planet, locked |
+| Domov (Praha 5, home) | nobody: someone is missing | shooting off the locks the kids were locked in with, a dash down the street after the trail |
+| Kadeřnictví (Praha 5) | Mamka (Leila) | pexeso with hairdressing things in front of the locked salon (one turns the first card, the other the second; under the last pair is the key), running the salon together (wash, cut, dye, dry, take the money) |
+| Strahov (Praha 6) | Alan | a dash up the hill, the locks on the stadium gate, repeating Alan's rhythms in the rehearsal room, the concert; the drumstick is this saga's item |
+| Australia, where both great-grandfathers lived (Václav, who came on a refugee ship after the war and lived ten years in Brisbane, and Georges) | Sami and Žofia, who came to see where Václav lived | a short film of Václav's story, the torn message on Bondi, surfing with the boomerang, koalas hidden in the bush, the lifebuoys at the shark reef, building Sami's house in Sydney with the crane |
+| Zimní stadion (Praha 7, Sparta), Ostrov (near Karlovy Vary) | later | on the map of Czechia, locked |
+| Cyprus, Lebanon, Thailand | later | on the planet, locked |
 
 Kendrick shoots a puck with his hockey stick; Kellyn throws her white bunny and stars.
 Some scenes hold an item to pick up, like a power-up. The drumstick is for hitting: in a dash the hero whacks whatever
@@ -36,12 +39,13 @@ three throws that fly ahead, knock out the first thing in the way and come back.
 
 | Path | What it is |
 |---|---|
-| `game/world.js` | The world: the planet's pins, every place, its four scenes, the story lines. A new place is a new entry here plus its pictures. |
+| `game/world.js` | The world: the pins on both maps, every place, its scenes, the story lines. A new place is a new entry here plus its pictures. |
 | `game/room.js` | The rules of a session, shared by the server and the page: who is here, where they are, lives and hits, what each scene throws at them. |
 | `game/engine.js` | The pixel screen (192 x 288, scaled by whole numbers), scenes, input, saving, art loading. |
-| `game/game.js` | Title, the planet, places, the games inside a scene (dash, drums, shot), the album. Shows the room's state and reports what its own hero does. |
+| `game/game.js` | Title, the map of Czechia, the planet, places, the games inside a scene, the album. Shows the room's state and reports what its own hero does. |
 | `art/CHATGPT-PACK.md` | The prompts for drawing the scenes and objects in the style of the character sheets. |
 | `art/scenes.json` | Which picture is which scene, and its size in the game. |
+| `tools/czmap.py` | Draws the map of Czechia from the real border (`art/source/geo/borders.json`, Natural Earth) and prints where its pins go. |
 | `art/source/` | The pictures as they come back from ChatGPT, named by code: `S3.png`. |
 | `art/source/characters.webp` | The character sheet: six cards of standing figures, action poses and faces. |
 | `tools/sprites.py` | Cuts the characters: the heroes' drawn poses from `art/source/poses/`, the grown-ups' sheets of eight figures from `art/source/people/`, the faces, and rows of objects from `art/source/objects/`. Dark outlines round the characters become darker shades of their own colours. | Praděda Václav has a sheet of his own (`art/source/people/vaclav-stand.png`), drawn through Figma from a description; his face is shown with the story lines about him.

@@ -61,7 +61,8 @@
   const todo = (p) => isOpen(p) && !progress(p).done;
   const stateOf = (p) => (progress(p).done ? 'hotovo' : isOpen(p) ? 'hraj' : 'zamčeno');
   const fullName = (p) => (p.area ? `${p.name} · ${p.area}` : p.name);
-  const behind = (pin) => (pin.places || []).map((id) => places.find((p) => p.id === id));
+  const onMap = (p) => WORLD.map.pins.some((pin) => pin.place === p.id);           // picked on the map of Czechia, not the planet
+  const behind = (pin) => (pin.map ? WORLD.map.pins.filter((m) => m.place).map((m) => m.place) : pin.places || []).map((id) => places.find((p) => p.id === id));
   const later = (pin) => (pin.later || []).map((id) => (WORLD.later || []).find((p) => p.id === id)).filter(Boolean);   // places that open in the future
   const pinState = (pin) => {
     const ps = behind(pin);
@@ -87,7 +88,7 @@
     if (key !== shown) {
       shown = key; away = false;
       const p = places.find((x) => x.id === s.where.place);
-      go(s.where.screen === 'place' ? Place(p) : s.where.screen === 'scene' ? Play(p, s.scene) : s.where.screen === 'rescued' ? Rescued(p) : Planet);
+      go(s.where.screen === 'place' ? Place(p) : s.where.screen === 'scene' ? Play(p, s.scene) : s.where.screen === 'rescued' ? Rescued(p) : s.where.screen === 'planet' ? Planet : Czechia);
     } else if (!away && K.scene && K.scene.sync) K.scene.sync(s);
     waiting.hidden = s.ready;
     waiting.textContent = `Čekám na ${heroName(mate())}. Hraje se ve dvou, každý na svém telefonu.`;
@@ -178,6 +179,7 @@
     const stars = (() => { const r = K.rng(11); return Array.from({ length: 46 }, () => [Math.floor(r() * W), 22 + Math.floor(r() * (H - 22)), r() * 6]); })();
     let rot = 0, aim = null, t = 0, list = null;
     const TIP = 'Otoč planetou. Klepni na místo.';
+    const zoomIn = () => { beep(660, 520); Net.send({ type: 'zoom', to: 'map' }); };
     const say = (text) => { const tip = K.ui.querySelector('.tip'); if (tip) tip.textContent = text; };
     const close = () => { if (list) { list.remove(); list = null; say(TIP); } };
     // Travelling takes both of them: the room moves everyone, or says who is still missing.
@@ -195,9 +197,10 @@
       get rot() { return rot; }, set rot(v) { rot = v; aim = null; },
       where(i) { return spot(pins[i], rot); },
       enter() {
-        const bar = add(`<div class="bar"><span>Planeta</span><span><button data-go="album">Album</button><button data-go="title">${esc(heroName())}</button></span></div>`);
+        const bar = add(`<div class="bar"><span>Svět</span><span><button data-go="album">Album</button><button data-go="title">${esc(heroName())}</button></span></div>`);
         bar.addEventListener('click', (e) => { const b = e.target.closest('[data-go]'); if (!b) return; if (b.dataset.go === 'album') { away = true; go(Album); } else toTitle(); });
-        add(`<p class="tip">${TIP}</p>`);
+        add(`<p class="tip up">${TIP}</p>`);
+        add('<button class="btn zoom">&lt; Česko</button>').addEventListener('click', zoomIn);
         const lead = pins.find((pin) => pinState(pin) === 'todo') || pins[0];
         aim = lonOf(lead); rot = aim - 1; list = null;            // spin round to the next place to save
         if (!skin || (!real && K.picture(WORLD.planet.bg))) makeSkin();
@@ -209,6 +212,7 @@
         let hit = null, best = 14;
         for (const pin of pins) { const p = spot(pin, rot), d = Math.hypot(p.x - x, p.y - 6 - y); if (p.seen && d < best) { best = d; hit = pin; } }
         if (!hit) return;
+        if (hit.map) return zoomIn();                                                   // Czechia: down to its own map
         const state = pinState(hit), ps = behind(hit);
         if (ps.length + later(hit).length > 1) { beep(state === 'soon' ? 440 : 520, 780); return choose(hit); }   // a list, with what opens later shown locked
         if (state === 'soon' || state === 'locked') { const l = later(hit)[0]; beep(180); say(state === 'locked' ? 'Nejdřív dokonči předchozí místo.' : l ? `${fullName(l)} se teprve otevře.` : 'Tohle místo se teprve otevře.'); return; }
@@ -238,6 +242,65 @@
     };
   })();
 
+  // ---- Czechia close up: every place at home has a pin of its own, with its name. "Svět" zooms out to the planet. ----
+  const Czechia = (() => {
+    const M = WORLD.map, laterOf = (pin) => (WORLD.later || []).find((p) => p.id === pin.later);
+    const placeOf = (pin) => places.find((p) => p.id === pin.place);
+    const state = (pin) => { const p = placeOf(pin); return !p ? 'soon' : progress(p).done ? 'done' : isOpen(p) ? 'todo' : 'locked'; };
+    const allDone = () => M.pins.every((pin) => !pin.place || progress(placeOf(pin)).done);
+    const TIP = 'Klepni na místo na mapě.';
+    let t = 0;
+    const say = (text) => { const tip = K.ui.querySelector('.tip'); if (tip) tip.textContent = text; };
+    function pick(pin) {
+      const st8 = state(pin), p = placeOf(pin);
+      if (st8 === 'soon') { beep(180); return say(`${fullName(laterOf(pin))} se teprve otevře.`); }
+      if (st8 === 'locked') { beep(180); return say('Nejdřív dokonči předchozí místo.'); }
+      if (!st().ready) { beep(180); return say(`Čekám na ${heroName(mate())}.`); }
+      beep(520, 780); Net.send({ type: 'go', place: p.id });
+    }
+    return {
+      where(id) { const pin = M.pins.find((q) => (q.place || q.later) === id); return { x: pin.at[0], y: pin.at[1] }; },
+      enter() {
+        t = 0;
+        const bar = add(`<div class="bar"><span>${esc(M.name)}</span><span><button data-go="album">Album</button><button data-go="title">${esc(heroName())}</button></span></div>`);
+        bar.addEventListener('click', (e) => { const b = e.target.closest('[data-go]'); if (!b) return; if (b.dataset.go === 'album') { away = true; go(Album); } else toTitle(); });
+        // Each place's name next to its pin; tapping the name works like tapping the pin.
+        const at = ([x, y]) => `left:${(x / W) * 100}%;top:${(y / H) * 100}%`;
+        for (const pin of M.pins) {
+          const p = placeOf(pin) || laterOf(pin);
+          add(`<button class="pin ${pin.label || 'below'} ${state(pin)}" data-id="${pin.place || pin.later}" style="${at(pin.at)}">${esc(p.name)}</button>`)
+            .addEventListener('click', () => pick(pin));
+        }
+        if (M.town) add(`<span class="pin town left" style="${at(M.town.at)}">${esc(M.town.name)}</span>`);
+        add(`<p class="tip map">${allDone() ? 'V Česku je hotovo. Další mise čeká ve světě!' : TIP}</p>`);
+        add(`<button class="btn zoom${allDone() ? ' go' : ''}">Svět &gt;</button>`).addEventListener('click', () => { beep(520, 660); Net.send({ type: 'zoom', to: 'planet' }); });
+        draft(M.bg);
+      },
+      tap(x, y) {
+        let hit = null, best = 12;
+        for (const pin of M.pins) { const d = Math.hypot(pin.at[0] - x, pin.at[1] - 8 - y); if (d < best) { best = d; hit = pin; } }
+        if (hit) pick(hit);
+      },
+      update(dt) { t += dt; },
+      draw() {
+        // Coming down from space: the map grows into place for a moment.
+        const e = Math.min(1, t / 0.35), k = 0.55 + 0.45 * (1 - (1 - e) ** 3);
+        rect(0, 0, W, H, '#1A1B36');
+        ctx.save(); ctx.translate(W / 2, H / 2); ctx.scale(k, k); ctx.translate(-W / 2, -H / 2);
+        K.background(M.bg, 0, { sky: '#F2E4BE', far: '#E2D3A2', far2: '#9BD16B', ground: '#F2E4BE', line: '#CBB57F' });
+        for (const pin of M.pins) {
+          const [x, y] = pin.at, st8 = state(pin), bob = st8 === 'todo' ? Math.round(Math.sin(t * 5) * 2) : 0, lit = st8 === 'todo' || st8 === 'done';
+          const col = st8 === 'done' ? '#1FA463' : st8 === 'todo' ? '#CC2233' : '#7A6F6A';
+          rect(x - 1, y - 2, 2, 6, INK);
+          rect(x - 5, y - 12 + bob, 10, 10, INK);
+          rect(x - 4, y - 11 + bob, 8, 8, col);
+          rect(x - 2, y - 9 + bob, 4, 4, lit ? '#FFD43A' : '#B8ADA6');
+        }
+        ctx.restore();
+      },
+    };
+  })();
+
   // ---- one place: its four scenes as a list. Who is waiting there stays a secret until they are free. ----
   const Place = (place) => ({
     enter() { this.paint(); },
@@ -245,9 +308,9 @@
     paint() {
       K.ui.innerHTML = '';
       const pr = progress(place);
-      const bar = add(`<div class="bar"><button data-back>&lt; Planeta</button><span>${esc(fullName(place))}</span></div>`);
+      const bar = add(`<div class="bar"><button data-back>&lt; ${onMap(place) ? esc(WORLD.map.name) : 'Svět'}</button><span>${esc(fullName(place))}</span></div>`);
       bar.querySelector('[data-back]').addEventListener('click', () => Net.send({ type: 'back' }));
-      const head = pr.done ? `Zachráněno: ${place.saves.map((s) => s.name).join(' a ')}` : 'Kdo volá o pomoc?';
+      const head = !place.saves.length ? (pr.done ? 'Hotovo' : place.ask || 'Co se tu stalo?') : pr.done ? `Zachráněno: ${place.saves.map((s) => s.name).join(' a ')}` : 'Kdo volá o pomoc?';
       const list = add(`<div class="list"><h2>${esc(head)}</h2>${place.scenes.map((sc, i) => {
         const state = pr.done || i < pr.scene ? 'hotovo' : i === pr.scene ? 'hraj' : 'zamčeno';
         return `<button class="row${state === 'hraj' ? ' now' : ''}" data-i="${i}"${state === 'zamčeno' ? ' disabled' : ''}><span>${i + 1}</span><span>${state === 'zamčeno' ? '???' : esc(sc.name)}</span><em>${state}</em></button>`;
@@ -932,11 +995,30 @@
   // Pexeso: pairs of cards face down on the table. With two playing, one turns the first card over and the other
   // turns the second, looking for its pair; then they swap. A pair stays up; otherwise both turn back over.
   // Too many wrong guesses and the game is lost.
+  // A golden key, drawn pixel by pixel as finely as the characters: a round bow with a hole, the shaft, two teeth.
+  const KEY = (() => {
+    const w = 72, h = 30, c = document.createElement('canvas'); c.width = w; c.height = h;
+    const g = c.getContext('2d'), img = g.createImageData(w, h), E = [184, 134, 42], B = [255, 212, 58], L = [255, 241, 168];
+    const put = (i, j, col) => img.data.set([...col, 255], (j * w + i) * 4);
+    for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
+      const d = Math.hypot(i - 14.5, j - 14.5);
+      const bow = d < 14.5 && d > 5.5, shaft = i >= 26 && i < 70 && j >= 11 && j < 19, cap = i >= 66 && i < 71 && j >= 9 && j < 21;
+      const tooth = (i >= 50 && i < 56 && j >= 19 && j < 27) || (i >= 59 && i < 65 && j >= 19 && j < 25);
+      if (!(bow || shaft || cap || tooth)) continue;
+      const edge = (bow && (d > 12.5 || d < 7.5)) || (!bow && (j === 11 && !cap || j === 18 && !tooth || i === 70 || j === 9 || j === 20 || (tooth && (j >= 23 || i === 50 || i === 55 || i === 59 || i === 64))));
+      const lit = bow ? d > 8.5 && d < 11.5 && i + j < 22 : (j === 12 || j === 13) && i > 28 && i < 66;
+      put(i, j, edge ? E : lit ? L : B);
+    }
+    g.putImageData(img, 0, 0);
+    return c;
+  })();
+
   function Memory(sc, place, sn) {
     const cfg = sc.memory, who = me(), COLS = 4, CW = 40, CH = 50, GAP = 6, X0 = Math.round((W - (COLS * CW + (COLS - 1) * GAP)) / 2), Y0 = 36;
-    const s = { t: 0, over: false, lost: false, seenMiss: 0, shake: 0 };
+    const s = { t: 0, over: false, lost: false, seenMiss: 0, shake: 0, keyAt: null, endIn: 0 };
     let live = sn;
     const view = stage('<span class="count"></span><span class="turn"></span>', '');
+    const finish = (won) => view.end(won, won ? 'Všechny dvojice!' : 'Došly pokusy.', won ? (cfg.won || 'Výborná paměť!') : 'Zkuste to ještě jednou.');
     const spot = (i) => ({ x: X0 + (i % COLS) * (CW + GAP), y: Y0 + Math.floor(i / COLS) * (CH + GAP) });
     const mine = () => !live.turn || live.turn === who;
     const paint = () => {
@@ -952,7 +1034,11 @@
     return {
       s, kind: 'memory', peek: () => ({ deck: live.deck, open: live.open, done: live.done, mine: mine(), spot }),
       sync(n) { if (n.misses > s.seenMiss) { s.seenMiss = n.misses; s.shake = 0.4; beep(200, 160); } else if (n.done.length > live.done.length) beep(660, 880); live = n; paint(); },
-      over(won) { s.over = true; s.lost = !won; paint(); view.end(won, won ? 'Všechny dvojice!' : 'Došly pokusy.', won ? (cfg.won || 'Výborná paměť!') : 'Zkuste to ještě jednou.'); },
+      over(won) {
+        s.over = true; s.lost = !won; paint();
+        if (won && cfg.key) { s.keyAt = s.t; s.endIn = 1.6; view.tip.textContent = ''; beep(660, 880, 1100, 1320); }     // the key comes out first, then the card
+        else finish(won);
+      },
       down(x, y) {
         if (s.over || !mine() || live.open.length === 2) return;
         for (let i = 0; i < live.deck.length; i++) {
@@ -963,10 +1049,11 @@
           }
         }
       },
-      update(dt) { s.t += dt; if (s.shake > 0) s.shake -= dt; },
+      update(dt) { s.t += dt; if (s.shake > 0) s.shake -= dt; if (s.endIn > 0 && (s.endIn -= dt) <= 0) finish(true); },
       draw() {
         K.background(sc.bg, 0, place.look);
         rect(0, 22, W, H - 22, 'rgba(43,31,26,.55)');
+        if (s.keyAt !== null) return this.drawKey(s.t - s.keyAt);
         live.deck.forEach((f, i) => {
           const p = spot(i), up = live.done.includes(i) || live.open.includes(i), wrong = live.open.length === 2 && live.open.includes(i) && s.shake > 0;
           const x = p.x + (wrong ? Math.round(Math.sin(s.t * 60) * 2) : 0), y = p.y;
@@ -981,6 +1068,17 @@
           const [sheet, pose] = cfg.faces[f], sp = K.sprites[sheet];
           if (sp) K.figure(sheet, x + CW / 2, y + CH - 7, pose, 0, false, Math.min(34 / sp.w, 38 / sp.h));
         });
+      },
+      // The cards are cleared away and a golden key rises from under the last pair, turning, with a sparkle.
+      drawKey(u) {
+        const e = Math.min(1, u / 0.8), y = Math.round(150 - 86 * (1 - (1 - e) ** 3) + (e >= 1 ? Math.sin(u * 3) * 2 : 0)), turn = Math.cos(u * 5);
+        for (let i = 0; i < 8; i++) {                                                     // sparkles round it
+          const a = i / 8 * Math.PI * 2 + u * 1.5, r = 22 + Math.sin(u * 4 + i) * 4;
+          if (Math.sin(u * 9 + i * 2) > -0.2) rect(Math.round(W / 2 + Math.cos(a) * r), Math.round(y + Math.sin(a) * r * 0.8), 2, 2, i % 2 ? '#FFF1A8' : '#FFD43A');
+        }
+        ctx.save(); ctx.translate(W / 2, y); ctx.scale(Math.max(0.12, Math.abs(turn)), 1);
+        ctx.drawImage(KEY, -KEY.width / 4, -KEY.height / 4, KEY.width / 2, KEY.height / 2);    // each of its pixels half a game pixel, as fine as the people
+        ctx.restore();
       },
     };
   }
@@ -1234,8 +1332,8 @@
     let t = 0;
     return {
       enter() {
-        const lines = (place.done || []).map(([key, text]) => `<p class="line">${face(key, 1)}<span><strong>${esc((place.saves.find((s) => s.id === key) || { name: key }).name)}:</strong> ${esc(text)}</span></p>`).join('');
-        const card = add(`<div class="card top"><h2>Zachráněno!</h2>${lines}<button class="btn">Dál</button></div>`);
+        const lines = (place.done || []).map(([key, text]) => (key ? `<p class="line">${face(key, 1)}<span><strong>${esc((place.saves.find((s) => s.id === key) || { name: key }).name)}:</strong> ${esc(text)}</span></p>` : `<p>${esc(text)}</p>`)).join('');
+        const card = add(`<div class="card top"><h2>${place.saves.length ? 'Zachráněno!' : 'Hotovo!'}</h2>${lines}<button class="btn">${place.saves.length ? 'Dál' : 'Na mapu'}</button></div>`);
         card.querySelector('button').addEventListener('click', () => { beep(520, 660); Net.send({ type: 'home' }); });
         beep(520, 660, 780, 1040);
       },
@@ -1256,7 +1354,7 @@
   // ---- the album: everyone rescued so far ----
   const Album = {
     enter() {
-      const bar = add('<div class="bar"><button data-back>&lt; Planeta</button><span>Album</span></div>');
+      const bar = add('<div class="bar"><button data-back>&lt; Zpět</button><span>Album</span></div>');
       bar.querySelector('[data-back]').addEventListener('click', () => { away = false; shown = null; route(); });
       const people = places.flatMap((p) => p.saves);
       add(`<div class="album">${people.map((s) => {

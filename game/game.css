@@ -93,3 +93,17 @@ button{font:inherit;color:inherit}
 .draft{position:absolute;right:.5em;top:3.2em;background:var(--dim);padding:.2em .5em;font-size:.8em}
 
 @media (prefers-reduced-motion:reduce){*{animation-duration:.001ms!important}}
+.btn.zoom{position:absolute;left:.75em;bottom:.75em;padding:.5em .8em}
+.btn.zoom.go{animation:nudge 1s steps(2,jump-none) infinite}
+@keyframes nudge{50%{background:var(--paper)}}
+.tip.map{inset:2.9em 0 auto;margin:0 auto;width:fit-content;max-width:calc(100% - 1.5em);background:var(--dim);padding:.15em .6em}
+.pin{position:absolute;animation:arrive .4s steps(2,jump-none) both;font-size:.75em;font-weight:700;line-height:1.1;white-space:nowrap;padding:.1em .35em;cursor:pointer;
+  background:var(--paper);color:var(--ink);border:.17em solid var(--ink)}
+.pin.below{transform:translate(-50%,.35em)}
+.pin.right{transform:translate(.9em,-155%)}
+.pin.left{transform:translate(calc(-100% - .9em),-155%)}
+.pin.todo{background:var(--yellow)}
+.pin.done{background:var(--green);color:var(--paper)}
+.pin.locked,.pin.soon{background:#D8CFC4;color:var(--ink-soft);border-color:var(--ink-soft)}
+.pin.town{cursor:default;pointer-events:none;background:none;border:0;color:var(--ink);font-size:.7em;transform:translate(calc(-100% - .4em),-50%)}
+@keyframes arrive{from{opacity:0}}

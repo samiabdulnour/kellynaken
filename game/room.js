@@ -7,12 +7,12 @@
 // for trying things out on one device.
 //
 // Messages a device sends:
-//   go {place}          open a place from the planet             open {index}     start one of its scenes
+//   go {place}          open a place from one of the maps         open {index}     start one of its scenes
 //   next                the next line of the story               done             leave a scene that has no game yet
 //   ev {e, ...}         something that counts: hurt, hit, miss, pick, finish, pad, find, flip, grab, sting, pull, crane, drop
 //   fx {...}            something only to show on the other device (a jump, a shot, a drum tap)
-//   cont / retry        after a scene is won / lost              home             back to the planet after a rescue
-//   back                up one level
+//   cont / retry        after a scene is won / lost              home             back to the map after a rescue
+//   back                up one level                             zoom {to}        between the map of Czechia ('map') and the planet
 // The room answers everyone with its whole state after every change.
 (function (root) {
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -82,20 +82,30 @@
   function create({ world, solo, now, emit }) {
     const places = world.places, GAMES = ['run', 'drums', 'shoot', 'echo', 'find', 'salon', 'memory', 'collect', 'rescue', 'tower'];
     const owner = (pad) => (pad < 2 ? 'ken' : 'kel');                                 // in the echo game each of them has two of the four drums
-    const S = { online: { ken: false, kel: false }, save: { places: {}, album: [] }, where: { screen: 'planet' }, scene: null };
+    const S = { online: { ken: false, kel: false }, save: { places: {}, album: [] }, where: { screen: 'map' }, scene: null };
     let serial = 0;
     const prog = (id) => (S.save.places[id] = S.save.places[id] || { scene: 0, done: false });
     const isOpen = (p) => { const i = places.indexOf(p); return i === 0 || (i > 0 && prog(places[i - 1].id).done); };
     const both = () => S.online.ken && S.online.kel;
     const ready = () => !!solo || both();
     const place = () => places.find((p) => p.id === S.where.place);
+    const mapOf = (p) => ((world.map && world.map.pins.some((pin) => pin.place === p.id)) ? 'map' : 'planet');   // which map a place is picked on
     const push = () => emit('all', { type: 'state', now: now(), ready: ready(), solo: !!solo, online: S.online, save: S.save, where: S.where, scene: S.scene });
 
+    // Praha 5 used to be one place of four scenes (pexeso, street, padlocks, salon). It is now two on the map of
+    // Czechia: Domov (padlocks, street) and Kadeřnictví (pexeso, salon). Carry what was played over.
+    function upgrade(saved) {
+      const old = saved && saved.praha5;
+      if (!old || saved.domov) return saved;
+      const n = old.done ? 4 : old.scene | 0;
+      return { ...saved, domov: { scene: n >= 2 ? 2 : 0, done: n >= 2 }, kadernictvi: { scene: n >= 4 ? 2 : n >= 1 ? 1 : 0, done: n >= 4 } };
+    }
     // Two devices may each remember a different amount: keep whichever got further.
     function merge(save) {
       if (!save || typeof save !== 'object') return;
+      const saved = upgrade(save.places);
       for (const p of places) {
-        const theirs = save.places && save.places[p.id];
+        const theirs = saved && saved[p.id];
         if (!theirs) continue;
         const mine = prog(p.id);
         mine.scene = Math.max(mine.scene, Math.min(p.scenes.length, theirs.scene | 0));
@@ -287,8 +297,9 @@
       const sn = S.scene, sc = sn && place().scenes[sn.index];
       if (m.type === 'back') {
         if (S.where.screen === 'scene') { S.scene = null; S.where = { screen: 'place', place: S.where.place }; }
-        else S.where = { screen: 'planet' };
-      } else if (m.type === 'home') S.where = { screen: 'planet' };
+        else if (place()) S.where = { screen: mapOf(place()) };
+      } else if (m.type === 'home') S.where = { screen: place() ? mapOf(place()) : 'map' };
+      else if (m.type === 'zoom') { if ((S.where.screen === 'map' || S.where.screen === 'planet') && (m.to === 'map' || m.to === 'planet')) S.where = { screen: m.to }; }
       else if (!ready()) { /* nothing below may happen until both are here */ }
       else if (m.type === 'go') { const p = places.find((x) => x.id === m.place); if (p && isOpen(p) && S.where.screen !== 'scene') S.where = { screen: 'place', place: p.id }; }
       else if (m.type === 'open' && S.where.screen === 'place') { const p = place(), pr = prog(p.id), i = m.index | 0; if (p.scenes[i] && (pr.done || i <= pr.scene)) start(i); }

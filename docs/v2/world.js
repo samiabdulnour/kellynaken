@@ -1,17 +1,19 @@
-// The world: every place the kids can travel to, in the order they open, and the planet they are picked on.
-// A new place is a new entry in `places`, a pin on the planet, and its pictures in art/. Nothing else needs to change.
+// The world: every place the kids can travel to, in the order they open, and the two maps they are picked on.
+// A new place is a new entry in `places`, a pin on one of the maps, and its pictures in art/. Nothing else needs to change.
 //
-// `planet.pins` sit at [x, y] on the world picture (art/source/S0, 384 x 192 in the game), which is wrapped around
-// the planet. A pin leads to one place or, where several are too close together to tell apart from space
-// (Praha 5, Praha 6, Ostrov), to a short list. `later` lists places on that pin that open in the future.
+// The places at home are on the map of Czechia (`map`, drawn by tools/czmap.py from the real border), each with a
+// pin of its own at [x, y] on that picture; Prague's are under the magnifying glass. From there one zooms out to
+// the whole world (`planet`): its picture (art/source/S0, 384 x 192 in the game) is wrapped around a ball, and its
+// pins sit at [x, y] on that picture. The Česko pin zooms back in. A pin with `later` is a place that opens in the future.
 //
 // Who is waiting to be rescued in a place (`saves`) is a surprise: the game never names them before they appear.
 // Locked scenes show as ??? and the story lines only hint. Keep new texts that way. `cast` puts people into a
 // scene once they have appeared. A story line can name a third thing, someone it tells of: their face is shown with
 // the line. A fourth thing shows a picture instead of the scene while the line is read ('ship', 'photo',
 // 'travellers': the opening of Australia, told like a short film, with the past in old-photo colours).
+// A place with nobody to rescue (Domov) ends with its `done` lines on a card, and the next place opens.
 //
-// Each place has four scenes. A scene has a background (bg), some lines of story (talk), and a way to play.
+// A place has a few scenes. A scene has a background (bg), some lines of story (talk), and a way to play.
 // `ground` is how far down the picture feet stand, when it is not the usual 232 (the sea, the jetty).
 // A scrolling picture is repeated with every other copy mirrored; `tile: 'repeat'` repeats it as it is.
 //   run     a side-scrolling dash: tap to jump the obstacles
@@ -19,7 +21,8 @@
 //   echo    a rhythm is played on four drums and has to be played back; each of them has two of the drums
 //   find    koalas peek out of the trees: tap them while they show; drag to look around a wide picture
 //   salon   customers want washing, cutting, dyeing, drying and paying: lead them from place to place and work there
-//   memory  pexeso: one turns the first card over, the other turns the second looking for its pair; then they swap
+//   memory  pexeso: one turns the first card over, the other turns the second looking for its pair; then they swap.
+//           With `key`, a key comes out from under the last pair: it opens the door to the next scene
 //   collect run along the beach picking up what the waves wash in, and keep away from the jellyfish
 //   rescue  throw lifebuoys to the people on the rock, then pull them across before the shark gets there
 //   tower   build a house storey by storey: one drives the crane, the other lets each storey go
@@ -28,7 +31,7 @@
 //   stub    not built yet: shows a card and lets you carry on
 //
 // `pickup` puts one of the `items` into a scene, to grab like a power-up: jump into it in a dash, hit it in a shot,
-// catch it on the line in the drums. Each item belongs to one saga: the drumstick to Praha 6 (the drumming),
+// catch it on the line in the drums. Each item belongs to one saga: the drumstick to Strahov (the drumming),
 // the boomerang to Australia. The drumstick is for hitting: in a dash the hero whacks whatever comes at them for a few
 // seconds, and in the drums every hit counts twice. The boomerang is for throwing: in a dash it gives three throws
 // that fly ahead, knock out the first thing in the way and come back.
@@ -45,39 +48,63 @@ window.WORLD = {
     drumstick: { name: 'Palička', art: ['strahov', 'sticks'], use: 'hit', dash: 'Palička! Chvíli praštíš do všeho, co ti stojí v cestě.', shot: 'Palička! Každá rána je dvojitá.', drums: 'Palička! Chvíli se každá trefa počítá dvakrát.' },
     boomerang: { name: 'Bumerang', art: ['aussie', 'boomerang'], use: 'throw', dash: 'Bumerang! Klepni na Hoď a smete, co ti stojí v cestě. Máš tři hody.', shot: 'Bumerang! Každá rána se vrací.' },
   },
+  // Czechia, close up. Pins: [x, y] on the picture (python3 tools/czmap.py --spots), and which side the name goes.
+  map: {
+    bg: 'czech-map', name: 'Česko',
+    pins: [
+      { place: 'domov', at: [71, 231], label: 'below' },
+      { place: 'kadernictvi', at: [93, 222], label: 'right' },
+      { place: 'praha6', at: [82, 207], label: 'left' },
+      { later: 'zimni', at: [117, 174], label: 'right' },
+      { later: 'ostrov', at: [29, 65], label: 'below' },
+    ],
+    town: { name: 'Praha', at: [68, 74] },                 // the city on the country map, which the glass shows close up
+  },
   planet: {
     bg: 'world-map',
     pins: [
-      { name: 'Česko', at: [198, 52], places: ['praha5', 'praha6'], later: ['praha7', 'ostrov'] },
+      { name: 'Česko', at: [198, 52], map: true },          // zooms in to the map of Czechia
       { name: 'Austrálie', at: [352, 145], places: ['australia'] },
       { name: 'Kypr', at: [215, 69], later: ['kypr'] },
       { name: 'Libanon', at: [228, 73], later: ['libanon'] },
+      { name: 'Thajsko', at: [290, 93], later: ['thajsko'] },
     ],
   },
-  // Places that will open later. They show on the planet, locked, with their names. To open one, give it scenes
-  // and move it into `places` (and from `later` to `places` on its pin).
+  // Places that will open later. They show on the maps, locked, with their names. To open one, give it scenes
+  // and move it into `places` (and on its pin from `later` to `place`, or `places` on the planet).
   later: [
-    { id: 'praha7', name: 'Praha 7', area: 'Sparta' },
+    { id: 'zimni', name: 'Zimní stadion', area: 'Praha 7' },
     { id: 'ostrov', name: 'Ostrov', area: 'u Karlových Varů' },
     { id: 'kypr', name: 'Kypr' },
     { id: 'libanon', name: 'Libanon' },
+    { id: 'thajsko', name: 'Thajsko' },
   ],
   places: [
+    // Home in Praha 5: someone is missing, and somebody has locked the kids in. The trail leads down the street.
     {
-      id: 'praha5', name: 'Praha 5',
+      id: 'domov', name: 'Domov', area: 'Praha 5', ask: 'Kdo tu chybí?',
+      saves: [],
+      look: { sky: '#8FD3F4', far: '#F2C078', far2: '#E7A6B5', ground: '#A39B96', line: '#7A6F6A' },
+      scenes: [
+        { id: 'praha-home', name: 'Doma', bg: 'praha-home', play: 'shoot',
+          shoot: { need: 8, every: 1.5, stay: 3.4, sway: 0, target: 'zámek' },
+          talk: [['', 'Doma je divné ticho. Někdo tu chybí…'], ['', 'A někdo vás zamkl! Na dveřích, na skříních, všude visí zámky.'], ['hero', 'Ty zámky sestřelím!']] },
+        { id: 'praha-street', name: 'Ulice', bg: 'praha-street', scroll: true, play: 'run',
+          run: { seconds: 24, low: 'holub', high: '', art: { low: ['prague', 'pigeon'] } },
+          talk: [['', 'Venku na chodníku leží hřeben a kousek dál sponka do vlasů. Stopa vede ulicí!'], ['', 'Klepni a přeskoč, co ti stojí v cestě.']] },
+      ],
+      done: [['', 'Stopa končí před kadeřnictvím. Najdete ho na mapě.']],
+    },
+    // The salon, also in Praha 5: locked, and the key is under the pexeso cards. Inside, someone is waiting.
+    {
+      id: 'kadernictvi', name: 'Kadeřnictví', area: 'Praha 5',
       saves: [{ id: 'leila', name: 'Mamka' }],           // Leila on the character sheet; in the game she is Mamka
       look: { sky: '#8FD3F4', far: '#F2C078', far2: '#E7A6B5', ground: '#A39B96', line: '#7A6F6A' },
       scenes: [
-        { id: 'praha-home', name: 'Doma', bg: 'praha-home', play: 'memory',
-          memory: { pairs: 8, miss: 10, won: 'Samé kadeřnické věci… a na poslední kartičce je nakreslený salon. Tam musíme jít!',
+        { id: 'praha-door', name: 'Před salonem', bg: 'praha-door', play: 'memory',
+          memory: { pairs: 8, miss: 10, key: true, won: 'A pod poslední dvojicí byl klíč. Dveře jsou odemčené!',
             faces: [['salonkit', 'scissors'], ['salonkit', 'comb'], ['salonkit', 'brush'], ['salonkit', 'dryer'], ['salonkit', 'spray'], ['salonkit', 'dye'], ['salonkit', 'curlers'], ['salonkit', 'mirror']] },
-          talk: [['', 'Doma je divné ticho. Někdo tu chybí…'], ['', 'Na stole leží rozházené kartičky. Možná napoví, kam se ten někdo vydal.'], ['hero', 'Pexeso! Jeden otočí první kartičku, druhý k ní hledá dvojici.']] },
-        { id: 'praha-street', name: 'Ulice', bg: 'praha-street', scroll: true, play: 'run',
-          run: { seconds: 24, low: 'holub', high: '', art: { low: ['prague', 'pigeon'] } },
-          talk: [['', 'Stopa vede ulicí. Klepni a přeskoč, co ti stojí v cestě.']] },
-        { id: 'praha-door', name: 'Zamčené dveře', bg: 'praha-door', play: 'shoot',
-          shoot: { need: 8, every: 1.5, stay: 3.4, sway: 0, target: 'zámek' },
-          talk: [['', 'Dveře drží samé zámky. Kdo je asi za nimi?'], ['hero', 'Ty zámky sestřelím!']] },
+          talk: [['', 'Kadeřnictví je zamčené. Na dveřích visí cedulka: Klíč dostane, kdo najde všechny dvojice.'], ['', 'Na lavičce před dveřmi leží kartičky. Samé kadeřnické věci.'], ['hero', 'Pexeso! Jeden otočí první kartičku, druhý k ní hledá dvojici.']] },
         // From here on she is found: the salon is full and she cannot get away until every customer is done.
         { id: 'praha-salon', name: 'V salonu', bg: 'praha-salon', play: 'salon', cast: ['leila'],
           salon: {
@@ -86,12 +113,12 @@ window.WORLD = {
             work: { wash: 3, cut: 4, dye: 4, dry: 3, pay: 1.2 },
             orders: [['cut', 'pay'], ['wash', 'cut', 'dry', 'pay'], ['wash', 'dye', 'dry', 'pay'], ['wash', 'cut', 'dye', 'dry', 'pay'], ['wash', 'dry', 'pay']],
           },
-          talk: [['', 'Uvnitř je plno. Zákazníci čekají až ke dveřím a kadeřnice nestíhá.'], ['leila', 'Konečně! Dokud tu někdo čeká, nemůžu odejít.'], ['leila', 'Umýt, ostříhat, obarvit, vyfoukat a nakonec zaplatit. Hurá do práce!']] },
+          talk: [['', 'Klíč pasuje! Uvnitř je plno. Zákazníci čekají až ke dveřím a kadeřnice nestíhá.'], ['leila', 'Konečně! Dokud tu někdo čeká, nemůžu odejít.'], ['leila', 'Umýt, ostříhat, obarvit, vyfoukat a nakonec zaplatit. Hurá do práce!']] },
       ],
       done: [['leila', 'Děkuju! A teď už mi tu NELÍTEJTE!']],
     },
     {
-      id: 'praha6', name: 'Praha 6', area: 'Strahov',
+      id: 'praha6', name: 'Strahov', area: 'Praha 6',
       saves: [{ id: 'alan', name: 'Alan' }],
       look: { sky: '#BFE3F2', far: '#A9A6A0', far2: '#8A9A72', ground: '#7FAE66', line: '#5C8650' },
       scenes: [
