@@ -6,13 +6,17 @@
 // (Praha 5 and Praha 6), to a short list. A pin marked `soon` is somewhere that opens later.
 //
 // Who is waiting to be rescued in a place (`saves`) is a surprise: the game never names them before they appear.
-// Locked scenes show as ??? and the story lines only hint. Keep new texts that way.
+// Locked scenes show as ??? and the story lines only hint. Keep new texts that way. `cast` puts people into a
+// scene once they have appeared.
 //
 // Each place has four scenes. A scene has a background (bg), some lines of story (talk), and a way to play.
 // `ground` is how far down the picture feet stand, when it is not the usual 232 (the sea, the jetty).
 // A scrolling picture is repeated with every other copy mirrored; `tile: 'repeat'` repeats it as it is.
 //   run     a side-scrolling dash: tap to jump the obstacles
 //   drums   notes fall down three lanes in time with the beat: tap each drum as its note reaches the line
+//   echo    a rhythm is played on four drums and has to be played back; each of them has two of the drums
+//   find    koalas peek out of the trees: tap them while they show; drag to look around a wide picture
+//   salon   customers want washing, cutting, dyeing, drying and paying: lead them from place to place and work there
 //   shoot   targets pop up and slip away: tap where the shot should go. Kendrick fires a puck with his hockey stick,
 //           Kellyn throws her white bunny
 //   stub    not built yet: shows a card and lets you carry on
@@ -31,8 +35,8 @@ window.WORLD = {
     kel: { name: 'Kellyn', shirt: '#BFE8D0', legs: '#F6C1D0', badge: '#F08BA0', hair: '#9A6535', tie: '#F3A6C0' },
   },
   items: {
-    drumstick: { name: 'Palička', dash: 'Palička! Chvíli rozbiješ všechno, do čeho vběhneš.', shot: 'Palička! Každá rána je dvojitá.', drums: 'Palička! Chvíli se každá trefa počítá dvakrát.' },
-    boomerang: { name: 'Bumerang', dash: 'Bumerang! Chvíli smete všechno, co ti stojí v cestě.', shot: 'Bumerang! Každá rána se vrací.' },
+    drumstick: { name: 'Palička', art: ['strahov', 'sticks'], dash: 'Palička! Chvíli rozbiješ všechno, do čeho vběhneš.', shot: 'Palička! Každá rána je dvojitá.', drums: 'Palička! Chvíli se každá trefa počítá dvakrát.' },
+    boomerang: { name: 'Bumerang', art: ['aussie', 'boomerang'], dash: 'Bumerang! Chvíli smete všechno, co ti stojí v cestě.', shot: 'Bumerang! Každá rána se vrací.' },
   },
   planet: {
     bg: 'world-map',
@@ -52,13 +56,20 @@ window.WORLD = {
         { id: 'praha-home', name: 'Doma', bg: 'praha-home', play: 'stub',
           talk: [['', 'Doma je divné ticho. Někdo tu chybí…'], ['hero', 'Jdeme zjistit, co se stalo.']] },
         { id: 'praha-street', name: 'Ulice', bg: 'praha-street', scroll: true, play: 'run',
-          run: { seconds: 24, low: 'holub', high: '' },
+          run: { seconds: 24, low: 'holub', high: '', art: { low: ['prague', 'pigeon'] } },
           talk: [['', 'Stopa vede ulicí. Klepni a přeskoč, co ti stojí v cestě.']] },
         { id: 'praha-door', name: 'Zamčené dveře', bg: 'praha-door', play: 'shoot',
           shoot: { need: 8, every: 1.5, stay: 3.4, sway: 0, target: 'zámek' },
           talk: [['', 'Dveře drží samé zámky. Kdo je asi za nimi?'], ['hero', 'Ty zámky sestřelím!']] },
-        { id: 'praha-salon', name: 'Uvnitř', bg: 'praha-salon', play: 'stub',
-          talk: [['', 'Uvnitř někdo je. Ještě kousek!']] },
+        // From here on she is found: the salon is full and she cannot get away until every customer is done.
+        { id: 'praha-salon', name: 'V salonu', bg: 'praha-salon', play: 'salon', cast: ['leila'],
+          salon: {
+            seconds: 150, need: 5, patience: 36, every: [11, 15],
+            stations: [{ k: 'wash', x: 30, y: 184 }, { k: 'cut', x: 70, y: 184 }, { k: 'dye', x: 110, y: 184 }, { k: 'dry', x: 150, y: 184 }, { k: 'pay', x: 120, y: 262 }],
+            work: { wash: 3, cut: 4, dye: 4, dry: 3, pay: 1.2 },
+            orders: [['cut', 'pay'], ['wash', 'cut', 'dry', 'pay'], ['wash', 'dye', 'dry', 'pay'], ['wash', 'cut', 'dye', 'dry', 'pay'], ['wash', 'dry', 'pay']],
+          },
+          talk: [['', 'Uvnitř je plno. Zákazníci čekají až ke dveřím a kadeřnice nestíhá.'], ['leila', 'Konečně! Dokud tu někdo čeká, nemůžu odejít.'], ['leila', 'Umýt, ostříhat, obarvit, vyfoukat a nakonec zaplatit. Hurá do práce!']] },
       ],
       done: [['leila', 'Děkuju! A teď už mi tu NELÍTEJTE!']],
     },
@@ -68,18 +79,20 @@ window.WORLD = {
       look: { sky: '#BFE3F2', far: '#A9A6A0', far2: '#8A9A72', ground: '#7FAE66', line: '#5C8650' },
       scenes: [
         { id: 'strahov-hill', name: 'Do kopce', bg: 'strahov-hill', scroll: true, play: 'run', pickup: 'drumstick',
-          run: { seconds: 26, low: 'šiška', high: 'vrána' },
+          run: { seconds: 26, low: 'šiška', high: 'vrána', art: { low: ['strahov', 'cone'], high: ['strahov', 'crow'] } },
           talk: [['', 'Z kopce nad městem někdo volá o pomoc.'], ['', 'Nahoru se musí pěšky. Šišku přeskoč, pod vránou zůstaň dole.']] },
         { id: 'strahov-gate', name: 'Brána stadionu', bg: 'strahov-gate', play: 'shoot', pickup: 'drumstick',
           shoot: { need: 10, every: 1.3, stay: 3.2, sway: 10, target: 'zámek' },
-          talk: [['', 'Starý strahovský stadion. Brána je zavřená na řetěz a zámky se na něm houpou.']] },
-        { id: 'strahov-field', name: 'Na ploše', bg: 'strahov-field', play: 'stub',
-          talk: [['', 'Tak obrovský stadion se jen tak nevidí. Odněkud zespodu se ozývá ťukání.']] },
-        { id: 'strahov-drums', name: 'Pod tribunou', bg: 'strahov-drums', play: 'drums', pickup: 'drumstick',
-          drums: { bpm: 96, beats: 40, pass: 0.6 },
-          talk: [['', 'Dveře pod tribunou povolí, jen když udržíš rytmus.'], ['hero', 'Tak jdeme na to. Raz, dva, tři, čtyři!']] },
+          talk: [['', 'Velký strahovský stadion. Všechny vchody jsou zavřené a na mřížích visí zámky.']] },
+        // From here on he is found: he shows the rhythm, and at the concert he plays along.
+        { id: 'strahov-drums', name: 'Zkušebna', bg: 'strahov-drums', play: 'echo', cast: ['alan'],
+          echo: { rounds: 6, first: 3, beat: 0.6 },
+          talk: [['', 'Pod tribunou je zkušebna. A v ní někdo bubnuje!'], ['alan', 'Večer hraju na stadionu a kapela nikde. Zahrajete to se mnou?'], ['alan', 'Nejdřív zkouška. Já zahraju, vy to po mně zopakujete.']] },
+        { id: 'strahov-concert', name: 'Koncert', bg: 'strahov-concert', play: 'drums', pickup: 'drumstick', cast: ['alan'],
+          drums: { bpm: 104, beats: 72, pass: 0.62, busy: 0.35 }, say: { won: ['Stadion šílí!', 'Takový koncert tu dlouho nebyl.'] },
+          talk: [['', 'Stadion je plný. Světla, pódium a vy tři.'], ['alan', 'Trefujte noty, až budou na čáře. Raz, dva, tři, čtyři!']] },
       ],
-      done: [['alan', 'To byl rytmus! Díky, parťáci.']],
+      done: [['alan', 'To byl koncert! Díky, parťáci.']],
     },
     {
       id: 'australia', name: 'Austrálie',
@@ -89,10 +102,15 @@ window.WORLD = {
         { id: 'australia-beach', name: 'Pláž', bg: 'australia-beach', play: 'stub',
           talk: [['', 'Na druhém konci světa vyplavilo moře láhev. Uvnitř je jediné slovo: POMOC!']] },
         { id: 'australia-sea', name: 'Na vlně', bg: 'australia-sea', scroll: true, play: 'run', ground: 200, tile: 'repeat', pickup: 'boomerang',
-          run: { seconds: 30, low: 'žralok', high: 'bumerang', board: true },
+          run: { seconds: 30, low: 'žralok', high: 'bumerang', board: true, art: { low: ['aussie', 'fin', 'fin2'], high: ['aussie', 'boomerang', 'boomerang2'] } },
           talk: [['', 'Na prkno! Žraloka přeskoč, pod bumerangem zůstaň dole.']] },
-        { id: 'australia-outback', name: 'Buš', bg: 'australia-outback', play: 'stub',
-          talk: [['', 'Cesta vede přes rudou poušť.']] },
+        // Koalas sit still, small, in the forks and on the trunks of the bush picture (S15). A hiding place is [x, y, pose]:
+        // where its feet are on the picture, and whether it hugs the trunk (branch), looks round it (side) or peeks over leaves (peek).
+        { id: 'australia-outback', name: 'Buš', bg: 'australia-bush', play: 'find', ground: 284,
+          find: { seconds: 75, need: 7, hidden: true, size: 0.28, show: 0.45, every: [6, 10],
+            spots: [[53, 118, 'branch'], [188, 130, 'branch'], [150, 32, 'side'], [104, 66, 'side'], [133, 106, 'branch'], [121, 180, 'peek'],
+              [318, 60, 'side'], [392, 90, 'branch'], [322, 114, 'branch'], [417, 148, 'branch'], [362, 222, 'peek'], [262, 178, 'branch']] },
+          talk: [['', 'Cesta vede buší. Ve stromech se něco hýbe…'], ['hero', 'Koaly! Najdeme je všechny.']] },
         { id: 'australia-reef', name: 'Žraločí útes', bg: 'australia-reef', play: 'stub', ground: 246,
           talk: [['', 'Támhle někdo mává! Na skále uprostřed moře.']] },
       ],

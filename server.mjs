@@ -266,6 +266,7 @@ const game = globalThis.Room.create({
   emit: (to, msg) => { const line = `data: ${JSON.stringify(msg)}\n\n`; for (const w of WHO) if ((to === 'all' || to === w) && seats[w]) seats[w].res.write(line); },
 });
 setInterval(() => { for (const w of WHO) if (seats[w]) seats[w].res.write(': ping\n\n'); }, 15000);
+setInterval(() => game.tick(), 250);                 // games that run on their own between messages (the salon)
 function sit(req, res, who, id, save) {
   res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache, no-transform', Connection: 'keep-alive', 'X-Accel-Buffering': 'no', ...CORS });
   res.write('retry: 1500\n\n');
@@ -290,13 +291,15 @@ function readBody(req, done) {
   req.on('data', (c) => { body += c; if (body.length > 2000) req.destroy(); });
   req.on('end', () => { let b = {}; try { b = JSON.parse(body || '{}'); } catch (e) {} done(b && typeof b === 'object' ? b : {}); });
 }
-function serveFile(res, pathname) {
+function serveFile(res, pathname, search) {
   let rel;
   try { rel = decodeURIComponent(pathname); } catch (e) { res.writeHead(400); return res.end('Bad request'); }
   if (rel.endsWith('/')) rel += 'index.html';
   const file = path.join(SITE, path.normalize(rel));
   if (!file.startsWith(SITE + path.sep)) { res.writeHead(403); return res.end('Forbidden'); }
   fs.readFile(file, (err, buf) => {
+    // A folder asked for without its last slash (/v2): send the browser to /v2/, so the page's own files are found.
+    if (err && err.code === 'EISDIR') { res.writeHead(301, { Location: pathname + '/' + (search || ''), 'Cache-Control': 'no-cache' }); return res.end(); }
     if (err) { res.writeHead(404, { 'Content-Type': 'text/plain' }); return res.end('Not found'); }
     const ext = path.extname(file);
     res.writeHead(200, { 'Content-Type': MIME[ext] || 'application/octet-stream', 'Cache-Control': ext === '.html' ? 'no-cache' : 'public, max-age=3600' });
@@ -345,5 +348,5 @@ http.createServer((req, res) => {
   }
   if (url.pathname.startsWith('/v2/api/')) return json(res, 404, { error: 'unknown' });
   if (req.method !== 'GET' && req.method !== 'HEAD') { res.writeHead(405); return res.end(); }
-  serveFile(res, url.pathname);
+  serveFile(res, url.pathname, url.search);
 }).listen(PORT, () => console.log(`Tajné operace on http://localhost:${PORT} (${BOSSES.map((b) => `${b.name}: ${b.kind}`).join(', ')})`));

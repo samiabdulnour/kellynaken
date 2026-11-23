@@ -67,6 +67,9 @@ button{font:inherit;color:inherit}
 .tip{position:absolute;inset:auto 0 1em;text-align:center;font-weight:700;text-shadow:.125em .125em 0 var(--ink)}
 .tip.up{inset:4em 0 auto}
 .count{min-width:4em}
+.clock{min-width:3em;text-align:center;color:var(--paper)}
+.shout{position:absolute;right:.25em;top:19.5em;margin:0;background:var(--paper);color:var(--red);border:.25em solid var(--ink);padding:.2em .5em;font-weight:700;pointer-events:none}
+.shout[hidden]{display:none}
 .card.choose{inset:auto 1em 3.5em;gap:.5em}
 .card.top{inset:1.5em 1em auto}
 .card.choose h2{color:var(--ink)}

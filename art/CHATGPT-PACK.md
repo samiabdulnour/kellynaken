@@ -4,9 +4,14 @@ Everything ChatGPT needs to draw the game's scenes and objects so they match you
 
 ## Where things stand
 
-- **Scenes S0 to S13: done.** All 14 are drawn and in the game. Their prompts stay below for reference, and for any scene you want to redo.
-- **Still to draw: the objects, P1 to P7.** Start with P7 (stick, puck, bunny), because both heroes use it everywhere.
-- **The poses I need** are listed near the end: A1 to A6 for the two heroes first, then A7 to A10. The villain C11 is optional.
+- **Scenes S0 to S15: done.** S6 has been redrawn as Bondi Beach, and S14 (the concert) was drawn from photos of the real Strahov stadium.
+- **Objects P1, P3, P5, P7, P8, P9, P10: done**, made through the Figma connection and in the game: obstacles, padlocks, the puck, the bunny, the items, drums, koalas, the salon's work places and customers.
+- **Poses A1 to A6: done.** Both heroes are drawn from them.
+- **S15, the bush forest: done**, drawn after your photo of the real bush.
+- **Mamka, Alan, Sami and Žofia: done**, from your new sheets of eight figures each. In the game they stand about a third taller than the kids.
+- **S11, the stadium gate:** redrawn after your photos of the real Strahov stadium from outside.
+- **S5 and P9, the salon:** redrawn after your photo of the real salon: dark plaster walls, tall chrome-framed mirrors, black leather chairs, grey stone tiles.
+- **Still to draw:** P2 (the tram), P4 (rewards and map markers). The villain C11 is optional.
 - **Style:** grounded, classic pixel art that follows your character sheets and the finished scenes: natural proportions, muted colours, no black outlines.
 
 ## How to use this
@@ -175,12 +180,12 @@ Same pixel-art style and palette as set up. No text.
 
 ## Part 4: Australia (4 images)
 
-### S6. The beach
+### S6. Bondi Beach
 
 ```text
-S6, an Australian beach. Portrait, 2:3 (1024x1536).
+S6, Bondi Beach in Sydney. Portrait, 2:3 (1024x1536).
 
-A sunny surf beach. In the upper part: bright blue sky with a few puffy clouds, a turquoise sea with gentle white-capped waves, and a rocky headland in the distance. On the sand at the back: a lifeguard tower on stilts, a red-and-yellow flag on a pole, two palm trees, and surfboards stuck upright in the sand. Midday light. The bottom third is flat golden sand, clear and empty.
+A sunny day, seen from the sand looking out to sea. A bright blue sky with a few puffy clouds. Clear turquoise water with darker patches over the reef, and rows of white-capped waves. On the left, a low sandstone headland of honey-coloured rock, with a rectangular ocean pool cut into the rocks at its foot, waves splashing over its sea wall, and a white two-storey clubhouse above it. Far away on the right, a low green headland. On the sand at the back: a small blue-and-white lifeguard lookout tower, a pair of red-and-yellow lifesaving flags, and a few surfboards stuck upright in the sand. Behind the headland, the tops of tall Norfolk Island pines. The bottom third is flat, pale golden sand, clear and empty.
 
 Same pixel-art style and palette as set up. No text.
 ```
@@ -290,6 +295,64 @@ Same pixel-art style and palette as set up. No text.
 ```
 
 ---
+
+## Part 6: the new games (5 images)
+
+### S14. The concert
+
+```text
+S14, a concert in the old stadium. Portrait, 2:3 (1024x1536).
+
+Night inside the huge old stadium, now full for a rock concert. Across the middle stands a big outdoor stage with a high black truss roof, coloured spotlights in pink, yellow and blue shining down through a light haze, two tall speaker stacks at the sides, and a raised drum riser in the centre, left empty because the musicians are added separately. Far behind the stage rise the old concrete stands, packed with a crowd shown only as a dark mass of simple silhouettes with raised hands and a few phone lights. The bottom third is the front of the stage floor, dark wooden boards, clear and empty.
+
+Same pixel-art style and palette as set up. No text, no logos, no band names.
+```
+
+### S15. The bush forest (for finding koalas)
+
+If you draw this one yourself, keep to the same idea: a wide picture with plenty of leafy places at different heights where a small koala could peek out. I mark the hiding places myself.
+
+```text
+S15, a eucalyptus forest in the Australian bush. Wide landscape, 3:2 (1536x1024). In the game the players drag this picture left and right to look around.
+
+A dense bush forest seen side-on in warm late-afternoon light. Ten to twelve tall eucalyptus trees with pale, peeling trunks and thick, rounded crowns of grey-green leaves stand at different distances, spread across the whole width. Their crowns and forks sit at many different heights, from just above the ground to the top of the picture, leaving lots of shadowy, leafy nooks where something small could hide. Between them: tree ferns, tall grass and fallen branches. Thin shafts of golden light fall through the leaves. The bottom fifth is a red earth path running from edge to edge, clear and empty.
+
+No animals of any kind. Same pixel-art style and palette as set up. No text.
+```
+
+### P8. Koalas
+
+```text
+P8, koalas for a hide-and-seek game. Landscape, 3:2 (1536x1024). Magenta background.
+
+Six separate drawings in one row of the same cute, round, grey koala with big fluffy ears and a large dark nose, each with clear magenta space around it: only the head and two paws peeking up over a clump of grey-green eucalyptus leaves; the same, peeking out sideways from behind the leaves; the whole koala hugging a short piece of branch, seen from the side; the same koala waving one paw, happy; the same koala with its eyes closed and smiling; a clump of eucalyptus leaves on its own, the same as in the first drawing.
+
+Same pixel-art style and palette as set up. No text.
+```
+
+### P9. The salon's work places
+
+```text
+P9, the work places in a hair salon, for a cooperative game. Landscape, 3:2 (1536x1024). Magenta background.
+
+Five separate objects in one row, all at the same scale, seen from the front at a slight angle from above, each with clear magenta space around it: a white hair-washing basin on a short stand with a curved neck rest; a pink salon chair with scissors and a comb lying on a small tray beside it; a small trolley with a bowl of hair dye, a brush and three coloured bottles; a standing hood hair dryer; a small wooden counter with a cash register and a little bell.
+
+Same pixel-art style and palette as set up. No text, no logos.
+```
+
+### P10. Salon customers
+
+```text
+P10, customers for a hair salon game. Wide landscape image, plain white background.
+
+Draw them in exactly the style of the attached character sheet: the same proportions, pixel size and coloured outlines, about two thirds as tall as the adults on the sheet.
+
+Six different friendly customers in one row, seen from the side and facing right, the same size, evenly spaced, feet on one straight line: an old lady with a grey bun and a cardigan; a teenager with a messy fringe and a hoodie; a man with a bushy beard and long scruffy hair; a woman with very long straight hair and a summer dress; a small boy with sticking-up hair and a football shirt; a grandpa with a flat cap and a moustache.
+
+Under them, a second row with the same six after their visit, each with a neat new hairdo, and the woman's hair dyed pink.
+
+No shadows, no ground, no text, no labels, nothing cut off at the edges.
+```
 
 ## The poses I need
 
@@ -479,6 +542,11 @@ Same pixel-art style and palette as set up. No text, no logos.
 | P6 | The drum kit | Landscape |
 | P3 | Australia objects | Landscape |
 | P4 | Rewards and map markers | Landscape |
+| S14 | Praha 6: the concert | Portrait |
+| S15 | Australia: the bush forest | Wide landscape |
+| P8 | Koalas | Landscape |
+| P9 | The salon's work places | Landscape |
+| P10 | Salon customers, before and after | Wide rows |
 | A1, A2, A3 | Kendrick: running, moving, with his things | Wide row |
 | A4, A5, A6 | Kellyn: running, moving, with her things | Wide row |
 | A7 to A10 | Mamka, Alan, Sami, Žofia | Wide row |

@@ -24,9 +24,9 @@ surprise: the game never names them before they are free.
 
 | Place | Rescued there | Built so far |
 |---|---|---|
-| Praha 5, at home | Mamka (Leila) | a dash down the street, shooting the locks off the door |
-| Praha 6, Strahov | Alan | a dash up the hill, the locks on the stadium gate, the drums; the drumstick is this saga's item |
-| Australia | Sami and Žofia | a dash across the sea; the boomerang is this saga's item |
+| Praha 5, at home | Mamka (Leila) | a dash down the street, shooting the locks off the door, running the salon together (wash, cut, dye, dry, take the money) |
+| Praha 6, Strahov | Alan | a dash up the hill, the locks on the stadium gate, repeating Alan's rhythms in the rehearsal room, the concert; the drumstick is this saga's item |
+| Australia | Sami and Žofia | Bondi, a dash across the sea, spotting small koalas hidden in the trees of the bush; the boomerang is this saga's item |
 
 Kendrick shoots a puck with his hockey stick; Kellyn throws her white bunny and stars.
 Some scenes hold an item to pick up, like a power-up: a drumstick or a boomerang. In a dash it lets you smash through
@@ -43,7 +43,7 @@ in the drums the drumstick makes every hit count twice for a while.
 | `art/scenes.json` | Which picture is which scene, and its size in the game. |
 | `art/source/` | The pictures as they come back from ChatGPT, named by code: `S3.png`. |
 | `art/source/characters.webp` | The character sheet: six cards of standing figures, action poses and faces. |
-| `tools/sprites.py` | Cuts the characters out of that sheet: the big standing figures, running frames made from the side view, the faces. |
+| `tools/sprites.py` | Cuts the characters: the heroes' drawn poses from `art/source/poses/`, the grown-ups' sheets of eight figures from `art/source/people/`, the faces, and rows of objects from `art/source/objects/`. Dark outlines round the characters become darker shades of their own colours. |
 | `tools/pixelate.py` | Shrinks those pictures to the game's true pixel size, keeping every colour and edge as painted. |
 
 All 14 scene backgrounds and all six characters are in. The objects (obstacles, targets, the puck, the bunny, the

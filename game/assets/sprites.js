@@ -159,75 +159,151 @@ window.SPRITES = {
     }
   },
   "leila": {
-    "file": "leila.png",
-    "w": 34,
-    "h": 50,
-    "fps": 7,
+    "file": "leila-poses.png",
+    "w": 78,
+    "h": 131,
+    "scale": 0.5,
+    "fps": 6,
     "poses": {
       "front": [
         0
       ],
-      "stand": [
+      "three": [
         1
       ],
       "side": [
         2
       ],
       "back": [
+        3
+      ],
+      "walk": [
         4
       ],
       "run": [
-        5,
-        6
-      ],
-      "jump": [
+        4,
         5
       ],
       "cheer": [
-        0
+        6
+      ],
+      "act": [
+        7
+      ],
+      "stand": [
+        1
       ]
     },
     "faces": {
-      "file": "leila-faces.png",
-      "w": 18,
-      "h": 17,
-      "n": 5
+      "file": "leila-heads.png",
+      "w": 49,
+      "h": 55,
+      "n": 5,
+      "scale": 0.36
+    },
+    "still": {
+      "file": "leila.png",
+      "w": 34,
+      "h": 50,
+      "fps": 7,
+      "poses": {
+        "front": [
+          0
+        ],
+        "stand": [
+          1
+        ],
+        "side": [
+          2
+        ],
+        "back": [
+          4
+        ],
+        "run": [
+          5,
+          6
+        ],
+        "jump": [
+          5
+        ],
+        "cheer": [
+          0
+        ]
+      }
     }
   },
   "alan": {
-    "file": "alan.png",
-    "w": 30,
-    "h": 46,
-    "fps": 7,
+    "file": "alan-poses.png",
+    "w": 82,
+    "h": 134,
+    "scale": 0.5,
+    "fps": 6,
     "poses": {
       "front": [
         0
       ],
-      "stand": [
+      "three": [
         1
       ],
       "side": [
         2
       ],
       "back": [
+        3
+      ],
+      "walk": [
         4
       ],
       "run": [
-        5,
-        6
-      ],
-      "jump": [
+        4,
         5
       ],
       "cheer": [
-        0
+        6
+      ],
+      "act": [
+        7
+      ],
+      "stand": [
+        1
       ]
     },
     "faces": {
-      "file": "alan-faces.png",
-      "w": 18,
-      "h": 16,
-      "n": 5
+      "file": "alan-heads.png",
+      "w": 40,
+      "h": 55,
+      "n": 5,
+      "scale": 0.36
+    },
+    "still": {
+      "file": "alan.png",
+      "w": 30,
+      "h": 46,
+      "fps": 7,
+      "poses": {
+        "front": [
+          0
+        ],
+        "stand": [
+          1
+        ],
+        "side": [
+          2
+        ],
+        "back": [
+          4
+        ],
+        "run": [
+          5,
+          6
+        ],
+        "jump": [
+          5
+        ],
+        "cheer": [
+          0
+        ]
+      }
     },
     "extra": {
       "name": "drum",
@@ -237,39 +313,77 @@ window.SPRITES = {
     }
   },
   "sami": {
-    "file": "sami.png",
-    "w": 30,
-    "h": 49,
-    "fps": 7,
+    "file": "sami-poses.png",
+    "w": 80,
+    "h": 130,
+    "scale": 0.5,
+    "fps": 6,
     "poses": {
       "front": [
         0
       ],
-      "stand": [
+      "three": [
         1
       ],
       "side": [
         2
       ],
       "back": [
+        3
+      ],
+      "walk": [
         4
       ],
       "run": [
-        5,
-        6
-      ],
-      "jump": [
+        4,
         5
       ],
       "cheer": [
-        0
+        6
+      ],
+      "act": [
+        7
+      ],
+      "stand": [
+        1
       ]
     },
     "faces": {
-      "file": "sami-faces.png",
-      "w": 16,
-      "h": 14,
-      "n": 5
+      "file": "sami-heads.png",
+      "w": 39,
+      "h": 54,
+      "n": 5,
+      "scale": 0.36
+    },
+    "still": {
+      "file": "sami.png",
+      "w": 30,
+      "h": 49,
+      "fps": 7,
+      "poses": {
+        "front": [
+          0
+        ],
+        "stand": [
+          1
+        ],
+        "side": [
+          2
+        ],
+        "back": [
+          4
+        ],
+        "run": [
+          5,
+          6
+        ],
+        "jump": [
+          5
+        ],
+        "cheer": [
+          0
+        ]
+      }
     },
     "extra": {
       "name": "moto",
@@ -279,39 +393,77 @@ window.SPRITES = {
     }
   },
   "zofia": {
-    "file": "zofia.png",
-    "w": 32,
-    "h": 48,
-    "fps": 7,
+    "file": "zofia-poses.png",
+    "w": 72,
+    "h": 134,
+    "scale": 0.5,
+    "fps": 6,
     "poses": {
       "front": [
         0
       ],
-      "stand": [
+      "three": [
         1
       ],
       "side": [
         2
       ],
       "back": [
+        3
+      ],
+      "walk": [
         4
       ],
       "run": [
-        5,
-        6
-      ],
-      "jump": [
+        4,
         5
       ],
       "cheer": [
-        0
+        6
+      ],
+      "act": [
+        7
+      ],
+      "stand": [
+        1
       ]
     },
     "faces": {
-      "file": "zofia-faces.png",
-      "w": 20,
-      "h": 15,
-      "n": 5
+      "file": "zofia-heads.png",
+      "w": 49,
+      "h": 56,
+      "n": 5,
+      "scale": 0.36
+    },
+    "still": {
+      "file": "zofia.png",
+      "w": 32,
+      "h": 48,
+      "fps": 7,
+      "poses": {
+        "front": [
+          0
+        ],
+        "stand": [
+          1
+        ],
+        "side": [
+          2
+        ],
+        "back": [
+          4
+        ],
+        "run": [
+          5,
+          6
+        ],
+        "jump": [
+          5
+        ],
+        "cheer": [
+          0
+        ]
+      }
     },
     "extra": {
       "name": "cheer",
@@ -330,5 +482,254 @@ window.SPRITES = {
     "w": 27,
     "h": 46,
     "scale": 0.5
+  },
+  "koalas": {
+    "file": "koalas.png",
+    "w": 46,
+    "h": 64,
+    "scale": 0.5,
+    "fps": 1,
+    "poses": {
+      "peek": [
+        0
+      ],
+      "side": [
+        1
+      ],
+      "branch": [
+        2
+      ],
+      "wave": [
+        3
+      ],
+      "happy": [
+        4
+      ],
+      "leaves": [
+        5
+      ],
+      "stand": [
+        0
+      ]
+    }
+  },
+  "things": {
+    "file": "things.png",
+    "w": 39,
+    "h": 37,
+    "scale": 0.5,
+    "fps": 1,
+    "poses": {
+      "stick": [
+        0
+      ],
+      "puck": [
+        1
+      ],
+      "puckfly": [
+        2
+      ],
+      "flash": [
+        3
+      ],
+      "bunny": [
+        4
+      ],
+      "bunnyfly": [
+        5
+      ],
+      "bunnyflip": [
+        6
+      ],
+      "fluff": [
+        7
+      ],
+      "stand": [
+        0
+      ]
+    }
+  },
+  "prague": {
+    "file": "prague.png",
+    "w": 61,
+    "h": 66,
+    "scale": 0.5,
+    "fps": 1,
+    "poses": {
+      "pigeon": [
+        0
+      ],
+      "pigeonfly": [
+        1
+      ],
+      "puddle": [
+        2
+      ],
+      "padlock": [
+        3
+      ],
+      "key": [
+        4
+      ],
+      "scissors": [
+        5
+      ],
+      "dryer": [
+        6
+      ],
+      "comb": [
+        7
+      ],
+      "stand": [
+        0
+      ]
+    }
+  },
+  "aussie": {
+    "file": "aussie.png",
+    "w": 66,
+    "h": 72,
+    "scale": 0.5,
+    "fps": 1,
+    "poses": {
+      "fin": [
+        0
+      ],
+      "fin2": [
+        1
+      ],
+      "boomerang": [
+        2
+      ],
+      "boomerang2": [
+        3
+      ],
+      "surfboard": [
+        4
+      ],
+      "roo": [
+        5
+      ],
+      "roohop": [
+        6
+      ],
+      "palm": [
+        7
+      ],
+      "stand": [
+        0
+      ]
+    }
+  },
+  "strahov": {
+    "file": "strahov.png",
+    "w": 56,
+    "h": 63,
+    "scale": 0.5,
+    "fps": 1,
+    "poses": {
+      "bassdrum": [
+        0
+      ],
+      "snare": [
+        1
+      ],
+      "cymbal": [
+        2
+      ],
+      "sticks": [
+        3
+      ],
+      "note": [
+        4
+      ],
+      "amp": [
+        5
+      ],
+      "cone": [
+        6
+      ],
+      "crow": [
+        7
+      ],
+      "stand": [
+        0
+      ]
+    }
+  },
+  "stations": {
+    "file": "stations.png",
+    "w": 53,
+    "h": 85,
+    "scale": 0.5,
+    "fps": 1,
+    "poses": {
+      "wash": [
+        0
+      ],
+      "cut": [
+        1
+      ],
+      "dye": [
+        2
+      ],
+      "dry": [
+        3
+      ],
+      "pay": [
+        4
+      ],
+      "stand": [
+        0
+      ]
+    }
+  },
+  "customers": {
+    "file": "customers.png",
+    "w": 26,
+    "h": 59,
+    "scale": 0.5,
+    "fps": 1,
+    "poses": {
+      "c0": [
+        0
+      ],
+      "c1": [
+        1
+      ],
+      "c2": [
+        2
+      ],
+      "c3": [
+        3
+      ],
+      "c4": [
+        4
+      ],
+      "c5": [
+        5
+      ],
+      "d0": [
+        6
+      ],
+      "d1": [
+        7
+      ],
+      "d2": [
+        8
+      ],
+      "d3": [
+        9
+      ],
+      "d4": [
+        10
+      ],
+      "d5": [
+        11
+      ],
+      "stand": [
+        0
+      ]
+    }
   }
 };

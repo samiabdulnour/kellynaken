@@ -2,6 +2,7 @@
 window.ASSETS = {
   "bg": [
     "australia-beach",
+    "australia-bush",
     "australia-outback",
     "australia-reef",
     "australia-sea",
@@ -9,12 +10,12 @@ window.ASSETS = {
     "praha-home",
     "praha-salon",
     "praha-street",
+    "strahov-concert",
     "strahov-drums",
     "strahov-field",
     "strahov-gate",
     "strahov-hill",
     "title",
     "world-map"
-  ],
-  "sprites": {}
+  ]
 };

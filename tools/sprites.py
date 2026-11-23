@@ -19,7 +19,7 @@ The big figures are the base: they are the most detailed drawings on the sheet, 
 The sheet is drawn in big square "pixels" (about 4.4 real pixels wide on a sheet 1536 wide), so each figure is
 sampled back down onto that grid; nothing is redrawn. A sharper or larger sheet gives sharper sprites.
 """
-import json, os, sys
+import colorsys, json, os, sys
 import numpy as np
 from PIL import Image, ImageFilter
 
@@ -249,6 +249,40 @@ def shrink(a, p=POSE_PIXEL):
     return out
 
 
+def soften(img):
+    """No black outlines: the dark ring round a figure becomes a darker shade of the colour just inside it,
+    as on the character sheets. Dark clothes stay dark: only the outer one or two pixels are touched, and the
+    second only where the colour inside is clearly lighter."""
+    a = np.asarray(img).astype(int).copy()
+    op = a[..., 3] > 0
+    lum = a[..., :3].mean(axis=2)
+    h, w = op.shape
+    def shift(m, dy, dx):
+        out = np.zeros_like(m)
+        out[max(dy, 0):h + min(dy, 0), max(dx, 0):w + min(dx, 0)] = m[max(-dy, 0):h + min(-dy, 0), max(-dx, 0):w + min(-dx, 0)]
+        return out
+    N4 = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+    outside = ~op
+    edge = op & np.any([shift(outside, dy, dx) for dy, dx in N4], axis=0)
+    ring1 = edge & (lum < 72)
+    near1 = np.any([shift(ring1, dy, dx) for dy, dx in N4], axis=0)
+    ring2 = op & ~ring1 & near1 & (lum < 72)
+    ring = ring1 | ring2
+    keep = op & ~ring
+    ys, xs = np.nonzero(ring)
+    for y, x in zip(ys, xs):
+        for r in (1, 2, 3):
+            y0, y1, x0, x1 = max(0, y - r), min(h, y + r + 1), max(0, x - r), min(w, x + r + 1)
+            m = keep[y0:y1, x0:x1]
+            if m.any():
+                c = np.median(a[y0:y1, x0:x1, :3][m], axis=0)
+                if ring2[y, x] and c.mean() - lum[y, x] < 45:                       # dark clothes, not an outline
+                    break
+                a[y, x, :3] = (c * 0.6).astype(int)
+                break
+    return Image.fromarray(a.astype(np.uint8), 'RGBA')
+
+
 def pose_frames(name):
     """Every drawn pose of one hero as (pose, picture, where the body's middle is, how far the feet are off the ground)."""
     frames = []
@@ -268,7 +302,7 @@ def pose_frames(name):
             band = op[int(h * 0.15):int(h * 0.5)]                        # the head and shoulders: steadier than hands, feet or a hockey stick
             xs = np.nonzero(band)[1]
             lift = 0 if pose == 'jump' else int(round((ground - 1 - rows.max()) / POSE_PIXEL))
-            frames.append((pose, Image.fromarray(small, 'RGBA'), float(np.median(xs)) + 0.5, lift))
+            frames.append((pose, soften(Image.fromarray(small, 'RGBA')), float(np.median(xs)) + 0.5, lift))
     return frames
 
 
@@ -327,6 +361,225 @@ def bunny():
     return {'file': 'bunny.png', 'w': out.width, 'h': out.height, 'scale': 0.5}
 
 
+# ---- objects: rows of separate things on a transparent background, from art/source/objects/<code>.png ----
+OBJECTS = os.path.join(SOURCE, 'objects')
+OBJECT_ROWS = {                                  # code: (name in the game, what each drawing is: row by row, left to right)
+    'P8': ('koalas', ['peek', 'side', 'branch', 'wave', 'happy', 'leaves']),
+    'P7': ('things', ['stick', 'puck', 'puckfly', 'flash', 'bunny', 'bunnyfly', 'bunnyflip', 'fluff']),
+    'P1': ('prague', ['pigeon', 'pigeonfly', 'puddle', 'padlock', 'key', 'scissors', 'dryer', 'comb']),
+    'P3': ('aussie', ['fin', 'fin2', 'boomerang', 'boomerang2', 'surfboard', 'roo', 'roohop', 'palm']),
+    'P5': ('strahov', ['bassdrum', 'snare', 'cymbal', 'sticks', 'note', 'amp', 'cone', 'crow']),
+    'P9': ('stations', ['wash', 'cut', 'dye', 'dry', 'pay']),
+    'P10': ('customers', ['c0', 'c1', 'c2', 'c3', 'c4', 'c5', 'd0', 'd1', 'd2', 'd3', 'd4', 'd5']),
+}
+
+
+def grid(a):
+    """How wide one drawn "pixel" is: the spacing at which the colour edges down the picture line up best."""
+    d = np.abs(np.diff(a[..., :3].astype(int), axis=0)).sum(axis=2)
+    prof = d.sum(axis=1).astype(float); prof -= prof.mean(); x = np.arange(len(prof))
+    best = max((abs((prof * np.exp(2j * np.pi * x / p)).sum()), p) for p in np.arange(3.5, 9, 0.02))
+    return best[1]
+
+
+def pieces(mask, least):
+    """The separate things in a picture: groups of touching pixels (corners count), smallest scraps joined to the
+    nearest bigger group. Returned left to right, as lists of (y, x)."""
+    h, w = mask.shape
+    seen = np.zeros_like(mask, bool)
+    groups = []
+    for y0, x0 in zip(*np.nonzero(mask)):
+        if seen[y0, x0]: continue
+        stack, got = [(y0, x0)], []
+        seen[y0, x0] = True
+        while stack:
+            y, x = stack.pop(); got.append((y, x))
+            for dy in (-1, 0, 1):
+                for dx in (-1, 0, 1):
+                    v, u = y + dy, x + dx
+                    if 0 <= v < h and 0 <= u < w and mask[v, u] and not seen[v, u]: seen[v, u] = True; stack.append((v, u))
+        groups.append(got)
+    big = [g for g in groups if len(g) >= least]
+    for g in groups:
+        if len(g) >= least: continue
+        cy, cx = np.mean(g, axis=0)
+        near = min(big, key=lambda b: min((y - cy) ** 2 + (x - cx) ** 2 for y, x in b[::7]))
+        near.extend(g)
+    # row by row, then left to right: a group belongs to the row of whichever earlier group its middle lines up with
+    big.sort(key=lambda g: np.mean([y for y, _ in g]))
+    rows = []
+    for g in big:
+        cy = np.mean([y for y, _ in g]); top, bottom = min(y for y, _ in g), max(y for y, _ in g)
+        row = next((r for r in rows if r['top'] <= cy <= r['bottom']), None)
+        if row: row['groups'].append(g); row['top'] = min(row['top'], top); row['bottom'] = max(row['bottom'], bottom)
+        else: rows.append({'top': top, 'bottom': bottom, 'groups': [g]})
+    return [g for r in rows for g in sorted(r['groups'], key=lambda g: min(x for _, x in g))]
+
+
+def object_sheet(code):
+    """Cut a row of objects apart, bring them down to their own pixel grid and lay them out in equal cells, each
+    standing on the bottom middle of its cell."""
+    path = os.path.join(OBJECTS, code + '.png')
+    if not os.path.exists(path): return None
+    name, parts = OBJECT_ROWS[code]
+    a = np.asarray(Image.open(path).convert('RGBA')).copy()
+    r, g, b = a[..., 0].astype(int), a[..., 1].astype(int), a[..., 2].astype(int)
+    a[((r + b) / 2 - g > 70) & (r > 140) & (b > 140) & (abs(r - b) < 90)] = 0          # a magenta background, where there is one
+    a[a[..., 3] < 128] = 0                              # these come with soft, faint edges: keep only what is clearly there
+    p = grid(a)
+    small = shrink(a, p)                                # the whole row at once, so every thing keeps the same grid
+    groups = pieces(small[..., 3] > 0, 40)
+    assert len(groups) == len(parts), (code, [len(g) for g in groups])
+    frames = []
+    for g in groups:
+        ys, xs = np.array([y for y, _ in g]), np.array([x for _, x in g])
+        if len(ys) < 1: continue
+        f = np.zeros((ys.max() - ys.min() + 1, xs.max() - xs.min() + 1, 4), np.uint8)
+        f[ys - ys.min(), xs - xs.min()] = small[ys, xs]
+        frames.append(soften(Image.fromarray(f, 'RGBA')) if name == 'customers' else Image.fromarray(f, 'RGBA'))
+    cw, ch = max(f.width for f in frames), max(f.height for f in frames)
+    out = Image.new('RGBA', (cw * len(frames), ch))
+    for k, f in enumerate(frames): out.paste(f, (k * cw + (cw - f.width) // 2, ch - f.height))
+    out.save(os.path.join(OUT, 'sprites', f'{name}.png'), optimize=True)
+    print(name, 'from', code, '| drawn pixel', round(p, 2), '| cell', cw, 'x', ch, '|', [f.size for f in frames])
+    poses = {part: [k] for k, part in enumerate(parts)}; poses.setdefault('stand', [0])      # drawn like a character, one pose per drawing
+    return name, {'file': f'{name}.png', 'w': cw, 'h': ch, 'scale': 0.5, 'fps': 1, 'poses': poses}
+
+
+# ---- the grown-ups: a sheet each of eight figures on a transparent background, from art/source/people/<id>.webp ----
+PEOPLE = os.path.join(SOURCE, 'people')
+PEOPLE_POSES = ['front', 'three', 'side', 'back', 'walk', 'run', 'cheer', 'act']    # top row: from four sides; bottom row: walking, running, a jump for joy, their own thing
+PEOPLE_HEIGHT = {'leila': 132, 'alan': 135, 'sami': 130, 'zofia': 134}   # standing height in sprite pixels: about a third taller than the heroes
+GRADE = set()                                    # sheets whose colours need lifting to the heroes' (the first, darker sheets did)
+
+
+def box_shrink(a, step):
+    """A smooth shrink: each new pixel is the average of the area it covers (transparent parts left out), so
+    the sheet's big uneven blocks turn into even, fine pixels like the heroes'."""
+    h, w = a.shape[:2]; size = (int(w / step), int(h / step))
+    rgb = np.asarray(Image.fromarray((a[..., :3] * (a[..., 3:4] / 255)).astype(np.uint8)).resize(size, Image.BOX)).astype(float)
+    al = np.asarray(Image.fromarray(a[..., 3]).resize(size, Image.BOX)).astype(float)
+    out = np.zeros(rgb.shape[:2] + (4,), np.uint8)
+    keep = al > 140
+    out[keep, :3] = np.clip(rgb[keep] * 255 / al[keep, None], 0, 255); out[keep, 3] = 255
+    return out
+
+
+def palette(a, n=48):
+    """One small palette for a whole sheet, so flat areas are flat and every pose has the same colours."""
+    q = np.asarray(Image.fromarray(a, 'RGBA').convert('RGB').quantize(colors=n, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE).convert('RGB'))
+    return np.dstack([q, a[..., 3]]).astype(np.uint8)
+
+
+def tidy(a):
+    """A single stray pixel takes the colour that most of its eight neighbours share."""
+    out = a.copy(); h, w = a.shape[:2]
+    key = (a[..., 0].astype(int) << 16) | (a[..., 1].astype(int) << 8) | a[..., 2]
+    for y in range(1, h - 1):
+        for x in range(1, w - 1):
+            if not a[y, x, 3]: continue
+            nb, na = key[y - 1:y + 2, x - 1:x + 2].ravel(), a[y - 1:y + 2, x - 1:x + 2, 3].ravel()
+            others = [k for i, k in enumerate(nb) if i != 4 and na[i]]
+            if len(others) < 8 or key[y, x] in others: continue
+            vals, cnt = np.unique(others, return_counts=True)
+            if cnt.max() >= 5: out[y, x, :3] = [(vals[cnt.argmax()] >> 16) & 255, (vals[cnt.argmax()] >> 8) & 255, vals[cnt.argmax()] & 255]
+    return out
+
+
+def grade(img, lift=0.17, gamma=0.86, sat=1.12, head=0.3):
+    """The heroes' colours: blacks and shadows lifted to a soft charcoal, a little more colour. In the head the
+    darkest pixels (eyes, brows) stay as they are."""
+    a = np.asarray(img).astype(float).copy(); op = a[..., 3] > 0; h = a.shape[0]
+    top = np.zeros_like(op); top[:int(h * head)] = True
+    for y, x in zip(*np.nonzero(op)):
+        hh, ss, vv = colorsys.rgb_to_hsv(*(a[y, x, :3] / 255))
+        if top[y, x] and vv < 0.3: continue
+        vv = lift + (1 - lift) * vv ** gamma; ss = min(1, ss * sat)
+        a[y, x, :3] = np.array(colorsys.hsv_to_rgb(hh, ss, vv)) * 255
+    return Image.fromarray(a.astype(np.uint8), 'RGBA')
+
+
+def lift_blacks(img, head=0.3):
+    """Black clothes become the heroes' soft charcoal (Kendrick's T-shirt): only the darkest colours are lifted,
+    and in the head the eyes and brows stay as they are."""
+    a = np.asarray(img).astype(float).copy(); h = a.shape[0]
+    for y, x in zip(*np.nonzero(a[..., 3])):
+        hh, ss, vv = colorsys.rgb_to_hsv(*(a[y, x, :3] / 255))
+        if vv >= 0.33 or y < h * head: continue
+        a[y, x, :3] = np.array(colorsys.hsv_to_rgb(hh, ss * 0.9, 0.14 + 0.62 * vv)) * 255
+    return Image.fromarray(a.astype(np.uint8), 'RGBA')
+
+
+def unline(img, head=0.3):
+    """Thin dark lines inside the body (below the head, where the eyes are) become a darker shade of the colour
+    on either side of them, like the outer edge."""
+    a = np.asarray(img).astype(int); out = a.copy(); op = a[..., 3] > 0; h, w = op.shape
+    lum = a[..., :3].mean(axis=2)
+    for y in range(int(h * head), h - 1):
+        for x in range(1, w - 1):
+            if not op[y, x] or lum[y, x] > 80: continue
+            for dy, dx in ((0, 1), (1, 0), (1, 1), (1, -1)):
+                p, q = (y - dy, x - dx), (y + dy, x + dx)
+                if op[p] and op[q] and lum[p] - lum[y, x] > 55 and lum[q] - lum[y, x] > 55:
+                    out[y, x, :3] = ((a[p][:3] + a[q][:3]) / 2 * 0.62).astype(int); break
+    return Image.fromarray(out.astype(np.uint8), 'RGBA')
+
+
+def people_sheet(name):
+    """Cut the eight figures of one grown-up and lay them out like the heroes' poses, shown at half size like them.
+    Their sheets are drawn in coarser, darker pixel art with near-black outlines, so they are brought to the
+    heroes' look: shrunk smoothly into even fine pixels, given flat colours, blacks lifted to soft charcoal,
+    and every dark outline, outside and in, turned into a darker shade of its own colour."""
+    path = next((os.path.join(PEOPLE, f'{name}.{ext}') for ext in ('png', 'webp') if os.path.exists(os.path.join(PEOPLE, f'{name}.{ext}'))), None)
+    if not path: return None
+    a = np.asarray(Image.open(path).convert('RGBA')).copy()
+    a[a[..., 3] < 128] = 0
+    a[..., 3] = np.where(a[..., 3] > 0, 255, 0)
+    # how tall a standing figure is on this sheet: the tallest thing in the top half
+    rough = shrink(a, 4.0); tops = [g for g in pieces(rough[..., 3] > 0, 150) if np.mean([y for y, _ in g]) < rough.shape[0] / 2]
+    tall = max(max(y for y, _ in g) - min(y for y, _ in g) + 1 for g in tops) * 4.0
+    small = tidy(palette(box_shrink(a, tall / PEOPLE_HEIGHT[name]), 80))     # even fine pixels and flat colours, like the heroes'
+    groups = pieces(small[..., 3] > 0, 150)
+    assert len(groups) == 8, (name, [len(g) for g in groups])
+    frames = []
+    rows = [groups[:4], groups[4:]]
+    for row in rows:
+        ground = max(max(y for y, _ in g) for g in row) + 1
+        for g in row:
+            ys, xs = np.array([y for y, _ in g]), np.array([x for _, x in g])
+            f = np.zeros((ys.max() - ys.min() + 1, xs.max() - xs.min() + 1, 4), np.uint8)
+            f[ys - ys.min(), xs - xs.min()] = small[ys, xs]
+            h = f.shape[0]
+            band = f[int(h * 0.15):int(h * 0.5), :, 3] > 0                     # head and shoulders: where the body is, whatever the arms do
+            ax = float(np.median(np.nonzero(band)[1])) + 0.5
+            fig = Image.fromarray(f, 'RGBA')
+            fig = grade(fig) if name in GRADE else lift_blacks(fig)
+            frames.append((unline(soften(fig)), ax, int(ground - 1 - ys.max())))
+    left = max(int(np.ceil(ax)) for _, ax, _ in frames)
+    right = max(int(np.ceil(f.width - ax)) for f, ax, _ in frames)
+    cw, ch = int(2 * max(left, right) + 2), int(max(f.height + lift for f, _, lift in frames))
+    out = Image.new('RGBA', (cw * len(frames), ch))
+    for k, (f, ax, lift) in enumerate(frames): out.paste(f, (k * cw + cw // 2 - int(round(ax)), ch - f.height - lift))
+    out.save(os.path.join(OUT, 'sprites', f'{name}-poses.png'), optimize=True)
+    poses = {p: [k] for k, p in enumerate(PEOPLE_POSES)}
+    poses.update(stand=[1], run=[4, 5])
+    # faces for the speech box and the album: the head of the front view, and of the jump for joy for laughing
+    def head(f):
+        a = np.asarray(f); h = a.shape[0]
+        rows = a[:int(h * 0.42)]
+        xs = np.nonzero(rows[..., 3].any(axis=0))[0]
+        return Image.fromarray(rows[:, xs.min():xs.max() + 1], 'RGBA')
+    front, joy = head(frames[0][0]), head(frames[6][0])
+    heads = [front] * 5                                                            # one face for every mood: the jump for joy has fists in the way
+    fw, fh = max(i.width for i in heads), max(i.height for i in heads)
+    fimg = Image.new('RGBA', (fw * len(heads), fh))
+    for k, i in enumerate(heads): fimg.paste(i, (k * fw + (fw - i.width) // 2, fh - i.height))
+    fimg.save(os.path.join(OUT, 'sprites', f'{name}-heads.png'), optimize=True)
+    print('   drawn figures:', name, 'cell', cw, 'x', ch, '| heights', [f.height for f, _, _ in frames])
+    return {'file': f'{name}-poses.png', 'w': cw, 'h': ch, 'scale': 0.5, 'fps': 6, 'poses': poses,
+            'faces': {'file': f'{name}-heads.png', 'w': fw, 'h': fh, 'n': len(heads), 'scale': 0.36}}
+
+
 LEG_TOP = {'ken': 0.66, 'kel': 0.60, 'leila': 0.62, 'sami': 0.58, 'zofia': 0.62, 'alan': 0.58}     # where the legs start, as a share of the height
 FILL = {'kel': 0.55}                                                                                  # white leggings on cream paper
 EXTRAS = {'alan': ('drum', 1), 'sami': ('moto', 3), 'zofia': ('cheer', 1), 'kel': ('cheer', 1)}   # a small action pose worth keeping
@@ -355,9 +608,9 @@ def main():
         info[name] = {'file': f'{name}.png', 'w': cw, 'h': ch, 'fps': 7,
                       'poses': {'front': [0], 'stand': [1], 'side': [2], 'back': [4], 'run': [5, 6], 'jump': [5], 'cheer': [0]},
                       'faces': {'file': f'{name}-faces.png', 'w': fw, 'h': fh, 'n': 5}}
-        drawn = pose_sheet(name) if name in POSE_ROWS else None
+        drawn = pose_sheet(name) if name in POSE_ROWS else people_sheet(name)
         if drawn:                                       # the drawn poses take over; the sheet's figures stay as `still`
-            info[name] = dict(drawn, faces=info[name]['faces'], still={k: info[name][k] for k in ('file', 'w', 'h', 'fps', 'poses')})
+            info[name] = dict(drawn, faces=drawn.get('faces') or info[name]['faces'], still={k: info[name][k] for k in ('file', 'w', 'h', 'fps', 'poses')})
             print('   drawn poses:', {k: len(v) for k, v in drawn['poses'].items()}, 'cell', drawn['w'], 'x', drawn['h'])
         if extra:
             extra[0].save(os.path.join(OUT, 'sprites', f'{name}-{EXTRAS[name][0]}.png'), optimize=True)
@@ -374,6 +627,9 @@ def main():
     print('star', star.size)
     b = bunny()
     if b: info['bunny'] = b; print('bunny', b['w'], 'x', b['h'])
+    for code in OBJECT_ROWS:
+        got = object_sheet(code)
+        if got: info[got[0]] = got[1]
     with open(os.path.join(OUT, 'sprites.js'), 'w') as f:
         f.write('// Written by tools/sprites.py: the characters cut from the character sheet.\n')
         f.write('window.SPRITES = ' + json.dumps(info, indent=2) + ';\n')
