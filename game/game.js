@@ -62,6 +62,7 @@
   const stateOf = (p) => (progress(p).done ? 'hotovo' : isOpen(p) ? 'hraj' : 'zamčeno');
   const fullName = (p) => (p.area ? `${p.name} · ${p.area}` : p.name);
   const behind = (pin) => (pin.places || []).map((id) => places.find((p) => p.id === id));
+  const later = (pin) => (pin.later || []).map((id) => (WORLD.later || []).find((p) => p.id === id)).filter(Boolean);   // places that open in the future
   const pinState = (pin) => {
     const ps = behind(pin);
     if (!ps.length) return 'soon';
@@ -187,7 +188,7 @@
       list = add(`<div class="card choose"><h2>${esc(pin.name)}</h2>${behind(pin).map((p) => {
         const state = stateOf(p);
         return `<button class="row${state === 'hraj' ? ' now' : ''}" data-p="${p.id}"${state === 'zamčeno' ? ' disabled' : ''}><span>${places.indexOf(p) + 1}</span><span>${esc(fullName(p))}</span><em>${state}</em></button>`;
-      }).join('')}</div>`);
+      }).join('')}${later(pin).map((p) => `<button class="row later" disabled><span>?</span><span>${esc(fullName(p))}</span><em>brzy</em></button>`).join('')}</div>`);
       list.addEventListener('click', (e) => { const b = e.target.closest('[data-p]'); if (b && !b.disabled) travel(b.dataset.p); });
     }
     return {
@@ -209,8 +210,9 @@
         for (const pin of pins) { const p = spot(pin, rot), d = Math.hypot(p.x - x, p.y - 6 - y); if (p.seen && d < best) { best = d; hit = pin; } }
         if (!hit) return;
         const state = pinState(hit), ps = behind(hit);
+        if (ps.length + later(hit).length > 1) { beep(state === 'soon' ? 440 : 520, 780); return choose(hit); }   // a list, with what opens later shown locked
         if (state === 'soon' || state === 'locked') { beep(180); say(state === 'soon' ? 'Tohle místo se teprve otevře.' : 'Nejdřív dokonči předchozí místo.'); return; }
-        if (ps.length > 1) { beep(520, 780); choose(hit); } else travel(ps[0].id);
+        travel(ps[0].id);
       },
       update(dt) {
         t += dt;
@@ -226,7 +228,7 @@
           const p = spot(pin, rot); if (!p.seen) continue;
           const state = pinState(pin), bob = state === 'todo' ? Math.round(Math.sin(t * 5) * 2) : 0, lit = state === 'todo' || state === 'done';
           const col = state === 'done' ? '#1FA463' : state === 'todo' ? '#CC2233' : '#7A6F6A';
-          if (behind(pin).length > 1) { rect(p.x - 2, p.y - 18 + bob, 12, 12, INK); rect(p.x - 1, p.y - 17 + bob, 10, 10, col); }   // a second head behind: several places here
+          if (behind(pin).length + later(pin).length > 1) { rect(p.x - 2, p.y - 18 + bob, 12, 12, INK); rect(p.x - 1, p.y - 17 + bob, 10, 10, col); }   // a second head behind: several places here
           rect(p.x - 1, p.y - 2, 2, 8, INK);
           rect(p.x - 6, p.y - 14 + bob, 12, 12, INK);
           rect(p.x - 5, p.y - 13 + bob, 10, 10, col);

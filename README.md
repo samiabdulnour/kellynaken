@@ -27,6 +27,7 @@ surprise: the game never names them before they are free.
 | Praha 5, at home | Mamka (Leila) | pexeso with hairdressing things at home (one turns the first card, the other the second), a dash down the street, shooting the locks off the door, running the salon together (wash, cut, dye, dry, take the money) |
 | Praha 6, Strahov | Alan | a dash up the hill, the locks on the stadium gate, repeating Alan's rhythms in the rehearsal room, the concert; the drumstick is this saga's item |
 | Australia | Sami and Žofia | picking up a torn message on Bondi beach, a dash across the sea, spotting small koalas hidden in the bush, throwing lifebuoys and pulling them off the shark reef; the boomerang is this saga's item |
+| Praha 7 (Sparta), Ostrov (near Karlovy Vary), Cyprus, Lebanon | later | shown on the planet, locked |
 
 Kendrick shoots a puck with his hockey stick; Kellyn throws her white bunny and stars.
 Some scenes hold an item to pick up, like a power-up. The drumstick is for hitting: in a dash the hero whacks whatever

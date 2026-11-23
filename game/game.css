@@ -76,6 +76,7 @@ button{font:inherit;color:inherit}
 .btn.throw{position:absolute;right:.75em;bottom:4.5em;padding:.5em .8em}
 .btn.throw[disabled]{opacity:.45}
 .card.choose h2{color:var(--ink)}
+.row.later{opacity:.55;background:var(--paper)}
 .album{position:absolute;inset:4.5em .75em auto;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.5em}
 .album div{background:var(--paper);color:var(--ink);border:.25em solid var(--ink);padding:.5em .25em;text-align:center;font-weight:700}
 .album div[data-got="0"]{background:var(--ink-soft);color:var(--paper)}

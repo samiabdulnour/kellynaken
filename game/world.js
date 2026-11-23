@@ -3,7 +3,7 @@
 //
 // `planet.pins` sit at [x, y] on the world picture (art/source/S0, 384 x 192 in the game), which is wrapped around
 // the planet. A pin leads to one place or, where several are too close together to tell apart from space
-// (Praha 5 and Praha 6), to a short list. A pin marked `soon` is somewhere that opens later.
+// (Praha 5, Praha 6, Ostrov), to a short list. `later` lists places on that pin that open in the future.
 //
 // Who is waiting to be rescued in a place (`saves`) is a surprise: the game never names them before they appear.
 // Locked scenes show as ??? and the story lines only hint. Keep new texts that way. `cast` puts people into a
@@ -45,12 +45,19 @@ window.WORLD = {
   planet: {
     bg: 'world-map',
     pins: [
-      { name: 'Praha', at: [198, 52], places: ['praha5', 'praha6'] },
+      { name: 'Česko', at: [198, 52], places: ['praha5', 'praha6'], later: ['praha7', 'ostrov'] },
       { name: 'Austrálie', at: [352, 145], places: ['australia'] },
-      { at: [105, 115], soon: true },
-      { at: [315, 62], soon: true },
+      { name: 'Kypr a Libanon', at: [224, 71], later: ['kypr', 'libanon'] },
     ],
   },
+  // Places that will open later. They show on the planet, locked, with their names. To open one, give it scenes
+  // and move it into `places` (and from `later` to `places` on its pin).
+  later: [
+    { id: 'praha7', name: 'Praha 7', area: 'Sparta' },
+    { id: 'ostrov', name: 'Ostrov', area: 'u Karlových Varů' },
+    { id: 'kypr', name: 'Kypr' },
+    { id: 'libanon', name: 'Libanon' },
+  ],
   places: [
     {
       id: 'praha5', name: 'Praha 5',
