@@ -544,25 +544,20 @@ def unline(img, head=0.3):
     return Image.fromarray(out.astype(np.uint8), 'RGBA')
 
 
-def people_sheet(name):
-    """Cut the eight figures of one grown-up and lay them out like the heroes' poses, shown at half size like them.
-    Their sheets are drawn in coarser, darker pixel art with near-black outlines, so they are brought to the
-    heroes' look: shrunk smoothly into even fine pixels, given flat colours, blacks lifted to soft charcoal,
-    and every dark outline, outside and in, turned into a darker shade of its own colour."""
-    path = next((os.path.join(PEOPLE, f'{name}.{ext}') for ext in ('png', 'webp') if os.path.exists(os.path.join(PEOPLE, f'{name}.{ext}'))), None)
-    if not path: return None
+def people_figures(name, path, rows):
+    """The figures of one sheet as (picture, where the body's middle is, how far the feet are off the ground),
+    row by row. `rows` says how many figures each row holds; the first row stands, and sets the size."""
     a = np.asarray(Image.open(path).convert('RGBA')).copy()
     a[a[..., 3] < 128] = 0
     a[..., 3] = np.where(a[..., 3] > 0, 255, 0)
-    # how tall a standing figure is on this sheet: the tallest thing in the top half
-    rough = shrink(a, 4.0); tops = [g for g in pieces(rough[..., 3] > 0, 150) if np.mean([y for y, _ in g]) < rough.shape[0] / 2]
-    tall = max(max(y for y, _ in g) - min(y for y, _ in g) + 1 for g in tops) * 4.0
+    rough = shrink(a, 4.0); first = pieces(rough[..., 3] > 0, 150)[:rows[0]]
+    tall = max(max(y for y, _ in g) - min(y for y, _ in g) + 1 for g in first) * 4.0
     small = tidy(palette(box_shrink(a, tall / PEOPLE_HEIGHT[name]), 80))     # even fine pixels and flat colours, like the heroes'
     groups = pieces(small[..., 3] > 0, 150)
-    assert len(groups) == 8, (name, [len(g) for g in groups])
-    frames = []
-    rows = [groups[:4], groups[4:]]
-    for row in rows:
+    assert len(groups) == sum(rows), (name, path, [len(g) for g in groups])
+    frames, k = [], 0
+    for n in rows:
+        row = groups[k:k + n]; k += n
         ground = max(max(y for y, _ in g) for g in row) + 1
         for g in row:
             ys, xs = np.array([y for y, _ in g]), np.array([x for _, x in g])
@@ -574,6 +569,26 @@ def people_sheet(name):
             fig = Image.fromarray(f, 'RGBA')
             fig = grade(fig) if name in GRADE else lift_blacks(fig)
             frames.append((unline(soften(fig)), ax, int(ground - 1 - ys.max())))
+    return frames
+
+
+def people_sheet(name):
+    """Cut the figures of one grown-up and lay them out like the heroes' poses, shown at half size like them.
+    Their sheets are brought to the heroes' look: shrunk smoothly into even fine pixels, given flat colours,
+    blacks lifted to soft charcoal, and every dark outline, outside and in, turned into a darker shade of its
+    own colour.
+
+    <name>.webp holds eight figures in two rows (front, three-quarter, side, back; walking, running, a jump for
+    joy, their own thing). <name>-stand.webp, where there is one, holds five standing figures in one row (front,
+    three-quarter, side, back three-quarter, back), drawn closer to the heroes: they take over the standing views
+    and the face, and the first sheet keeps the moving poses."""
+    find = lambda stem: next((os.path.join(PEOPLE, f'{stem}.{ext}') for ext in ('png', 'webp') if os.path.exists(os.path.join(PEOPLE, f'{stem}.{ext}'))), None)
+    path, stand = find(name), find(name + '-stand')
+    if not path: return None
+    frames = people_figures(name, path, [4, 4])
+    if stand:
+        st = people_figures(name, stand, [5])
+        frames = [st[0], st[1], st[2], st[4]] + frames[4:]
     left = max(int(np.ceil(ax)) for _, ax, _ in frames)
     right = max(int(np.ceil(f.width - ax)) for f, ax, _ in frames)
     cw, ch = int(2 * max(left, right) + 2), int(max(f.height + lift for f, _, lift in frames))
@@ -582,6 +597,7 @@ def people_sheet(name):
     out.save(os.path.join(OUT, 'sprites', f'{name}-poses.png'), optimize=True)
     poses = {p: [k] for k, p in enumerate(PEOPLE_POSES)}
     poses.update(stand=[1], run=[4, 5])
+    if stand: poses.update(cheer=[0], joy=[6])        # the old jump for joy looks different now: they cheer with the new front view (the game makes it hop)
     # faces for the speech box and the album: the head of the front view, and of the jump for joy for laughing
     def head(f):
         a = np.asarray(f); h = a.shape[0]

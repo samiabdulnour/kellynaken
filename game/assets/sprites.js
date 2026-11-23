@@ -187,18 +187,21 @@ window.SPRITES = {
         5
       ],
       "cheer": [
-        6
+        0
       ],
       "act": [
         7
       ],
       "stand": [
         1
+      ],
+      "joy": [
+        6
       ]
     },
     "faces": {
       "file": "leila-heads.png",
-      "w": 49,
+      "w": 59,
       "h": 55,
       "n": 5,
       "scale": 0.36
@@ -237,7 +240,7 @@ window.SPRITES = {
   "alan": {
     "file": "alan-poses.png",
     "w": 82,
-    "h": 134,
+    "h": 136,
     "scale": 0.5,
     "fps": 6,
     "poses": {
@@ -261,18 +264,21 @@ window.SPRITES = {
         5
       ],
       "cheer": [
-        6
+        0
       ],
       "act": [
         7
       ],
       "stand": [
         1
+      ],
+      "joy": [
+        6
       ]
     },
     "faces": {
       "file": "alan-heads.png",
-      "w": 40,
+      "w": 54,
       "h": 55,
       "n": 5,
       "scale": 0.36
@@ -317,7 +323,7 @@ window.SPRITES = {
   "sami": {
     "file": "sami-poses.png",
     "w": 80,
-    "h": 130,
+    "h": 129,
     "scale": 0.5,
     "fps": 6,
     "poses": {
@@ -341,18 +347,21 @@ window.SPRITES = {
         5
       ],
       "cheer": [
-        6
+        0
       ],
       "act": [
         7
       ],
       "stand": [
         1
+      ],
+      "joy": [
+        6
       ]
     },
     "faces": {
       "file": "sami-heads.png",
-      "w": 39,
+      "w": 42,
       "h": 54,
       "n": 5,
       "scale": 0.36
@@ -397,7 +406,7 @@ window.SPRITES = {
   "zofia": {
     "file": "zofia-poses.png",
     "w": 72,
-    "h": 134,
+    "h": 133,
     "scale": 0.5,
     "fps": 6,
     "poses": {
@@ -421,19 +430,22 @@ window.SPRITES = {
         5
       ],
       "cheer": [
-        6
+        0
       ],
       "act": [
         7
       ],
       "stand": [
         1
+      ],
+      "joy": [
+        6
       ]
     },
     "faces": {
       "file": "zofia-heads.png",
-      "w": 49,
-      "h": 56,
+      "w": 57,
+      "h": 55,
       "n": 5,
       "scale": 0.36
     },

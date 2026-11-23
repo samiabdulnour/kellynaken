@@ -47,7 +47,8 @@ window.WORLD = {
     pins: [
       { name: 'Česko', at: [198, 52], places: ['praha5', 'praha6'], later: ['praha7', 'ostrov'] },
       { name: 'Austrálie', at: [352, 145], places: ['australia'] },
-      { name: 'Kypr a Libanon', at: [224, 71], later: ['kypr', 'libanon'] },
+      { name: 'Kypr', at: [215, 69], later: ['kypr'] },
+      { name: 'Libanon', at: [228, 73], later: ['libanon'] },
     ],
   },
   // Places that will open later. They show on the planet, locked, with their names. To open one, give it scenes
@@ -114,23 +115,23 @@ window.WORLD = {
       scenes: [
         { id: 'australia-beach', name: 'Pláž Bondi', bg: 'australia-beach', play: 'collect', ground: 226,
           collect: { seconds: 60, need: 8, stay: 3.6, every: [1.0, 1.7], jelly: 0.24, won: 'Na vzkazu stojí: POMOC! Jsme na skále za útesem.' },
-          talk: [['', 'Na druhém konci světa, na pláži Bondi, vyplavilo moře roztrhaný vzkaz v láhvi.'], ['hero', 'Posbíráme všechny kousky, než je vlny zase odnesou!']] },
+          talk: [['', 'Austrálie! Na druhém konci světa kdysi žili oba vaši pradědové, Václav a Georges.'], ['', 'A teď na pláži Bondi vyplavilo moře roztrhaný vzkaz v láhvi.'], ['hero', 'Posbíráme všechny kousky, než je vlny zase odnesou!']] },
         { id: 'australia-sea', name: 'Na vlně', bg: 'australia-sea', scroll: true, play: 'run', ground: 200, tile: 'repeat', pickup: 'boomerang',
           run: { seconds: 30, low: 'žralok', high: 'bumerang', board: true, art: { low: ['aussie', 'fin', 'fin2'], high: ['aussie', 'boomerang', 'boomerang2'] } },
-          talk: [['', 'Na prkno! Žraloka přeskoč, pod bumerangem zůstaň dole.']] },
+          talk: [['', 'Praděda Václav po válce utekl z Československa a připlul sem lodí s uprchlíky. Přes celý oceán!'], ['', 'Na prkno! Žraloka přeskoč, pod bumerangem zůstaň dole.']] },
         // Koalas sit still, small, in the forks and on the trunks of the bush picture (S15). A hiding place is [x, y, pose]:
         // where its feet are on the picture, and whether it hugs the trunk (branch), looks round it (side) or peeks over leaves (peek).
         { id: 'australia-outback', name: 'Buš', bg: 'australia-bush', play: 'find', ground: 284,
           find: { seconds: 75, need: 7, hidden: true, size: 0.28, show: 0.45, every: [6, 10],
             spots: [[53, 118, 'branch'], [188, 130, 'branch'], [150, 32, 'side'], [104, 66, 'side'], [133, 106, 'branch'], [121, 180, 'peek'],
               [318, 60, 'side'], [392, 90, 'branch'], [322, 114, 'branch'], [417, 148, 'branch'], [362, 222, 'peek'], [262, 178, 'branch']] },
-          talk: [['', 'Cesta vede buší. Ve stromech se něco hýbe…'], ['hero', 'Koaly! Najdeme je všechny.']] },
+          talk: [['', 'Praděda Václav pak v Austrálii žil celých deset let, v Brisbane. Byl to velký chlap.'], ['', 'Cesta vede buší. Ve stromech se něco hýbe…'], ['hero', 'Koaly! Najdeme je všechny.']] },
         // From here on they are found: stranded on the rock, waving.
         { id: 'australia-reef', name: 'Žraločí útes', bg: 'australia-reef', play: 'rescue', ground: 246, cast: ['sami', 'zofia'],
           rescue: { hits: 2, pull: 70, seconds: 14, land: { x: 92, y: 140, w: 13 }, green: [0.22, 0.40], jetty: 206 },
           talk: [['', 'Támhle někdo mává! Na skále uprostřed moře, a kolem krouží žralok.'], ['hero', 'Hodíme jim záchranné kruhy!']] },
       ],
-      done: [['sami', 'To byla jízda. Díky!'], ['zofia', 'Juchůů! Zachránili jste nás!']],
+      done: [['sami', 'To byla jízda. Díky! Pradědové Václav a Georges by na vás byli pyšní.'], ['zofia', 'Juchůů! Zachránili jste nás!']],
     },
   ],
 };

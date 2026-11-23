@@ -211,7 +211,7 @@
         if (!hit) return;
         const state = pinState(hit), ps = behind(hit);
         if (ps.length + later(hit).length > 1) { beep(state === 'soon' ? 440 : 520, 780); return choose(hit); }   // a list, with what opens later shown locked
-        if (state === 'soon' || state === 'locked') { beep(180); say(state === 'soon' ? 'Tohle místo se teprve otevře.' : 'Nejdřív dokonči předchozí místo.'); return; }
+        if (state === 'soon' || state === 'locked') { const l = later(hit)[0]; beep(180); say(state === 'locked' ? 'Nejdřív dokonči předchozí místo.' : l ? `${fullName(l)} se teprve otevře.` : 'Tohle místo se teprve otevře.'); return; }
         travel(ps[0].id);
       },
       update(dt) {
@@ -1065,7 +1065,7 @@
           rect(Math.min(HX + 8, rx), HY + 4, 1, 1, '#000');
           for (let k = 0; k <= 10; k++) { const u = k / 10; rect(Math.round(HX + 8 + (rx - HX - 8) * u), Math.round(HY + (ry - 6 - HY) * u + Math.sin(u * Math.PI) * 6), 2, 1, '#D9C08A'); }   // the rope
         }
-        (sc.cast || []).forEach((id, i) => K.figure(id, rx - 10 + i * 20, ry - (pulling() ? 2 : 0), pulling() ? 'three' : Math.floor(s.t * 2 + i) % 2 ? 'cheer' : 'front', s.t, true));
+        (sc.cast || []).forEach((id, i) => K.figure(id, rx - 10 + i * 20, ry - (pulling() ? 2 : Math.round(Math.abs(Math.sin(s.t * 4 + i * 1.7)) * 4)), pulling() ? 'three' : 'cheer', s.t, true));   // hopping and calling for help, then holding on
         if (!pulling() && s.stuck > 0 && K.has('beach', 'buoy')) K.figure('beach', LAND.x, LAND.y + 2, 'buoy', 0, false, 0.32);
         // the shark: circling during the throws, closing in on the raft while they pull
         const sx = pulling() ? 196 - (196 - rx - 14) * clamp(pullT() / cfg.seconds, 0, 1) : 100 + Math.sin(s.t * 0.9) * 70, sy = pulling() ? ry + 4 : 178;
@@ -1102,7 +1102,7 @@
         K.hero(me(), two ? 30 : 52, gy - Math.abs(Math.sin(t * 6)) * 6, 'cheer', t);
         if (two) K.hero(mate(), 66, gy - Math.abs(Math.sin(t * 6 + 2)) * 6, 'cheer', t);
         place.saves.forEach((sv, i) => {
-          if (K.sprites[sv.id]) K.figure(sv.id, 118 + i * 40, gy, Math.floor(t * 1.5 + i) % 2 ? 'cheer' : 'three', t, true);   // jumping for joy, by turns
+          if (K.sprites[sv.id]) K.figure(sv.id, 118 + i * 40, gy - Math.round(Math.abs(Math.sin(t * 5 + i * 1.7)) * 5), 'cheer', t, true);   // hopping for joy
           else { rect(104 + i * 26, gy - 30, 12, 30, INK); rect(105 + i * 26, gy - 29, 10, 28, '#FFD43A'); }
         });
       },
