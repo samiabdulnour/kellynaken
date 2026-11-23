@@ -24,14 +24,14 @@ surprise: the game never names them before they are free.
 
 | Place | Rescued there | Built so far |
 |---|---|---|
-| Praha 5, at home | Mamka (Leila) | a dash down the street, shooting the locks off the door, running the salon together (wash, cut, dye, dry, take the money) |
+| Praha 5, at home | Mamka (Leila) | pexeso at home, a dash down the street, shooting the locks off the door, running the salon together (wash, cut, dye, dry, take the money) |
 | Praha 6, Strahov | Alan | a dash up the hill, the locks on the stadium gate, repeating Alan's rhythms in the rehearsal room, the concert; the drumstick is this saga's item |
-| Australia | Sami and Žofia | Bondi, a dash across the sea, spotting small koalas hidden in the trees of the bush; the boomerang is this saga's item |
+| Australia | Sami and Žofia | picking up a torn message on Bondi beach, a dash across the sea, spotting small koalas hidden in the bush, throwing lifebuoys and pulling them off the shark reef; the boomerang is this saga's item |
 
 Kendrick shoots a puck with his hockey stick; Kellyn throws her white bunny and stars.
-Some scenes hold an item to pick up, like a power-up: a drumstick or a boomerang. In a dash it lets you smash through
-whatever you run into for a few seconds; in a shot the drumstick doubles every shot and the boomerang makes it come back;
-in the drums the drumstick makes every hit count twice for a while.
+Some scenes hold an item to pick up, like a power-up. The drumstick is for hitting: in a dash the hero whacks whatever
+comes at them for a few seconds, and in the drums every hit counts twice. The boomerang is for throwing: in a dash it gives
+three throws that fly ahead, knock out the first thing in the way and come back.
 
 | Path | What it is |
 |---|---|

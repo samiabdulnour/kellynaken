@@ -731,5 +731,41 @@ window.SPRITES = {
         0
       ]
     }
+  },
+  "beach": {
+    "file": "beach.png",
+    "w": 62,
+    "h": 59,
+    "scale": 0.5,
+    "fps": 1,
+    "poses": {
+      "bottle": [
+        0
+      ],
+      "paper": [
+        1
+      ],
+      "shell": [
+        2
+      ],
+      "star": [
+        3
+      ],
+      "crab": [
+        4
+      ],
+      "jelly": [
+        5
+      ],
+      "buoy": [
+        6
+      ],
+      "raft": [
+        7
+      ],
+      "stand": [
+        0
+      ]
+    }
   }
 };

@@ -68,10 +68,13 @@ button{font:inherit;color:inherit}
 .tip.up{inset:4em 0 auto}
 .count{min-width:4em}
 .clock{min-width:3em;text-align:center;color:var(--paper)}
+.turn{display:flex;align-items:center;gap:.4em;color:var(--paper);text-transform:none}
 .shout{position:absolute;right:.25em;top:19.5em;margin:0;background:var(--paper);color:var(--red);border:.25em solid var(--ink);padding:.2em .5em;font-weight:700;pointer-events:none}
 .shout[hidden]{display:none}
 .card.choose{inset:auto 1em 3.5em;gap:.5em}
 .card.top{inset:1.5em 1em auto}
+.btn.throw{position:absolute;right:.75em;bottom:4.5em;padding:.5em .8em}
+.btn.throw[disabled]{opacity:.45}
 .card.choose h2{color:var(--ink)}
 .album{position:absolute;inset:4.5em .75em auto;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.5em}
 .album div{background:var(--paper);color:var(--ink);border:.25em solid var(--ink);padding:.5em .25em;text-align:center;font-weight:700}
