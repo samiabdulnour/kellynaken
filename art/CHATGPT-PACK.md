@@ -10,6 +10,7 @@ Everything ChatGPT needs to draw the game's scenes and objects so they match you
 - **S15, the bush forest: done**, drawn after your photo of the real bush.
 - **Mamka, Alan, Sami and Žofia: done**, from your new sheets of eight figures each. In the game they stand about a third taller than the kids.
 - **S11, the stadium gate:** redrawn after your photos of the real Strahov stadium from outside.
+- **S5 and P9, the salon:** redrawn after your photo of the real salon: dark plaster walls, tall chrome-framed mirrors, black leather chairs, grey stone tiles.
 - **Still to draw:** P2 (the tram), P4 (rewards and map markers). The villain C11 is optional.
 - **Style:** grounded, classic pixel art that follows your character sheets and the finished scenes: natural proportions, muted colours, no black outlines.
 

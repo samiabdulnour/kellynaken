@@ -659,8 +659,8 @@ window.SPRITES = {
   },
   "stations": {
     "file": "stations.png",
-    "w": 48,
-    "h": 71,
+    "w": 53,
+    "h": 85,
     "scale": 0.5,
     "fps": 1,
     "poses": {
