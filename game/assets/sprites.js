@@ -870,5 +870,32 @@ window.SPRITES = {
         0
       ]
     }
+  },
+  "dog": {
+    "file": "dog.png",
+    "w": 61,
+    "h": 67,
+    "scale": 0.3,
+    "fps": 1,
+    "poses": {
+      "stand": [
+        0
+      ],
+      "trot1": [
+        1
+      ],
+      "trot2": [
+        2
+      ],
+      "sit": [
+        3
+      ],
+      "bark": [
+        4
+      ],
+      "sniff": [
+        5
+      ]
+    }
   }
 };

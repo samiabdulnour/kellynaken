@@ -389,6 +389,7 @@ OBJECT_ROWS = {                                  # code: (name in the game, what
     'P10': ('customers', ['c0', 'c1', 'c2', 'c3', 'c4', 'c5', 'd0', 'd1', 'd2', 'd3', 'd4', 'd5']),
     'P11': ('beach', ['bottle', 'paper', 'shell', 'star', 'crab', 'jelly', 'buoy', 'raft']),
     'P12': ('salonkit', ['scissors', 'comb', 'brush', 'dryer', 'spray', 'dye', 'curlers', 'clip', 'mirror', 'shampoo']),
+    'P13': ('dog', ['stand', 'trot1', 'trot2', 'sit', 'bark', 'sniff']),          # praděda Václav's Yorkshire terrier
 }
 
 
@@ -462,7 +463,10 @@ def object_sheet(code):
     out.save(os.path.join(OUT, 'sprites', f'{name}.png'), optimize=True)
     print(name, 'from', code, '| drawn pixel', round(p, 2), '| cell', cw, 'x', ch, '|', [f.size for f in frames])
     poses = {part: [k] for k, part in enumerate(parts)}; poses.setdefault('stand', [0])      # drawn like a character, one pose per drawing
-    return name, {'file': f'{name}.png', 'w': cw, 'h': ch, 'scale': 0.5, 'fps': 1, 'poses': poses}
+    return name, {'file': f'{name}.png', 'w': cw, 'h': ch, 'scale': OBJECT_SCALE.get(name, 0.5), 'fps': 1, 'poses': poses}
+
+
+OBJECT_SCALE = {'dog': 0.3}                       # how big a sheet is shown, when not at half size: a Yorkie comes up to the kids' knees
 
 
 # ---- the grown-ups: a sheet each of eight figures on a transparent background, from art/source/people/<id>.webp ----
