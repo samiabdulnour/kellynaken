@@ -9,12 +9,13 @@
 // Messages a device sends:
 //   go {place}          open a place from the planet             open {index}     start one of its scenes
 //   next                the next line of the story               done             leave a scene that has no game yet
-//   ev {e, ...}         something that counts: hurt, hit, miss, pick, finish, pad, find
+//   ev {e, ...}         something that counts: hurt, hit, miss, pick, finish, pad, find, flip, grab, sting, pull
 //   fx {...}            something only to show on the other device (a jump, a shot, a drum tap)
 //   cont / retry        after a scene is won / lost              home             back to the planet after a rescue
 //   back                up one level
 // The room answers everyone with its whole state after every change.
 (function (root) {
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const rng = (seed) => { let s = (seed >>> 0) || 1; return () => { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; return s / 4294967296; }; };
 
   // What a scene throws at the players, made from a seed so both devices get exactly the same.
@@ -54,6 +55,21 @@
       }
       return list;
     },
+    // Pexeso: the cards on the table, face down, in a shuffled order.
+    memory(seed, sc) {
+      const r = rng(seed), faces = sc.memory.faces.slice(0, sc.memory.pairs), deck = faces.flatMap((f, i) => [i, i]);
+      for (let i = deck.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [deck[i], deck[j]] = [deck[j], deck[i]]; }
+      return deck;
+    },
+    // The beach: what the waves wash up, when and where, and how long it stays before the sea takes it back.
+    collect(seed, sc) {
+      const cfg = sc.collect, r = rng(seed), list = [];
+      for (let id = 0, at = 1.2; at < cfg.seconds - 1; id++) {
+        list.push({ id, at, x: 22 + Math.floor(r() * 148), kind: id > 1 && r() < cfg.jelly ? 'jelly' : r() < 0.7 ? 'paper' : 'bottle' });
+        at += cfg.every[0] + r() * (cfg.every[1] - cfg.every[0]);
+      }
+      return list;
+    },
     shoot(seed, sc, every) {
       const r = rng(seed), targets = [];
       for (let at = 1.2, id = 0; id < 160; id++) { targets.push({ id, born: at, x: 74 + r() * 100, y: 56 + r() * 130, phase: r() * 6 }); at += every * (0.8 + r() * 0.4); }
@@ -62,7 +78,7 @@
   };
 
   function create({ world, solo, now, emit }) {
-    const places = world.places, GAMES = ['run', 'drums', 'shoot', 'echo', 'find', 'salon'];
+    const places = world.places, GAMES = ['run', 'drums', 'shoot', 'echo', 'find', 'salon', 'memory', 'collect', 'rescue'];
     const owner = (pad) => (pad < 2 ? 'ken' : 'kel');                                 // in the echo game each of them has two of the four drums
     const S = { online: { ken: false, kel: false }, save: { places: {}, album: [] }, where: { screen: 'planet' }, scene: null };
     let serial = 0;
@@ -100,6 +116,9 @@
       if (sc.play === 'run') sn.lives = two ? 4 : 3;
       if (sc.play === 'shoot') Object.assign(sn, { lives: two ? 4 : 3, hits: 0, need: Math.round(sc.shoot.need * (two ? 1.6 : 1)), every: sc.shoot.every / (two ? 1.4 : 1), hit: [], missed: [], item: null });
       if (sc.play === 'find') Object.assign(sn, { found: [], need: sc.find.need });
+      if (sc.play === 'memory') Object.assign(sn, { deck: course.memory(sn.seed, sc), open: [], done: [], misses: 0, maxMiss: sc.memory.miss + (two ? 2 : 0), turn: two ? (Math.random() < 0.5 ? 'ken' : 'kel') : null, hideAt: 0 });
+      if (sc.play === 'collect') Object.assign(sn, { got: [], stung: [], need: Math.round(sc.collect.need * (two ? 1.5 : 1)), lives: two ? 4 : 3 });
+      if (sc.play === 'rescue') Object.assign(sn, { stage: 'throw', hits: 0, needHits: sc.rescue.hits * (two ? 2 : 1), lives: two ? 4 : 3, pull: 0, needPull: Math.round(sc.rescue.pull * (two ? 2 : 1)), pullAt: 0 });
       if (sc.play === 'salon') Object.assign(sn, { lives: two ? 4 : 3, need: Math.round(sc.salon.need * (two ? 1.6 : 1)), served: 0, coins: 0, cust: [], next: 0, tt: 0, workers: { ken: null, kel: null } });
       if (sc.play === 'echo') { Object.assign(sn, { lives: two ? 4 : 3, round: 0, rounds: sc.echo.rounds, n: 0, last: null }); teach(sc.echo.first, 1600); }
       if (sc.play === 'drums') Object.assign(sn, { hits: 0, need: Math.ceil(course.drums(sn.seed, sc).notes.length * (sc.drums.pass || 0.6) * (two ? 2.1 : 1)) });    // two need more than one could ever drum alone
@@ -149,6 +168,18 @@
       else if (sn.lives <= 0 || t >= cfg.seconds) sn.phase = 'lost';
       return true;
     }
+    // Games that move on by themselves between messages: pexeso cards turning back over, the shark closing in.
+    function clockTick() {
+      const sn = S.scene; if (!sn || sn.phase !== 'play') return false;
+      const sc = place().scenes[sn.index];
+      if (sc.play === 'memory' && sn.open.length === 2 && sn.hideAt && now() >= sn.hideAt) {
+        sn.open = []; sn.hideAt = 0;
+        if (sn.misses >= sn.maxMiss) sn.phase = 'lost';
+        return true;
+      }
+      if (sc.play === 'rescue' && sn.stage === 'pull' && now() > sn.pullAt + sc.rescue.seconds * 1000) { sn.phase = 'lost'; return true; }
+      return false;
+    }
     function complete() {
       const p = place(), pr = prog(p.id), index = S.scene.index;
       S.scene = null;
@@ -192,6 +223,28 @@
           else c.no++;                                                                  // not what they want next, or taken: a shake of the head
         }
       }
+      if (kind === 'memory' && m.e === 'flip') {
+        const i = m.i | 0;
+        if (sn.open.length === 2 || (sn.turn && sn.turn !== who) || i < 0 || i >= sn.deck.length || sn.done.includes(i) || sn.open.includes(i)) return;
+        sn.open.push(i);
+        if (sn.open.length === 2) {
+          const [a, b] = sn.open;
+          if (sn.deck[a] === sn.deck[b]) { sn.done.push(a, b); sn.open = []; if (sn.done.length === sn.deck.length) sn.phase = 'won'; }   // a pair: the same one goes again
+          else { sn.misses++; sn.hideAt = now() + 1100; if (sn.turn) sn.turn = sn.turn === 'ken' ? 'kel' : 'ken'; }   // not a pair: they turn back, and it is the other one's go
+        }
+      }
+      if (kind === 'collect') {
+        const id = m.id | 0, it = course.collect(sn.seed, sc)[id];
+        if (!it) return;
+        if (m.e === 'grab' && it.kind !== 'jelly' && !sn.got.includes(id)) { sn.got.push(id); if (sn.got.length >= sn.need) sn.phase = 'won'; }
+        if (m.e === 'sting' && it.kind === 'jelly' && !sn.stung.includes(id + ':' + who)) { sn.stung.push(id + ':' + who); if (--sn.lives <= 0) sn.phase = 'lost'; }
+        if (m.e === 'finish') sn.phase = 'lost';
+      }
+      if (kind === 'rescue') {
+        if (sn.stage === 'throw' && m.e === 'hit') { if (++sn.hits >= sn.needHits) { sn.stage = 'pull'; sn.pullAt = now() + 1800; } }
+        if (sn.stage === 'throw' && m.e === 'miss') { if (--sn.lives <= 0) sn.phase = 'lost'; }
+        if (sn.stage === 'pull' && m.e === 'pull' && now() >= sn.pullAt) { sn.pull += clamp(m.n | 0, 0, 12); if (sn.pull >= sn.needPull) sn.phase = 'won'; }
+      }
       if (kind === 'echo' && m.e === 'pad') {
         const p = m.p | 0;
         if (now() < sn.listenAt || p < 0 || p > 3 || (!solo && both() && owner(p) !== who)) return;     // still being shown, or not this one's drum
@@ -230,7 +283,7 @@
 
     return {
       state: S,
-      tick() { if (salonTick()) push(); },
+      tick() { const a = salonTick(), b = clockTick(); if (a || b) push(); },
       join(who, save) { S.online[who] = true; merge(save); push(); },
       leave(who) {
         S.online[who] = false;

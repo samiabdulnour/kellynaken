@@ -17,14 +17,18 @@
 //   echo    a rhythm is played on four drums and has to be played back; each of them has two of the drums
 //   find    koalas peek out of the trees: tap them while they show; drag to look around a wide picture
 //   salon   customers want washing, cutting, dyeing, drying and paying: lead them from place to place and work there
+//   memory  pexeso: turn two cards over to find pairs; they take turns
+//   collect run along the beach picking up what the waves wash in, and keep away from the jellyfish
+//   rescue  throw lifebuoys to the people on the rock, then pull them across before the shark gets there
 //   shoot   targets pop up and slip away: tap where the shot should go. Kendrick fires a puck with his hockey stick,
 //           Kellyn throws her white bunny
 //   stub    not built yet: shows a card and lets you carry on
 //
 // `pickup` puts one of the `items` into a scene, to grab like a power-up: jump into it in a dash, hit it in a shot,
 // catch it on the line in the drums. Each item belongs to one saga: the drumstick to Praha 6 (the drumming),
-// the boomerang to Australia. In a dash any item lets you smash through whatever you run into for a few seconds;
-// in a shot each has its own trick; in the drums the drumstick makes every hit count twice for a while.
+// the boomerang to Australia. The drumstick is for hitting: in a dash the hero whacks whatever comes at them for a few
+// seconds, and in the drums every hit counts twice. The boomerang is for throwing: in a dash it gives three throws
+// that fly ahead, knock out the first thing in the way and come back.
 // Texts are drafts. The story of who or what is behind it all is still open.
 window.WORLD = {
   title: 'Kellyn a Ken',
@@ -35,8 +39,8 @@ window.WORLD = {
     kel: { name: 'Kellyn', shirt: '#BFE8D0', legs: '#F6C1D0', badge: '#F08BA0', hair: '#9A6535', tie: '#F3A6C0' },
   },
   items: {
-    drumstick: { name: 'Palička', art: ['strahov', 'sticks'], dash: 'Palička! Chvíli rozbiješ všechno, do čeho vběhneš.', shot: 'Palička! Každá rána je dvojitá.', drums: 'Palička! Chvíli se každá trefa počítá dvakrát.' },
-    boomerang: { name: 'Bumerang', art: ['aussie', 'boomerang'], dash: 'Bumerang! Chvíli smete všechno, co ti stojí v cestě.', shot: 'Bumerang! Každá rána se vrací.' },
+    drumstick: { name: 'Palička', art: ['strahov', 'sticks'], use: 'hit', dash: 'Palička! Chvíli praštíš do všeho, co ti stojí v cestě.', shot: 'Palička! Každá rána je dvojitá.', drums: 'Palička! Chvíli se každá trefa počítá dvakrát.' },
+    boomerang: { name: 'Bumerang', art: ['aussie', 'boomerang'], use: 'throw', dash: 'Bumerang! Klepni na Hoď a smete, co ti stojí v cestě. Máš tři hody.', shot: 'Bumerang! Každá rána se vrací.' },
   },
   planet: {
     bg: 'world-map',
@@ -53,8 +57,10 @@ window.WORLD = {
       saves: [{ id: 'leila', name: 'Mamka' }],           // Leila on the character sheet; in the game she is Mamka
       look: { sky: '#8FD3F4', far: '#F2C078', far2: '#E7A6B5', ground: '#A39B96', line: '#7A6F6A' },
       scenes: [
-        { id: 'praha-home', name: 'Doma', bg: 'praha-home', play: 'stub',
-          talk: [['', 'Doma je divné ticho. Někdo tu chybí…'], ['hero', 'Jdeme zjistit, co se stalo.']] },
+        { id: 'praha-home', name: 'Doma', bg: 'praha-home', play: 'memory',
+          memory: { pairs: 8, miss: 10, won: 'Na poslední kartičce je nakreslený salon. Tam musíme jít!',
+            faces: [['things', 'bunny'], ['things', 'puck'], ['prague', 'key'], ['prague', 'scissors'], ['prague', 'comb'], ['prague', 'dryer'], ['strahov', 'sticks'], ['aussie', 'boomerang']] },
+          talk: [['', 'Doma je divné ticho. Někdo tu chybí…'], ['', 'Na stole leží rozházené kartičky. Možná napoví, kam se ten někdo vydal.'], ['hero', 'Pexeso! Najdeme všechny dvojice.']] },
         { id: 'praha-street', name: 'Ulice', bg: 'praha-street', scroll: true, play: 'run',
           run: { seconds: 24, low: 'holub', high: '', art: { low: ['prague', 'pigeon'] } },
           talk: [['', 'Stopa vede ulicí. Klepni a přeskoč, co ti stojí v cestě.']] },
@@ -81,7 +87,7 @@ window.WORLD = {
         { id: 'strahov-hill', name: 'Do kopce', bg: 'strahov-hill', scroll: true, play: 'run', pickup: 'drumstick',
           run: { seconds: 26, low: 'šiška', high: 'vrána', art: { low: ['strahov', 'cone'], high: ['strahov', 'crow'] } },
           talk: [['', 'Z kopce nad městem někdo volá o pomoc.'], ['', 'Nahoru se musí pěšky. Šišku přeskoč, pod vránou zůstaň dole.']] },
-        { id: 'strahov-gate', name: 'Brána stadionu', bg: 'strahov-gate', play: 'shoot', pickup: 'drumstick',
+        { id: 'strahov-gate', name: 'Brána stadionu', bg: 'strahov-gate', play: 'shoot',
           shoot: { need: 10, every: 1.3, stay: 3.2, sway: 10, target: 'zámek' },
           talk: [['', 'Velký strahovský stadion. Všechny vchody jsou zavřené a na mřížích visí zámky.']] },
         // From here on he is found: he shows the rhythm, and at the concert he plays along.
@@ -99,8 +105,9 @@ window.WORLD = {
       saves: [{ id: 'sami', name: 'Sami' }, { id: 'zofia', name: 'Žofia' }],
       look: { sky: '#FFE2B0', far: '#D9622B', far2: '#C98A4B', ground: '#F5D7A1', line: '#D9A441' },
       scenes: [
-        { id: 'australia-beach', name: 'Pláž', bg: 'australia-beach', play: 'stub',
-          talk: [['', 'Na druhém konci světa vyplavilo moře láhev. Uvnitř je jediné slovo: POMOC!']] },
+        { id: 'australia-beach', name: 'Pláž Bondi', bg: 'australia-beach', play: 'collect', ground: 226,
+          collect: { seconds: 60, need: 8, stay: 3.6, every: [1.0, 1.7], jelly: 0.24, won: 'Na vzkazu stojí: POMOC! Jsme na skále za útesem.' },
+          talk: [['', 'Na druhém konci světa, na pláži Bondi, vyplavilo moře roztrhaný vzkaz v láhvi.'], ['hero', 'Posbíráme všechny kousky, než je vlny zase odnesou!']] },
         { id: 'australia-sea', name: 'Na vlně', bg: 'australia-sea', scroll: true, play: 'run', ground: 200, tile: 'repeat', pickup: 'boomerang',
           run: { seconds: 30, low: 'žralok', high: 'bumerang', board: true, art: { low: ['aussie', 'fin', 'fin2'], high: ['aussie', 'boomerang', 'boomerang2'] } },
           talk: [['', 'Na prkno! Žraloka přeskoč, pod bumerangem zůstaň dole.']] },
@@ -111,8 +118,10 @@ window.WORLD = {
             spots: [[53, 118, 'branch'], [188, 130, 'branch'], [150, 32, 'side'], [104, 66, 'side'], [133, 106, 'branch'], [121, 180, 'peek'],
               [318, 60, 'side'], [392, 90, 'branch'], [322, 114, 'branch'], [417, 148, 'branch'], [362, 222, 'peek'], [262, 178, 'branch']] },
           talk: [['', 'Cesta vede buší. Ve stromech se něco hýbe…'], ['hero', 'Koaly! Najdeme je všechny.']] },
-        { id: 'australia-reef', name: 'Žraločí útes', bg: 'australia-reef', play: 'stub', ground: 246,
-          talk: [['', 'Támhle někdo mává! Na skále uprostřed moře.']] },
+        // From here on they are found: stranded on the rock, waving.
+        { id: 'australia-reef', name: 'Žraločí útes', bg: 'australia-reef', play: 'rescue', ground: 246, cast: ['sami', 'zofia'],
+          rescue: { hits: 2, pull: 70, seconds: 14, land: { x: 92, y: 140, w: 13 }, green: [0.22, 0.40], jetty: 206 },
+          talk: [['', 'Támhle někdo mává! Na skále uprostřed moře, a kolem krouží žralok.'], ['hero', 'Hodíme jim záchranné kruhy!']] },
       ],
       done: [['sami', 'To byla jízda. Díky!'], ['zofia', 'Juchůů! Zachránili jste nás!']],
     },

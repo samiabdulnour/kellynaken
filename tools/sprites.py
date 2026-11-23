@@ -371,6 +371,7 @@ OBJECT_ROWS = {                                  # code: (name in the game, what
     'P5': ('strahov', ['bassdrum', 'snare', 'cymbal', 'sticks', 'note', 'amp', 'cone', 'crow']),
     'P9': ('stations', ['wash', 'cut', 'dye', 'dry', 'pay']),
     'P10': ('customers', ['c0', 'c1', 'c2', 'c3', 'c4', 'c5', 'd0', 'd1', 'd2', 'd3', 'd4', 'd5']),
+    'P11': ('beach', ['bottle', 'paper', 'shell', 'star', 'crab', 'jelly', 'buoy', 'raft']),
 }
 
 
@@ -428,7 +429,8 @@ def object_sheet(code):
     a[a[..., 3] < 128] = 0                              # these come with soft, faint edges: keep only what is clearly there
     p = grid(a)
     small = shrink(a, p)                                # the whole row at once, so every thing keeps the same grid
-    groups = pieces(small[..., 3] > 0, 40)
+    sizes = sorted(len(g) for g in pieces(small[..., 3] > 0, 1))
+    groups = pieces(small[..., 3] > 0, max(40, int(np.median(sizes[-len(parts):]) * 0.12)))   # scraps (a jellyfish's tentacles) join the nearest thing
     assert len(groups) == len(parts), (code, [len(g) for g in groups])
     frames = []
     for g in groups:

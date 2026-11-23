@@ -273,7 +273,7 @@
         const card = add(`<div class="card"><h2>${esc(sc.name)}</h2><p>Tahle část se teprve staví.</p><button class="btn">Dál</button></div>`);
         card.querySelector('button').addEventListener('click', () => { beep(520, 660); Net.send({ type: 'done' }); });
       }
-      if (sn.phase === 'play' && !act) act = { run: Runner, drums: Drums, shoot: Shoot, echo: Echo, find: Find, salon: Salon }[sc.play](sc, place, sn);
+      if (sn.phase === 'play' && !act) act = { run: Runner, drums: Drums, shoot: Shoot, echo: Echo, find: Find, salon: Salon, memory: Memory, collect: Collect, rescue: Rescue }[sc.play](sc, place, sn);
       if (act) act.sync(sn);
       if (act && (sn.phase === 'won' || sn.phase === 'lost') && was !== sn.phase) act.over(sn.phase === 'won');
       was = sn.phase; line = sn.line;
@@ -334,36 +334,69 @@
   function Runner(sc, place, sn) {
     const cfg = sc.run, SPEED = 86, G = 560, JUMP = 200, X = 50, GY = sc.ground || GROUND, who = me(), max = sn.lives;
     const { obs, pickAt } = Room.course.run(sn.seed, sc);
-    const s = { t: 0, y: 0, vy: 0, inv: 0, over: false, lost: false, obs, pickAt, asked: false, told: false, sent: 0, mate: { y: 0, vy: 0 } };
-    let live = sn;
+    const how = sc.pickup && WORLD.items[sc.pickup].use;                    // 'hit' (the drumstick) or 'throw' (the boomerang)
+    const s = { t: 0, y: 0, vy: 0, inv: 0, over: false, lost: false, obs, pickAt, asked: false, told: false, sent: 0, mate: { y: 0, vy: 0 },
+      throws: 0, fly: null, whack: -9, mateFly: null, how };
+    let live = sn, button = null;
     const view = stage('<span class="lives"></span><span class="meter"><i></i></span>', `Klepni a skoč${cfg.high ? '. Pod letící věcí zůstaň dole' : ''}.`);
-    const powered = () => Net.now() < live.power;
+    const powered = () => how === 'hit' && Net.now() < live.power;
     const paint = () => { hearts(view.hud.firstElementChild, live.lives, max); view.hud.lastElementChild.firstElementChild.style.width = clamp(s.t / cfg.seconds, 0, 1) * 100 + '%'; };
-    const runner = (w, x, gy, b) => {
+    const runner = (w, x, gy, b, pose) => {
       if (cfg.board) { if (K.has('aussie', 'surfboard')) K.figure('aussie', x, gy - b.y + 4, 'surfboard', 0, false, 0.42); else { rect(x - 12, gy - b.y - 1, 24, 4, INK); rect(x - 11, gy - b.y, 22, 2, '#F2C94C'); } }
-      K.hero(w, x, gy - b.y - (cfg.board ? 1 : 0), b.y > 0 ? 'jump' : cfg.board ? 'surf' : 'run', Math.max(0, s.t));
+      K.hero(w, x, gy - b.y - (cfg.board ? 1 : 0), pose || (b.y > 0 ? 'jump' : cfg.board ? 'surf' : 'run'), Math.max(0, s.t));
     };
+    // The boomerang is thrown: it flies ahead at chest height, knocks out the first thing in its way, and comes back.
+    function paintButton() { if (button) { button.querySelector('b').textContent = s.throws; button.disabled = !!s.fly || !s.throws; } }
+    function giveBoomerang() {
+      s.throws = 3;
+      button = add('<button class="btn throw"><span>Hoď</span> <b></b></button>');
+      button.addEventListener('pointerdown', (e) => { e.stopPropagation(); e.preventDefault(); throwIt(); });
+      paintButton();
+    }
+    function throwIt() {
+      if (s.over || s.fly || !s.throws) return;
+      s.throws--; s.fly = { x: X + 8, y: GY - s.y - 26, vx: 190, back: false, hit: false };
+      beep(660, 880); Net.send({ type: 'fx', k: 'throw' }); paintButton();
+    }
+    function flyStep(f, dt, mine) {
+      f.x += (f.back ? -1 : 1) * f.vx * dt;
+      if (!f.back && f.x > X + 150) f.back = true;
+      if (f.back && f.x <= X) return null;
+      if (mine && !f.hit) for (const o of obs) {                                          // the first obstacle it meets, high or low
+        if (o.hit) continue;
+        const ox = X + (o.at - s.t) * SPEED;
+        if (Math.abs(ox - f.x) < 10) { o.hit = true; o.smashed = s.t; f.hit = true; f.back = true; beep(300, 700); break; }
+      }
+      return f;
+    }
     return {
       s, kind: 'run',
       sync(n) {
         live = n; paint();
-        if (powered() && !s.told) { s.told = true; view.tip.textContent = WORLD.items[sc.pickup].dash; }
-        if (s.told && !powered() && !s.over) view.tip.textContent = '';
+        if (live.picked && !s.told) {
+          s.told = true; view.tip.textContent = WORLD.items[sc.pickup].dash;
+          if (how === 'throw') giveBoomerang();
+        }
+        if (s.told && how === 'hit' && !powered() && !s.over) view.tip.textContent = '';
       },
-      fx(m) { if (m.k === 'jump' && s.mate.y <= 0) s.mate.vy = JUMP; },
-      over(won) { s.over = true; s.lost = !won; paint(); view.end(won, won ? 'Zvládnuto!' : 'Au!', won ? 'Jste na místě.' : 'Zkuste to ještě jednou.'); },
+      fx(m) { if (m.k === 'jump' && s.mate.y <= 0) s.mate.vy = JUMP; if (m.k === 'throw' && !s.mateFly) s.mateFly = { x: X - 14, y: GY - 31, vx: 190, back: false }; },
+      over(won) { s.over = true; s.lost = !won; if (button) button.remove(); paint(); view.end(won, won ? 'Zvládnuto!' : 'Au!', won ? 'Jste na místě.' : 'Zkuste to ještě jednou.'); },
       down() { if (!s.over && s.t > 0 && s.y <= 0) { s.vy = JUMP; beep(520); Net.send({ type: 'fx', k: 'jump' }); if (!s.told) view.tip.textContent = ''; } },
+      throwIt,
       update(dt) {
         if (s.over) return;
         s.t = clock(live);
         for (const b of [s, s.mate]) if (b.vy !== 0 || b.y > 0) { b.y += b.vy * dt; b.vy -= G * dt; if (b.y <= 0) { b.y = 0; b.vy = 0; } }
         if (s.inv > 0) s.inv -= dt;
+        if (s.fly) { s.fly = flyStep(s.fly, dt, true); if (!s.fly) paintButton(); }
+        if (s.mateFly) s.mateFly = flyStep(s.mateFly, dt, false);
         if (pickAt !== null && !live.picked && !s.asked && Math.abs((pickAt - s.t) * SPEED) < 11 && s.y > 10) { s.asked = true; beep(660, 880, 1100); Net.send({ type: 'ev', e: 'pick' }); }   // jumped into the pick-up
         for (const o of obs) {
-          if (o.hit || s.inv > 0 || Math.abs((o.at - s.t) * SPEED) > 8) continue;
-          if (!(o.high ? s.y > 12 : s.y < 9)) continue;
+          if (o.hit || s.inv > 0) continue;
+          const d = (o.at - s.t) * SPEED;
+          if (powered() && d > 0 && d < 16) { o.hit = true; o.smashed = s.t; s.whack = s.t; beep(300, 600); continue; }   // the drumstick: whack it before it reaches you
+          if (Math.abs(d) > 8 || !(o.high ? s.y > 12 : s.y < 9)) continue;
           o.hit = true;
-          if (powered()) { o.smashed = s.t; beep(300, 600); continue; }                          // with an item in hand it just breaks
           s.inv = 1.1; beep(200, 150); Net.send({ type: 'ev', e: 'hurt' });
         }
         if (s.t >= cfg.seconds && Net.now() - s.sent > 1000) { s.sent = Net.now(); Net.send({ type: 'ev', e: 'finish' }); }
@@ -375,7 +408,12 @@
         for (const o of obs) {
           const x = Math.round(X + (o.at - t) * SPEED);
           if (x < -12 || x > W + 12) continue;
-          if (o.smashed) { if (t - o.smashed < 0.3) { rect(x - 9, GY - 20, 18, 2, '#FFD43A'); rect(x - 1, GY - 28, 2, 18, '#FFD43A'); } continue; }
+          if (o.smashed) {
+            const u = t - o.smashed; if (u > 0.4) continue;
+            if (K.has('things', 'flash')) K.figure('things', x, (o.high ? GY - 46 : GY - 4) - Math.round(u * 30), 'flash', 0, false, 0.6);
+            else { rect(x - 9, GY - 20, 18, 2, '#FFD43A'); rect(x - 1, GY - 28, 2, 18, '#FFD43A'); }
+            continue;
+          }
           const look = cfg.art && cfg.art[o.high ? 'high' : 'low'];
           if (look && K.has(look[0], look[1])) {                                             // drawn obstacles; a second drawing, if there is one, takes turns with the first
             const pose = look.length > 2 && Math.floor(t * 6) % 2 ? look[2] : look[1];
@@ -386,10 +424,17 @@
         }
         if (pickAt !== null && !live.picked) { const x = X + (pickAt - t) * SPEED; if (x > -12 && x < W + 12) item(sc.pickup, x, GY - 50 + Math.round(Math.sin(t * 5) * 2)); }
         if (mateHere()) runner(mate(), X - 22, GY - 5, s.mate);                                  // a step behind, on the far side
+        const swing = powered() && t - s.whack < 0.25;
         if (s.lost) K.hero(who, X, GY, 'dizzy', t);
-        else if (!(s.inv > 0 && Math.floor(t * 14) % 2)) runner(who, X, GY, s);
+        else if (!(s.inv > 0 && Math.floor(t * 14) % 2)) runner(who, X, GY, s, swing ? 'drum' : null);
         const left = (live.power - Net.now()) / 1000;
-        if (left > 0 && (left > 2 || Math.floor(t * 8) % 2)) item(sc.pickup, X, GY - s.y - 66);   // held overhead; blinks when nearly spent
+        if (powered() && !swing && (left > 2 || Math.floor(t * 8) % 2)) item(sc.pickup, X, GY - s.y - 66);   // held overhead; blinks when nearly spent
+        for (const f of [s.fly, s.mateFly]) {                                                    // the boomerang spinning through the air
+          if (!f) continue;
+          const pose = Math.floor(t * 12) % 2 ? 'boomerang2' : 'boomerang';
+          if (K.has('aussie', pose)) K.figure('aussie', f.x, f.y + 7, pose, 0, false, 0.3);
+          else { rect(f.x - 5, f.y - 2, 10, 3, '#D2A064'); rect(f.x - 5, f.y - 2, 3, 7, '#D2A064'); }
+        }
       },
     };
   }
@@ -837,6 +882,198 @@
         if (mateHere()) things.push([s.mate.y, () => K.hero(mate(), s.mate.x, s.mate.y, s.mate.to ? 'run' : live.workers[mate()] !== null ? 'cheer' : 'stand', s.t, s.mate.to ? s.mate.to.x < s.mate.x : false)]);
         things.push([s.me.y, () => K.hero(who, s.me.x, s.me.y, s.lost ? 'dizzy' : s.me.to ? 'run' : live.workers[who] !== null && live.workers[who] !== undefined ? 'cheer' : 'stand', s.t, s.me.to ? s.me.to.x < s.me.x : false)]);
         things.sort((a, b) => a[0] - b[0]).forEach(([, f]) => f());
+      },
+    };
+  }
+
+  // Pexeso: pairs of cards face down on the table. Turn two over; a pair stays up, and the same one goes again;
+  // otherwise they turn back and it is the other one's go. Too many wrong guesses and the game is lost.
+  function Memory(sc, place, sn) {
+    const cfg = sc.memory, who = me(), COLS = 4, CW = 40, CH = 50, GAP = 6, X0 = Math.round((W - (COLS * CW + (COLS - 1) * GAP)) / 2), Y0 = 36;
+    const s = { t: 0, over: false, lost: false, seenMiss: 0, shake: 0 };
+    let live = sn;
+    const view = stage('<span class="count"></span><span class="turn"></span>', '');
+    const spot = (i) => ({ x: X0 + (i % COLS) * (CW + GAP), y: Y0 + Math.floor(i / COLS) * (CH + GAP) });
+    const mine = () => !live.turn || live.turn === who;
+    const paint = () => {
+      view.hud.firstElementChild.textContent = `Pokusy ${Math.max(0, live.maxMiss - live.misses)}`;
+      view.hud.lastElementChild.innerHTML = live.turn ? `${face(live.turn, 3, 1)}<span>${mine() ? 'Hraješ ty' : 'Hraje ' + esc(heroName(live.turn))}</span>` : '';
+      if (!s.over) view.tip.textContent = mine() ? 'Otoč dvě kartičky. Najdi dvojici.' : `Teď otáčí ${heroName(live.turn)}. Dívej se a pamatuj si.`;
+    };
+    paint();
+    return {
+      s, kind: 'memory', peek: () => ({ deck: live.deck, open: live.open, done: live.done, mine: mine(), spot }),
+      sync(n) { if (n.misses > s.seenMiss) { s.seenMiss = n.misses; s.shake = 0.4; beep(200, 160); } else if (n.done.length > live.done.length) beep(660, 880); live = n; paint(); },
+      over(won) { s.over = true; s.lost = !won; paint(); view.end(won, won ? 'Všechny dvojice!' : 'Došly pokusy.', won ? (cfg.won || 'Výborná paměť!') : 'Zkuste to ještě jednou.'); },
+      down(x, y) {
+        if (s.over || !mine() || live.open.length === 2) return;
+        for (let i = 0; i < live.deck.length; i++) {
+          const p = spot(i);
+          if (x >= p.x && x < p.x + CW && y >= p.y && y < p.y + CH) {
+            if (live.done.includes(i) || live.open.includes(i)) return;
+            beep(520); return Net.send({ type: 'ev', e: 'flip', i });
+          }
+        }
+      },
+      update(dt) { s.t += dt; if (s.shake > 0) s.shake -= dt; },
+      draw() {
+        K.background(sc.bg, 0, place.look);
+        rect(0, 22, W, H - 22, 'rgba(43,31,26,.55)');
+        live.deck.forEach((f, i) => {
+          const p = spot(i), up = live.done.includes(i) || live.open.includes(i), wrong = live.open.length === 2 && live.open.includes(i) && s.shake > 0;
+          const x = p.x + (wrong ? Math.round(Math.sin(s.t * 60) * 2) : 0), y = p.y;
+          rect(x, y + 2, CW, CH, 'rgba(43,31,26,.5)');                                         // a little shadow
+          if (!up) {                                                                          // the back: a pattern of diamonds
+            rect(x, y, CW, CH, '#7A4A22'); rect(x + 1, y + 1, CW - 2, CH - 2, '#CC2233'); rect(x + 3, y + 3, CW - 6, CH - 6, '#E8505E');
+            for (let j = 0; j < 4; j++) for (let k = 0; k < 3; k++) rect(x + 7 + k * 10, y + 7 + j * 10 + (k % 2) * 5, 4, 4, '#FFD9A8');
+            return;
+          }
+          const done = live.done.includes(i);
+          rect(x, y, CW, CH, done ? '#1FA463' : '#B98850'); rect(x + 1, y + 1, CW - 2, CH - 2, '#FFF8E7');
+          const [sheet, pose] = cfg.faces[f], sp = K.sprites[sheet];
+          if (sp) K.figure(sheet, x + CW / 2, y + CH - 7, pose, 0, false, Math.min(34 / sp.w, 38 / sp.h));
+        });
+      },
+    };
+  }
+
+  // The beach: the waves wash up torn pieces of the message and the odd bottle; run along the sand to pick them up
+  // before the sea takes them back. Jellyfish wash up too: running into one stings. Each runs for themselves; what
+  // they pick up counts for both.
+  function Collect(sc, place, sn) {
+    const cfg = sc.collect, who = me(), GY = sc.ground || GROUND, SPEED = 92, IY = GY - 4;
+    const items = Room.course.collect(sn.seed, sc);
+    const s = { t: 0, over: false, lost: false, me: { x: 60, to: null }, mate: { x: 130, to: null }, sent: 0, asked: new Set(), stungBy: new Set() };
+    let live = sn;
+    const view = stage('<span class="lives"></span><span class="count"></span><span class="meter"><i></i></span>', 'Klepni, kam běžet. Sbírej kousky vzkazu. Pozor na medúzy!');
+    const out = (it) => s.t >= it.at && s.t < it.at + cfg.stay;
+    const taken = (it) => live.got.includes(it.id) || s.asked.has(it.id);
+    const paint = () => {
+      hearts(view.hud.children[0], live.lives, sn.lives);
+      view.hud.children[1].textContent = `${live.got.length} / ${live.need}`;
+      view.hud.children[2].firstElementChild.style.width = clamp(1 - s.t / cfg.seconds, 0, 1) * 100 + '%';
+    };
+    paint();
+    return {
+      s, kind: 'collect', peek: () => ({ me: s.me.x, items: items.filter((it) => out(it) && !taken(it)).map((it) => ({ id: it.id, x: it.x, kind: it.kind, left: it.at + cfg.stay - s.t })) }),
+      sync(n) { live = n; paint(); },
+      fx(m) { if (m.k === 'walk') s.mate.to = m.x; },
+      over(won) { s.over = true; s.lost = !won; paint(); view.end(won, won ? 'Celý vzkaz!' : live.lives <= 0 ? 'Au, medúzy!' : 'Moře bylo rychlejší.', won ? (cfg.won || 'Kousky do sebe zapadly.') : `Máte ${live.got.length} z ${live.need}. Zkuste to ještě jednou.`); },
+      down(x, y) { if (s.over || s.t < 0 || y < 22) return; s.me.to = clamp(x, 10, W - 10); Net.send({ type: 'fx', k: 'walk', x: s.me.to }); view.tip.textContent = ''; },
+      update(dt) {
+        if (s.over) return;
+        s.t = clock(live);
+        for (const b of [s.me, s.mate]) {
+          if (b.to === null) continue;
+          const d = b.to - b.x, step = SPEED * dt;
+          if (Math.abs(d) <= step) { b.x = b.to; b.to = null; } else b.x += Math.sign(d) * step;
+        }
+        for (const it of items) {
+          if (!out(it) || Math.abs(it.x - s.me.x) > 8) continue;
+          if (it.kind === 'jelly') { if (!s.stungBy.has(it.id)) { s.stungBy.add(it.id); beep(200, 150); Net.send({ type: 'ev', e: 'sting', id: it.id }); } }
+          else if (!taken(it)) { s.asked.add(it.id); beep(660, 880); Net.send({ type: 'ev', e: 'grab', id: it.id }); }
+        }
+        if (s.t >= cfg.seconds && Net.now() - s.sent > 1000) { s.sent = Net.now(); Net.send({ type: 'ev', e: 'finish' }); }
+        paint();
+      },
+      draw() {
+        K.background(sc.bg, 0, place.look);
+        for (const it of items) {
+          if (!out(it) || taken(it)) continue;
+          const u = s.t - it.at, left = it.at + cfg.stay - s.t;
+          if (u < 0.35) { const w = Math.round(28 * (u / 0.35)); rect(it.x - w / 2, IY - 3, w, 3, '#FFFFFF'); continue; }   // a wave brings it in
+          if (left < 0.8 && Math.floor(s.t * 10) % 2) continue;                                // about to be taken back
+          rect(it.x - 11, IY, 22, 3, 'rgba(176,132,72,.45)'); rect(it.x - 8, IY + 3, 16, 1, 'rgba(176,132,72,.35)');   // a patch of wet sand
+          if (K.has('beach', it.kind)) K.figure('beach', it.x, IY + 2 - (it.kind === 'jelly' ? Math.round(Math.abs(Math.sin(s.t * 4 + it.id))) : 0), it.kind, 0, it.id % 2 === 1, { bottle: 0.42, paper: 0.5, jelly: 0.46 }[it.kind]);
+          else rect(it.x - 4, IY - 6, 8, 6, it.kind === 'jelly' ? '#8E5BC8' : '#FFF8E7');
+        }
+        const pose = (b) => (b.to !== null ? 'run' : 'stand'), flip = (b) => b.to !== null && b.to < b.x;
+        if (mateHere()) K.hero(mate(), s.mate.x, GY + 4, pose(s.mate), s.t + 0.3, flip(s.mate));
+        K.hero(who, s.me.x, GY + 6, s.lost ? 'dizzy' : pose(s.me), s.t, flip(s.me));
+      },
+    };
+  }
+
+  // The reef: the two of them are stranded on the rock. First throw lifebuoys to them: a meter swings up and down,
+  // tap to throw, and the buoy has to land right by them. When enough have reached them, they hold on and the heroes
+  // pull them across to the jetty, tapping as fast as they can, before the shark gets there.
+  function Rescue(sc, place, sn) {
+    const cfg = sc.rescue, who = me(), GY = sc.ground || GROUND, G = 520, HX = 34, HY = GY - 26, LAND = cfg.land;
+    const s = { t: 0, over: false, lost: false, buoys: [], mateBuoys: [], cool: 0, taps: 0, sentTaps: 0, lastSend: 0, splash: [], stuck: 0 };
+    let live = sn, stage0 = sn.stage;
+    const view = stage('<span class="lives"></span><span class="count"></span><span class="meter"><i></i></span>', 'Klepni, když je ručička v zeleném. Hoď jim kruh!');
+    const meter = (t) => (Math.sin(t * 2.6) + 1) / 2;                                    // swings 0..1
+    const pulling = () => live.stage === 'pull';
+    const pullT = () => (Net.now() - live.pullAt) / 1000;
+    const paint = () => {
+      hearts(view.hud.children[0], live.lives, sn.lives);
+      view.hud.children[1].textContent = pulling() ? `${Math.min(live.pull, live.needPull)} / ${live.needPull}` : `${live.hits} / ${live.needHits}`;
+      view.hud.children[2].firstElementChild.style.width = (pulling() ? clamp(live.pull / live.needPull, 0, 1) : clamp(live.hits / live.needHits, 0, 1)) * 100 + '%';
+    };
+    paint();
+    function launch(list, p, x0) { list.push({ x: x0, y: HY, vx: 20 + 190 * p, vy: -300, done: false }); }
+    return {
+      s, kind: 'rescue', peek: () => ({ stage: live.stage, meter: meter(s.t), cool: s.cool, pullT: pullT() }),
+      sync(n) {
+        live = n; paint();
+        if (n.stage !== stage0) { stage0 = n.stage; view.tip.textContent = 'Drží se! Klepejte co nejrychleji a táhněte je k molu!'; beep(520, 660, 780); }
+      },
+      fx(m) { if (m.k === 'buoy') launch(s.mateBuoys, m.p, HX); },                      // the same arc as on their own screen
+      over(won) { s.over = true; s.lost = !won; paint(); view.end(won, won ? 'Jsou na molu!' : pulling() ? 'Žralok byl rychlejší!' : 'Došly záchranné kruhy.', won ? 'Žralok odplouvá s prázdnou.' : 'Zkuste to ještě jednou.'); },
+      down() {
+        if (s.over || s.t < 0) return;
+        if (pulling()) { if (pullT() >= 0) { s.taps++; beep(300 + (s.taps % 4) * 40); } return; }
+        if (s.cool > 0) return;
+        const p = meter(s.t); launch(s.buoys, p, HX); s.cool = 0.9; beep(440, 660);
+        Net.send({ type: 'fx', k: 'buoy', p });
+      },
+      update(dt) {
+        if (s.over) return;
+        s.t = clock(live); s.cool -= dt;
+        for (const [list, real] of [[s.buoys, true], [s.mateBuoys, false]]) {
+          for (const b of list) {
+            if (b.done) continue;
+            b.x += b.vx * dt; b.vy += G * dt; b.y += b.vy * dt;
+            if (b.vy > 0 && b.y >= LAND.y) {                                                   // it comes down: by them on the rock, or in the sea
+              b.done = true;
+              const hit = Math.abs(b.x - LAND.x) <= LAND.w;
+              if (hit) { s.stuck = 1.2; beep(660, 880, 1100); } else { s.splash.push({ x: b.x, at: s.t }); beep(160); }
+              if (real) Net.send({ type: 'ev', e: hit ? 'hit' : 'miss' });
+            }
+          }
+        }
+        if (s.stuck > 0) s.stuck -= dt;
+        s.buoys = s.buoys.filter((b) => !b.done); s.mateBuoys = s.mateBuoys.filter((b) => !b.done);
+        s.splash = s.splash.filter((q) => s.t - q.at < 0.6);
+        if (pulling() && s.taps > s.sentTaps && Net.now() - s.lastSend > 150) { Net.send({ type: 'ev', e: 'pull', n: s.taps - s.sentTaps }); s.sentTaps = s.taps; s.lastSend = Net.now(); }
+        paint();
+      },
+      draw() {
+        K.background(sc.bg, 0, place.look);
+        const f = pulling() ? clamp(live.pull / live.needPull, 0, 1) : 0;
+        // the stranded two: on the rock, then on the raft coming across
+        const rx = LAND.x + (60 - LAND.x) * f, ry = LAND.y - 4 + (cfg.jetty - LAND.y + 4) * f;
+        if (pulling()) {
+          if (K.has('beach', 'raft')) K.figure('beach', rx, ry + 6, 'raft', 0, false, 0.62);
+          rect(Math.min(HX + 8, rx), HY + 4, 1, 1, '#000');
+          for (let k = 0; k <= 10; k++) { const u = k / 10; rect(Math.round(HX + 8 + (rx - HX - 8) * u), Math.round(HY + (ry - 6 - HY) * u + Math.sin(u * Math.PI) * 6), 2, 1, '#D9C08A'); }   // the rope
+        }
+        (sc.cast || []).forEach((id, i) => K.figure(id, rx - 10 + i * 20, ry - (pulling() ? 2 : 0), pulling() ? 'three' : Math.floor(s.t * 2 + i) % 2 ? 'cheer' : 'front', s.t, true));
+        if (!pulling() && s.stuck > 0 && K.has('beach', 'buoy')) K.figure('beach', LAND.x, LAND.y + 2, 'buoy', 0, false, 0.32);
+        // the shark: circling during the throws, closing in on the raft while they pull
+        const sx = pulling() ? 196 - (196 - rx - 14) * clamp(pullT() / cfg.seconds, 0, 1) : 100 + Math.sin(s.t * 0.9) * 70, sy = pulling() ? ry + 4 : 178;
+        if (K.has('aussie', 'fin')) K.figure('aussie', sx, sy, Math.floor(s.t * 5) % 2 ? 'fin' : 'fin2', 0, pulling() || Math.cos(s.t * 0.9) < 0, 0.34);
+        for (const q of s.splash) { const u = (s.t - q.at) / 0.6; rect(q.x - 6 * u - 1, LAND.y - 4 - 8 * (1 - u), 3, 3, '#FFFFFF'); rect(q.x + 6 * u - 1, LAND.y - 4 - 8 * (1 - u), 3, 3, '#FFFFFF'); }
+        for (const b of [...s.buoys, ...s.mateBuoys]) { if (K.has('beach', 'buoy')) K.figure('beach', b.x, b.y + 6, 'buoy', 0, false, 0.3); else rect(b.x - 4, b.y - 4, 8, 8, '#CC2233'); }
+        if (mateHere()) K.hero(mate(), HX + 22, GY + 2, pulling() ? (Math.floor(s.t * 6) % 2 ? 'aim' : 'stand') : 'stand', s.t + 0.3);
+        K.hero(who, HX, GY + 4, s.lost ? 'dizzy' : pulling() ? (s.taps % 2 ? 'aim' : 'stand') : 'aim', s.t);
+        if (!pulling() && !s.over) {                                                         // the throwing meter, by the hero
+          const mx = 6, my = 120, mh = 90, p = meter(s.t);
+          rect(mx - 1, my - 1, 10, mh + 2, INK); rect(mx, my, 8, mh, '#3A2F33');
+          const lo = cfg.green[0], hi = cfg.green[1];
+          rect(mx, my + Math.round(mh * (1 - hi)), 8, Math.round(mh * (hi - lo)), '#1FA463');
+          rect(mx - 3, my + Math.round(mh * (1 - p)) - 1, 14, 3, s.cool > 0 ? '#8A8F9C' : '#FFD43A');
+        }
       },
     };
   }
