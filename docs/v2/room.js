@@ -116,7 +116,7 @@
       if (sc.play === 'run') sn.lives = two ? 4 : 3;
       if (sc.play === 'shoot') Object.assign(sn, { lives: two ? 4 : 3, hits: 0, need: Math.round(sc.shoot.need * (two ? 1.6 : 1)), every: sc.shoot.every / (two ? 1.4 : 1), hit: [], missed: [], item: null });
       if (sc.play === 'find') Object.assign(sn, { found: [], need: sc.find.need });
-      if (sc.play === 'memory') Object.assign(sn, { deck: course.memory(sn.seed, sc), open: [], done: [], misses: 0, maxMiss: sc.memory.miss + (two ? 2 : 0), turn: two ? (Math.random() < 0.5 ? 'ken' : 'kel') : null, hideAt: 0 });
+      if (sc.play === 'memory') { const first = two ? (Math.random() < 0.5 ? 'ken' : 'kel') : null; Object.assign(sn, { deck: course.memory(sn.seed, sc), open: [], done: [], misses: 0, maxMiss: sc.memory.miss + (two ? 2 : 0), first, turn: first, hideAt: 0 }); }
       if (sc.play === 'collect') Object.assign(sn, { got: [], stung: [], need: Math.round(sc.collect.need * (two ? 1.5 : 1)), lives: two ? 4 : 3 });
       if (sc.play === 'rescue') Object.assign(sn, { stage: 'throw', hits: 0, needHits: sc.rescue.hits * (two ? 2 : 1), lives: two ? 4 : 3, pull: 0, needPull: Math.round(sc.rescue.pull * (two ? 2 : 1)), pullAt: 0 });
       if (sc.play === 'salon') Object.assign(sn, { lives: two ? 4 : 3, need: Math.round(sc.salon.need * (two ? 1.6 : 1)), served: 0, coins: 0, cust: [], next: 0, tt: 0, workers: { ken: null, kel: null } });
@@ -223,15 +223,16 @@
           else c.no++;                                                                  // not what they want next, or taken: a shake of the head
         }
       }
+      // Pexeso for two: one turns the first card, the other turns the second, and then they swap.
       if (kind === 'memory' && m.e === 'flip') {
-        const i = m.i | 0;
+        const i = m.i | 0, other = (w) => (w === 'ken' ? 'kel' : 'ken');
         if (sn.open.length === 2 || (sn.turn && sn.turn !== who) || i < 0 || i >= sn.deck.length || sn.done.includes(i) || sn.open.includes(i)) return;
         sn.open.push(i);
-        if (sn.open.length === 2) {
-          const [a, b] = sn.open;
-          if (sn.deck[a] === sn.deck[b]) { sn.done.push(a, b); sn.open = []; if (sn.done.length === sn.deck.length) sn.phase = 'won'; }   // a pair: the same one goes again
-          else { sn.misses++; sn.hideAt = now() + 1100; if (sn.turn) sn.turn = sn.turn === 'ken' ? 'kel' : 'ken'; }   // not a pair: they turn back, and it is the other one's go
-        }
+        if (sn.open.length === 1) { if (sn.first) sn.turn = other(sn.first); return; }        // now the other one looks for its pair
+        const [a, b] = sn.open;
+        if (sn.deck[a] === sn.deck[b]) { sn.done.push(a, b); sn.open = []; if (sn.done.length === sn.deck.length) sn.phase = 'won'; }   // a pair: they stay up
+        else { sn.misses++; sn.hideAt = now() + 1100; }                                       // not a pair: they turn back over in a moment
+        if (sn.first) { sn.first = other(sn.first); sn.turn = sn.first; }                     // and the roles swap
       }
       if (kind === 'collect') {
         const id = m.id | 0, it = course.collect(sn.seed, sc)[id];
