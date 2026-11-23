@@ -234,7 +234,7 @@ window.SPRITES = {
   },
   "alan": {
     "file": "alan-poses.png",
-    "w": 84,
+    "w": 86,
     "h": 135,
     "scale": 0.5,
     "fps": 6,
@@ -271,7 +271,7 @@ window.SPRITES = {
     "faces": {
       "file": "alan-heads.png",
       "w": 41,
-      "h": 56,
+      "h": 55,
       "n": 5,
       "scale": 0.36
     },
@@ -314,7 +314,7 @@ window.SPRITES = {
   },
   "sami": {
     "file": "sami-poses.png",
-    "w": 82,
+    "w": 80,
     "h": 130,
     "scale": 0.5,
     "fps": 6,
@@ -350,7 +350,7 @@ window.SPRITES = {
     },
     "faces": {
       "file": "sami-heads.png",
-      "w": 39,
+      "w": 38,
       "h": 54,
       "n": 5,
       "scale": 0.36
@@ -395,7 +395,7 @@ window.SPRITES = {
   "zofia": {
     "file": "zofia-poses.png",
     "w": 82,
-    "h": 143,
+    "h": 141,
     "scale": 0.5,
     "fps": 6,
     "poses": {
@@ -431,7 +431,7 @@ window.SPRITES = {
     "faces": {
       "file": "zofia-heads.png",
       "w": 52,
-      "h": 60,
+      "h": 59,
       "n": 5,
       "scale": 0.36
     },

@@ -19,7 +19,7 @@ The big figures are the base: they are the most detailed drawings on the sheet, 
 The sheet is drawn in big square "pixels" (about 4.4 real pixels wide on a sheet 1536 wide), so each figure is
 sampled back down onto that grid; nothing is redrawn. A sharper or larger sheet gives sharper sprites.
 """
-import json, os, sys
+import colorsys, json, os, sys
 import numpy as np
 from PIL import Image, ImageFilter
 
@@ -453,14 +453,78 @@ PEOPLE_PIXEL = 3.9                               # one size for all four, so the
                                                  # are drawn, so at half size they stand about a third taller than the heroes
 
 
+def box_shrink(a, step):
+    """A smooth shrink: each new pixel is the average of the area it covers (transparent parts left out), so
+    the sheet's big uneven blocks turn into even, fine pixels like the heroes'."""
+    h, w = a.shape[:2]; size = (int(w / step), int(h / step))
+    rgb = np.asarray(Image.fromarray((a[..., :3] * (a[..., 3:4] / 255)).astype(np.uint8)).resize(size, Image.BOX)).astype(float)
+    al = np.asarray(Image.fromarray(a[..., 3]).resize(size, Image.BOX)).astype(float)
+    out = np.zeros(rgb.shape[:2] + (4,), np.uint8)
+    keep = al > 140
+    out[keep, :3] = np.clip(rgb[keep] * 255 / al[keep, None], 0, 255); out[keep, 3] = 255
+    return out
+
+
+def palette(a, n=48):
+    """One small palette for a whole sheet, so flat areas are flat and every pose has the same colours."""
+    q = np.asarray(Image.fromarray(a, 'RGBA').convert('RGB').quantize(colors=n, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE).convert('RGB'))
+    return np.dstack([q, a[..., 3]]).astype(np.uint8)
+
+
+def tidy(a):
+    """A single stray pixel takes the colour that most of its eight neighbours share."""
+    out = a.copy(); h, w = a.shape[:2]
+    key = (a[..., 0].astype(int) << 16) | (a[..., 1].astype(int) << 8) | a[..., 2]
+    for y in range(1, h - 1):
+        for x in range(1, w - 1):
+            if not a[y, x, 3]: continue
+            nb, na = key[y - 1:y + 2, x - 1:x + 2].ravel(), a[y - 1:y + 2, x - 1:x + 2, 3].ravel()
+            others = [k for i, k in enumerate(nb) if i != 4 and na[i]]
+            if len(others) < 8 or key[y, x] in others: continue
+            vals, cnt = np.unique(others, return_counts=True)
+            if cnt.max() >= 5: out[y, x, :3] = [(vals[cnt.argmax()] >> 16) & 255, (vals[cnt.argmax()] >> 8) & 255, vals[cnt.argmax()] & 255]
+    return out
+
+
+def grade(img, lift=0.17, gamma=0.86, sat=1.12, head=0.3):
+    """The heroes' colours: blacks and shadows lifted to a soft charcoal, a little more colour. In the head the
+    darkest pixels (eyes, brows) stay as they are."""
+    a = np.asarray(img).astype(float).copy(); op = a[..., 3] > 0; h = a.shape[0]
+    top = np.zeros_like(op); top[:int(h * head)] = True
+    for y, x in zip(*np.nonzero(op)):
+        hh, ss, vv = colorsys.rgb_to_hsv(*(a[y, x, :3] / 255))
+        if top[y, x] and vv < 0.3: continue
+        vv = lift + (1 - lift) * vv ** gamma; ss = min(1, ss * sat)
+        a[y, x, :3] = np.array(colorsys.hsv_to_rgb(hh, ss, vv)) * 255
+    return Image.fromarray(a.astype(np.uint8), 'RGBA')
+
+
+def unline(img, head=0.3):
+    """Thin dark lines inside the body (below the head, where the eyes are) become a darker shade of the colour
+    on either side of them, like the outer edge."""
+    a = np.asarray(img).astype(int); out = a.copy(); op = a[..., 3] > 0; h, w = op.shape
+    lum = a[..., :3].mean(axis=2)
+    for y in range(int(h * head), h - 1):
+        for x in range(1, w - 1):
+            if not op[y, x] or lum[y, x] > 80: continue
+            for dy, dx in ((0, 1), (1, 0), (1, 1), (1, -1)):
+                p, q = (y - dy, x - dx), (y + dy, x + dx)
+                if op[p] and op[q] and lum[p] - lum[y, x] > 55 and lum[q] - lum[y, x] > 55:
+                    out[y, x, :3] = ((a[p][:3] + a[q][:3]) / 2 * 0.62).astype(int); break
+    return Image.fromarray(out.astype(np.uint8), 'RGBA')
+
+
 def people_sheet(name):
-    """Cut the eight figures of one grown-up and lay them out like the heroes' poses, shown at half size like them."""
+    """Cut the eight figures of one grown-up and lay them out like the heroes' poses, shown at half size like them.
+    Their sheets are drawn in coarser, darker pixel art with near-black outlines, so they are brought to the
+    heroes' look: shrunk smoothly into even fine pixels, given flat colours, blacks lifted to soft charcoal,
+    and every dark outline, outside and in, turned into a darker shade of its own colour."""
     path = next((os.path.join(PEOPLE, f'{name}.{ext}') for ext in ('png', 'webp') if os.path.exists(os.path.join(PEOPLE, f'{name}.{ext}'))), None)
     if not path: return None
     a = np.asarray(Image.open(path).convert('RGBA')).copy()
     a[a[..., 3] < 128] = 0
     a[..., 3] = np.where(a[..., 3] > 0, 255, 0)
-    small = shrink(a, PEOPLE_PIXEL)
+    small = tidy(palette(box_shrink(a, PEOPLE_PIXEL), 80))    # even fine pixels and flat colours, like the heroes'
     groups = pieces(small[..., 3] > 0, 150)
     assert len(groups) == 8, (name, [len(g) for g in groups])
     frames = []
@@ -474,7 +538,7 @@ def people_sheet(name):
             h = f.shape[0]
             band = f[int(h * 0.15):int(h * 0.5), :, 3] > 0                     # head and shoulders: where the body is, whatever the arms do
             ax = float(np.median(np.nonzero(band)[1])) + 0.5
-            frames.append((soften(Image.fromarray(f, 'RGBA')), ax, int(ground - 1 - ys.max())))
+            frames.append((unline(soften(grade(Image.fromarray(f, 'RGBA')))), ax, int(ground - 1 - ys.max())))
     left = max(int(np.ceil(ax)) for _, ax, _ in frames)
     right = max(int(np.ceil(f.width - ax)) for f, ax, _ in frames)
     cw, ch = int(2 * max(left, right) + 2), int(max(f.height + lift for f, _, lift in frames))
