@@ -322,7 +322,9 @@
   // Stand-in pictures of the things you can pick up, about 12 pixels across, centred on (x, y).
   function item(kind, x, y) {
     x = Math.round(x); y = Math.round(y);
-    rect(x - 8, y - 8, 16, 16, INK); rect(x - 7, y - 7, 14, 14, '#FFF8E7');
+    rect(x - 9, y - 9, 18, 18, INK); rect(x - 8, y - 8, 16, 16, '#FFF8E7');
+    const art = WORLD.items[kind] && WORLD.items[kind].art;
+    if (art && K.has(art[0], art[1])) { const sp = K.sprites[art[0]]; return K.figure(art[0], x, y + 7, art[1], 0, false, 14 / Math.max(sp.w, sp.h) * 1.15); }
     if (kind === 'drumstick') { for (let i = 0; i < 8; i++) rect(x - 5 + i, y + 3 - i, 2, 2, '#B98850'); rect(x + 2, y - 6, 4, 4, '#8A5A2B'); }
     else { rect(x - 5, y - 4, 10, 3, '#D2A064'); rect(x - 5, y - 4, 3, 9, '#D2A064'); rect(x + 2, y - 4, 3, 3, '#CC2233'); rect(x - 5, y + 2, 3, 3, '#CC2233'); }
   }
@@ -338,7 +340,7 @@
     const powered = () => Net.now() < live.power;
     const paint = () => { hearts(view.hud.firstElementChild, live.lives, max); view.hud.lastElementChild.firstElementChild.style.width = clamp(s.t / cfg.seconds, 0, 1) * 100 + '%'; };
     const runner = (w, x, gy, b) => {
-      if (cfg.board) { rect(x - 12, gy - b.y - 1, 24, 4, INK); rect(x - 11, gy - b.y, 22, 2, '#F2C94C'); }       // a stand-in surfboard
+      if (cfg.board) { if (K.has('aussie', 'surfboard')) K.figure('aussie', x, gy - b.y + 4, 'surfboard', 0, false, 0.42); else { rect(x - 12, gy - b.y - 1, 24, 4, INK); rect(x - 11, gy - b.y, 22, 2, '#F2C94C'); } }
       K.hero(w, x, gy - b.y - (cfg.board ? 1 : 0), b.y > 0 ? 'jump' : cfg.board ? 'surf' : 'run', Math.max(0, s.t));
     };
     return {
@@ -374,7 +376,12 @@
           const x = Math.round(X + (o.at - t) * SPEED);
           if (x < -12 || x > W + 12) continue;
           if (o.smashed) { if (t - o.smashed < 0.3) { rect(x - 9, GY - 20, 18, 2, '#FFD43A'); rect(x - 1, GY - 28, 2, 18, '#FFD43A'); } continue; }
-          if (o.high) { rect(x - 7, GY - 62, 14, 5, INK); rect(x - 6, GY - 61, 12, 3, '#D2A064'); }
+          const look = cfg.art && cfg.art[o.high ? 'high' : 'low'];
+          if (look && K.has(look[0], look[1])) {                                             // drawn obstacles; a second drawing, if there is one, takes turns with the first
+            const pose = look.length > 2 && Math.floor(t * 6) % 2 ? look[2] : look[1];
+            K.figure(look[0], x, o.high ? GY - 54 : GY + 1, pose, t, false, 0.36);
+          }
+          else if (o.high) { rect(x - 7, GY - 62, 14, 5, INK); rect(x - 6, GY - 61, 12, 3, '#D2A064'); }
           else { rect(x - 6, GY - 10, 12, 10, INK); rect(x - 5, GY - 9, 10, 9, '#E0862E'); rect(x - 3, GY - 14, 6, 5, INK); rect(x - 2, GY - 13, 4, 4, '#E0862E'); }
         }
         if (pickAt !== null && !live.picked) { const x = X + (pickAt - t) * SPEED; if (x > -12 && x < W + 12) item(sc.pickup, x, GY - 50 + Math.round(Math.sin(t * 5) * 2)); }
@@ -451,6 +458,8 @@
           const x = i * LANE + 4, on = s.flash[i] > 0;
           rect(x, 236, LANE - 8, 44, INK); rect(x + 2, 238 + (on ? 2 : 0), LANE - 12, 38, PADS[i][0]);
           rect(x + 8, 244 + (on ? 2 : 0), LANE - 24, 8, on ? '#FFF8E7' : 'rgba(255,248,231,.45)');
+          const kit = ['bassdrum', 'snare', 'cymbal'][i];
+          if (K.has('strahov', kit)) K.figure('strahov', x + LANE / 2 - 4, 278 + (on ? 2 : 0), kit, 0, false, 0.5);
         }
       },
     };
@@ -515,7 +524,7 @@
           if (sh.real) for (const tg of targets) {
             if (tg.born > s.t) break;
             if (!up(tg) || Math.hypot(tx(tg) - sh.x, tg.y - sh.y) >= sh.r) continue;
-            s.got.add(tg.id); s.pops.push({ x: tx(tg), y: tg.y, at: s.t }); beep(780, 1040); Net.send({ type: 'ev', e: 'hit', id: tg.id });
+            s.got.add(tg.id); s.pops.push({ x: tx(tg), y: tg.y, at: s.t, kind: sh.kind }); beep(780, 1040); Net.send({ type: 'ev', e: 'hit', id: tg.id });
             if (!sh.turn && !sh.home) sh.dead = true;                                     // a boomerang shot carries on through
             break;
           }
@@ -536,10 +545,15 @@
           if (!up(tg)) continue;
           const x = Math.round(tx(tg)), y = Math.round(tg.y), left = cfg.stay - (s.t - tg.born);
           if (left < 0.9 && Math.floor(s.t * 10) % 2) continue;                              // blinks before it slips away
+          if (K.has('prague', 'padlock')) { K.figure('prague', x + Math.round(Math.sin(s.t * 3 + tg.phase)), y + 10, 'padlock', 0, false, 0.36); continue; }
           rect(x - 5, y - 13, 10, 8, '#7A5320'); rect(x - 3, y - 11, 6, 6, place.look.sky);  // a stand-in padlock
           rect(x - 8, y - 6, 16, 13, '#7A5320'); rect(x - 7, y - 5, 14, 11, '#E6B340'); rect(x - 1, y - 2, 2, 5, '#7A5320');
         }
-        for (const q of s.pops) { const x = Math.round(q.x), y = Math.round(q.y); rect(x - 9, y - 1, 18, 2, '#FFD43A'); rect(x - 1, y - 9, 2, 18, '#FFD43A'); rect(x - 4, y - 4, 8, 8, '#FFF8E7'); }
+        for (const q of s.pops) {
+          const x = Math.round(q.x), y = Math.round(q.y), pose = q.kind === 'bunny' ? 'fluff' : 'flash';
+          if (K.has('things', pose)) K.figure('things', x, y + 8, pose, 0, false, 0.6);
+          else { rect(x - 9, y - 1, 18, 2, '#FFD43A'); rect(x - 1, y - 9, 2, 18, '#FFD43A'); rect(x - 4, y - 4, 8, 8, '#FFF8E7'); }
+        }
         const p = pickAt(); if (p) item(sc.pickup, p.x, p.y);
         if (live.item) item(live.item, 12, 34);                                             // what they are holding, up in the corner
         // wound up and ready; swinging through for a moment after each shot. Kellyn's hand stays empty while her bunny is in the air.
@@ -548,9 +562,10 @@
         K.hero(who, BODY, GY, s.lost ? 'dizzy' : pose(who, s.swing, true), s.t);
         for (const sh of s.shots) {
           const x = Math.round(sh.x), y = Math.round(sh.y);
-          if (sh.kind === 'puck') { rect(x - 4, y - 2, 8, 4, INK); rect(x - 3, y - 2, 6, 1, '#7A6F6A'); }
+          if (sh.kind === 'puck') { if (K.has('things', 'puckfly')) K.figure('things', x, y + 4, 'puckfly', 0, sh.vx < 0, 0.45); else { rect(x - 4, y - 2, 8, 4, INK); rect(x - 3, y - 2, 6, 1, '#7A6F6A'); } }
           else if (sh.kind === 'star' && K.sprites.star) K.prop(K.sprites.star, x, y + 4, Math.floor(s.t * 10) % 2);
-          else if (K.sprites.bunny) K.prop(K.sprites.bunny, x, y + 11, Math.floor(s.t * 6) % 2);    // the bunny flips over as it flies
+          else if (K.has('things', 'bunnyfly')) K.figure('things', x, y + 8, Math.floor(s.t * 6) % 2 ? 'bunnyflip' : 'bunnyfly', 0, sh.vx < 0, 0.5);   // the bunny tumbles as it flies
+          else if (K.sprites.bunny) K.prop(K.sprites.bunny, x, y + 11, Math.floor(s.t * 6) % 2);
           else { rect(x - 5, y - 4, 10, 8, '#D9CFC6'); rect(x - 4, y - 3, 8, 6, '#FFFDF8'); }
         }
       },
@@ -614,6 +629,8 @@
           const x = p * PW + 3, on = s.lit[p] > 0, own = mine(p), shake = s.bad > 0 ? Math.round(Math.sin(s.t * 60) * 2) : 0;
           rect(x + shake, TOP, PW - 6, 46, INK); rect(x + 2 + shake, TOP + 2 + (on ? 2 : 0), PW - 10, 40, PADS[p][0]);
           rect(x + 7 + shake, TOP + 8 + (on ? 2 : 0), PW - 20, 8, on ? '#FFF8E7' : 'rgba(255,248,231,.4)');
+          const kit = ['bassdrum', 'snare', 'snare', 'cymbal'][p];
+          if (K.has('strahov', kit)) K.figure('strahov', x + PW / 2 - 3 + shake, TOP + 42 + (on ? 2 : 0), kit, 0, p === 2, 0.5);
           if (!own) rect(x + 2 + shake, TOP + 2, PW - 10, 40, 'rgba(43,31,26,.5)');                              // the other one's drums are dimmed
         }
       },
@@ -701,7 +718,7 @@
     const queued = () => live.cust.filter((c) => c.at === -2).sort((a, b) => a.id - b.id);
     const body = (w) => (w === who ? s.me : s.mate);
     function where(c) {                                                                         // where a customer stands right now
-      if (c.at >= 0) return { x: ST[c.at].x, y: ST[c.at].y };
+      if (c.at >= 0) return { x: ST[c.at].x - 6, y: ST[c.at].y + 4 };
       if (c.by) { const b = body(c.by); return { x: b.x - 12, y: b.y - 2 }; }
       const k = queued().indexOf(c); return { x: QX, y: QY[Math.max(0, k)] };
     }
@@ -729,6 +746,13 @@
     // stand-in pictures: a customer whose hair changes as the work is done, and an icon for each kind of work
     function customer(c, x, y) {
       const did = (k) => c.order.indexOf(k) > -1 && c.order.indexOf(k) < c.step;
+      const shook = c.no && s.no && s.no.id === c.id && s.t - s.no.at < 0.6 ? Math.round(Math.sin(s.t * 50) * 2) : 0;
+      if (K.has('customers', 'c0')) {                                                              // drawn customers: a new hairdo once only paying is left
+        const k = c.id % 6, done = c.step >= c.order.length - 1;
+        K.figure('customers', x + shook, y, (done ? 'd' : 'c') + k, 0, false, 0.56);
+        if (did('wash') && !did('dry')) { rect(x - 8, y - 26, 1, 2, '#7CC6F2'); rect(x + 7, y - 30, 1, 2, '#7CC6F2'); }
+        return;
+      }
       const hair = did('dye') ? c.dye : c.hair, long = c.long && !did('cut'), wet = did('wash') && !did('dry');
       const shake = c.no && s.no && s.no.id === c.id && s.t - s.no.at < 0.6 ? Math.round(Math.sin(s.t * 50) * 2) : 0;
       x = Math.round(x) + shake; y = Math.round(y);
@@ -794,7 +818,8 @@
       draw() {
         K.background(sc.bg, 0, place.look);
         ST.forEach((st, i) => {                                                                   // the places to work, as mats on the floor
-          rect(st.x - 13, st.y - 3, 26, 9, INK); rect(st.x - 12, st.y - 2, 24, 7, '#FFF8E7'); icon(st.k, st.x, st.y + 1);
+          if (K.has('stations', st.k)) K.figure('stations', st.x + 8, st.y + 2, st.k, 0, false, 0.56);
+          else { rect(st.x - 13, st.y - 3, 26, 9, INK); rect(st.x - 12, st.y - 2, 24, 7, '#FFF8E7'); icon(st.k, st.x, st.y + 1); }
           const c = live.cust.find((q) => q.at === i);
           if (c && st.k === c.order[c.step]) { const f = clamp(c.work / cfg.work[st.k], 0, 1); rect(st.x - 13, st.y + 8, 26, 4, INK); rect(st.x - 12, st.y + 9, Math.round(24 * f), 2, '#1FA463'); }
         });

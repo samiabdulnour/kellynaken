@@ -35,8 +35,8 @@ window.WORLD = {
     kel: { name: 'Kellyn', shirt: '#BFE8D0', legs: '#F6C1D0', badge: '#F08BA0', hair: '#9A6535', tie: '#F3A6C0' },
   },
   items: {
-    drumstick: { name: 'Palička', dash: 'Palička! Chvíli rozbiješ všechno, do čeho vběhneš.', shot: 'Palička! Každá rána je dvojitá.', drums: 'Palička! Chvíli se každá trefa počítá dvakrát.' },
-    boomerang: { name: 'Bumerang', dash: 'Bumerang! Chvíli smete všechno, co ti stojí v cestě.', shot: 'Bumerang! Každá rána se vrací.' },
+    drumstick: { name: 'Palička', art: ['strahov', 'sticks'], dash: 'Palička! Chvíli rozbiješ všechno, do čeho vběhneš.', shot: 'Palička! Každá rána je dvojitá.', drums: 'Palička! Chvíli se každá trefa počítá dvakrát.' },
+    boomerang: { name: 'Bumerang', art: ['aussie', 'boomerang'], dash: 'Bumerang! Chvíli smete všechno, co ti stojí v cestě.', shot: 'Bumerang! Každá rána se vrací.' },
   },
   planet: {
     bg: 'world-map',
@@ -56,7 +56,7 @@ window.WORLD = {
         { id: 'praha-home', name: 'Doma', bg: 'praha-home', play: 'stub',
           talk: [['', 'Doma je divné ticho. Někdo tu chybí…'], ['hero', 'Jdeme zjistit, co se stalo.']] },
         { id: 'praha-street', name: 'Ulice', bg: 'praha-street', scroll: true, play: 'run',
-          run: { seconds: 24, low: 'holub', high: '' },
+          run: { seconds: 24, low: 'holub', high: '', art: { low: ['prague', 'pigeon'] } },
           talk: [['', 'Stopa vede ulicí. Klepni a přeskoč, co ti stojí v cestě.']] },
         { id: 'praha-door', name: 'Zamčené dveře', bg: 'praha-door', play: 'shoot',
           shoot: { need: 8, every: 1.5, stay: 3.4, sway: 0, target: 'zámek' },
@@ -64,7 +64,7 @@ window.WORLD = {
         // From here on she is found: the salon is full and she cannot get away until every customer is done.
         { id: 'praha-salon', name: 'V salonu', bg: 'praha-salon', play: 'salon', cast: ['leila'],
           salon: {
-            seconds: 150, need: 6, patience: 36, every: [11, 15],
+            seconds: 150, need: 5, patience: 36, every: [11, 15],
             stations: [{ k: 'wash', x: 30, y: 184 }, { k: 'cut', x: 70, y: 184 }, { k: 'dye', x: 110, y: 184 }, { k: 'dry', x: 150, y: 184 }, { k: 'pay', x: 120, y: 262 }],
             work: { wash: 3, cut: 4, dye: 4, dry: 3, pay: 1.2 },
             orders: [['cut', 'pay'], ['wash', 'cut', 'dry', 'pay'], ['wash', 'dye', 'dry', 'pay'], ['wash', 'cut', 'dye', 'dry', 'pay'], ['wash', 'dry', 'pay']],
@@ -79,7 +79,7 @@ window.WORLD = {
       look: { sky: '#BFE3F2', far: '#A9A6A0', far2: '#8A9A72', ground: '#7FAE66', line: '#5C8650' },
       scenes: [
         { id: 'strahov-hill', name: 'Do kopce', bg: 'strahov-hill', scroll: true, play: 'run', pickup: 'drumstick',
-          run: { seconds: 26, low: 'šiška', high: 'vrána' },
+          run: { seconds: 26, low: 'šiška', high: 'vrána', art: { low: ['strahov', 'cone'], high: ['strahov', 'crow'] } },
           talk: [['', 'Z kopce nad městem někdo volá o pomoc.'], ['', 'Nahoru se musí pěšky. Šišku přeskoč, pod vránou zůstaň dole.']] },
         { id: 'strahov-gate', name: 'Brána stadionu', bg: 'strahov-gate', play: 'shoot', pickup: 'drumstick',
           shoot: { need: 10, every: 1.3, stay: 3.2, sway: 10, target: 'zámek' },
@@ -88,8 +88,7 @@ window.WORLD = {
         { id: 'strahov-drums', name: 'Zkušebna', bg: 'strahov-drums', play: 'echo', cast: ['alan'],
           echo: { rounds: 6, first: 3, beat: 0.6 },
           talk: [['', 'Pod tribunou je zkušebna. A v ní někdo bubnuje!'], ['alan', 'Večer hraju na stadionu a kapela nikde. Zahrajete to se mnou?'], ['alan', 'Nejdřív zkouška. Já zahraju, vy to po mně zopakujete.']] },
-        // The concert wants a picture of its own (S14 in the art package, 'strahov-concert'); until then it borrows the empty field.
-        { id: 'strahov-concert', name: 'Koncert', bg: 'strahov-field', play: 'drums', pickup: 'drumstick', cast: ['alan'],
+        { id: 'strahov-concert', name: 'Koncert', bg: 'strahov-concert', play: 'drums', pickup: 'drumstick', cast: ['alan'],
           drums: { bpm: 104, beats: 72, pass: 0.62, busy: 0.35 }, say: { won: ['Stadion šílí!', 'Takový koncert tu dlouho nebyl.'] },
           talk: [['', 'Stadion je plný. Světla, pódium a vy tři.'], ['alan', 'Trefujte noty, až budou na čáře. Raz, dva, tři, čtyři!']] },
       ],
@@ -103,7 +102,7 @@ window.WORLD = {
         { id: 'australia-beach', name: 'Pláž', bg: 'australia-beach', play: 'stub',
           talk: [['', 'Na druhém konci světa vyplavilo moře láhev. Uvnitř je jediné slovo: POMOC!']] },
         { id: 'australia-sea', name: 'Na vlně', bg: 'australia-sea', scroll: true, play: 'run', ground: 200, tile: 'repeat', pickup: 'boomerang',
-          run: { seconds: 30, low: 'žralok', high: 'bumerang', board: true },
+          run: { seconds: 30, low: 'žralok', high: 'bumerang', board: true, art: { low: ['aussie', 'fin', 'fin2'], high: ['aussie', 'boomerang', 'boomerang2'] } },
           talk: [['', 'Na prkno! Žraloka přeskoč, pod bumerangem zůstaň dole.']] },
         // The bush wants a wide forest picture of its own (S15 in the art package, 'australia-bush'); the hiding places below fit the
         // picture it borrows for now and must be set again for the new one. [x, y] on the picture.

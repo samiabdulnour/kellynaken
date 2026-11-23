@@ -9,12 +9,12 @@ window.ASSETS = {
     "praha-home",
     "praha-salon",
     "praha-street",
+    "strahov-concert",
     "strahov-drums",
     "strahov-field",
     "strahov-gate",
     "strahov-hill",
     "title",
     "world-map"
-  ],
-  "sprites": {}
+  ]
 };

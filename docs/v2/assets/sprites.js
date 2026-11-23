@@ -360,5 +360,224 @@ window.SPRITES = {
         0
       ]
     }
+  },
+  "things": {
+    "file": "things.png",
+    "w": 39,
+    "h": 37,
+    "scale": 0.5,
+    "fps": 1,
+    "poses": {
+      "stick": [
+        0
+      ],
+      "puck": [
+        1
+      ],
+      "puckfly": [
+        2
+      ],
+      "flash": [
+        3
+      ],
+      "bunny": [
+        4
+      ],
+      "bunnyfly": [
+        5
+      ],
+      "bunnyflip": [
+        6
+      ],
+      "fluff": [
+        7
+      ],
+      "stand": [
+        0
+      ]
+    }
+  },
+  "prague": {
+    "file": "prague.png",
+    "w": 61,
+    "h": 66,
+    "scale": 0.5,
+    "fps": 1,
+    "poses": {
+      "pigeon": [
+        0
+      ],
+      "pigeonfly": [
+        1
+      ],
+      "puddle": [
+        2
+      ],
+      "padlock": [
+        3
+      ],
+      "key": [
+        4
+      ],
+      "scissors": [
+        5
+      ],
+      "dryer": [
+        6
+      ],
+      "comb": [
+        7
+      ],
+      "stand": [
+        0
+      ]
+    }
+  },
+  "aussie": {
+    "file": "aussie.png",
+    "w": 66,
+    "h": 72,
+    "scale": 0.5,
+    "fps": 1,
+    "poses": {
+      "fin": [
+        0
+      ],
+      "fin2": [
+        1
+      ],
+      "boomerang": [
+        2
+      ],
+      "boomerang2": [
+        3
+      ],
+      "surfboard": [
+        4
+      ],
+      "roo": [
+        5
+      ],
+      "roohop": [
+        6
+      ],
+      "palm": [
+        7
+      ],
+      "stand": [
+        0
+      ]
+    }
+  },
+  "strahov": {
+    "file": "strahov.png",
+    "w": 56,
+    "h": 63,
+    "scale": 0.5,
+    "fps": 1,
+    "poses": {
+      "bassdrum": [
+        0
+      ],
+      "snare": [
+        1
+      ],
+      "cymbal": [
+        2
+      ],
+      "sticks": [
+        3
+      ],
+      "note": [
+        4
+      ],
+      "amp": [
+        5
+      ],
+      "cone": [
+        6
+      ],
+      "crow": [
+        7
+      ],
+      "stand": [
+        0
+      ]
+    }
+  },
+  "stations": {
+    "file": "stations.png",
+    "w": 48,
+    "h": 71,
+    "scale": 0.5,
+    "fps": 1,
+    "poses": {
+      "wash": [
+        0
+      ],
+      "cut": [
+        1
+      ],
+      "dye": [
+        2
+      ],
+      "dry": [
+        3
+      ],
+      "pay": [
+        4
+      ],
+      "stand": [
+        0
+      ]
+    }
+  },
+  "customers": {
+    "file": "customers.png",
+    "w": 26,
+    "h": 59,
+    "scale": 0.5,
+    "fps": 1,
+    "poses": {
+      "c0": [
+        0
+      ],
+      "c1": [
+        1
+      ],
+      "c2": [
+        2
+      ],
+      "c3": [
+        3
+      ],
+      "c4": [
+        4
+      ],
+      "c5": [
+        5
+      ],
+      "d0": [
+        6
+      ],
+      "d1": [
+        7
+      ],
+      "d2": [
+        8
+      ],
+      "d3": [
+        9
+      ],
+      "d4": [
+        10
+      ],
+      "d5": [
+        11
+      ],
+      "stand": [
+        0
+      ]
+    }
   }
 };

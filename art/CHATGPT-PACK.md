@@ -4,11 +4,10 @@ Everything ChatGPT needs to draw the game's scenes and objects so they match you
 
 ## Where things stand
 
-- **Scenes S0 to S13: done.** All 14 are drawn and in the game. Their prompts stay below for reference, and for any scene you want to redo.
+- **Scenes S0 to S14: done.** S6 has been redrawn as Bondi Beach, and S14 (the concert) was drawn from photos of the real Strahov stadium.
+- **Objects P1, P3, P5, P7, P8, P9, P10: done**, made through the Figma connection and in the game: obstacles, padlocks, the puck, the bunny, the items, drums, koalas, the salon's work places and customers.
 - **Poses A1 to A6: done.** Both heroes are drawn from them.
-- **New, for the new games (Part 6):** S14 the concert, S15 the bush forest with koalas, P8 koalas, P9 the salon's work places, P10 salon customers. The concert and the bush borrow other pictures until theirs arrive.
-- **Still to draw: the objects, P1 to P7.** Start with P7 (stick, puck, bunny), because both heroes use it everywhere.
-- **Poses still needed:** A7 to A10, for Mamka, Alan, Sami and Žofia. The villain C11 is optional.
+- **Still to draw:** S15 (the bush forest, which you are drawing), P2 (the tram), P4 (rewards and map markers), and the poses A7 to A10 for Mamka, Alan, Sami and Žofia. The villain C11 is optional.
 - **Style:** grounded, classic pixel art that follows your character sheets and the finished scenes: natural proportions, muted colours, no black outlines.
 
 ## How to use this
@@ -177,12 +176,12 @@ Same pixel-art style and palette as set up. No text.
 
 ## Part 4: Australia (4 images)
 
-### S6. The beach
+### S6. Bondi Beach
 
 ```text
-S6, an Australian beach. Portrait, 2:3 (1024x1536).
+S6, Bondi Beach in Sydney. Portrait, 2:3 (1024x1536).
 
-A sunny surf beach. In the upper part: bright blue sky with a few puffy clouds, a turquoise sea with gentle white-capped waves, and a rocky headland in the distance. On the sand at the back: a lifeguard tower on stilts, a red-and-yellow flag on a pole, two palm trees, and surfboards stuck upright in the sand. Midday light. The bottom third is flat golden sand, clear and empty.
+A sunny day, seen from the sand looking out to sea. A bright blue sky with a few puffy clouds. Clear turquoise water with darker patches over the reef, and rows of white-capped waves. On the left, a low sandstone headland of honey-coloured rock, with a rectangular ocean pool cut into the rocks at its foot, waves splashing over its sea wall, and a white two-storey clubhouse above it. Far away on the right, a low green headland. On the sand at the back: a small blue-and-white lifeguard lookout tower, a pair of red-and-yellow lifesaving flags, and a few surfboards stuck upright in the sand. Behind the headland, the tops of tall Norfolk Island pines. The bottom third is flat, pale golden sand, clear and empty.
 
 Same pixel-art style and palette as set up. No text.
 ```

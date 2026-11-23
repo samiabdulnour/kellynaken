@@ -88,12 +88,13 @@ const K = (() => {
 
   // A character, drawn with their feet at (x, footY). The real ones are cut from the character sheet
   // (tools/sprites.py): a row of frames, with named poses. Without a sheet, a blocky stand-in kid.
-  function figure(id, x, footY, pose, t, flip) {
+  // `size` draws it at another size than the sheet's own (objects are drawn in all sizes).
+  function figure(id, x, footY, pose, t, flip, size) {
     const sp = sprites[id];
     x = Math.round(x); footY = Math.round(footY);
     if (!sp) return standIn(id, x, footY, pose, t, flip);
     const img = image(`assets/sprites/${sp.file}`); if (!ready(img)) return;
-    const frames = sp.poses[pose] || sp.poses.stand, f = frames[Math.floor(t * (sp.fps || 7)) % frames.length], k = sp.scale || 1;
+    const frames = sp.poses[pose] || sp.poses.stand, f = frames[Math.floor(t * (sp.fps || 7)) % frames.length], k = size || sp.scale || 1;
     ctx.save(); ctx.translate(x, footY); if (flip) ctx.scale(-1, 1);
     ctx.drawImage(img, f * sp.w, 0, sp.w, sp.h, -Math.floor(sp.w / 2) * k, -sp.h * k, sp.w * k, sp.h * k);
     ctx.restore();
@@ -147,5 +148,6 @@ const K = (() => {
   function add(html) { const t = document.createElement('template'); t.innerHTML = html.trim(); const el = t.content.firstElementChild; ui.appendChild(el); return el; }
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
-  return { W, H, GROUND, INK, ctx, ui, clamp, hash, rng, rect, beep, save, write, hasBg, picture, background, sprites, figure, hero: figure, prop, go, add, esc, get scene() { return scene; } };
+  const has = (sheet, pose) => !!(sprites[sheet] && sprites[sheet].poses && sprites[sheet].poses[pose]);
+  return { W, H, GROUND, INK, has, ctx, ui, clamp, hash, rng, rect, beep, save, write, hasBg, picture, background, sprites, figure, hero: figure, prop, go, add, esc, get scene() { return scene; } };
 })();

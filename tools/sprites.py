@@ -329,8 +329,14 @@ def bunny():
 
 # ---- objects: rows of separate things on a transparent background, from art/source/objects/<code>.png ----
 OBJECTS = os.path.join(SOURCE, 'objects')
-OBJECT_ROWS = {                                  # code: (name in the game, what each drawing is, left to right)
+OBJECT_ROWS = {                                  # code: (name in the game, what each drawing is: row by row, left to right)
     'P8': ('koalas', ['peek', 'side', 'branch', 'wave', 'happy', 'leaves']),
+    'P7': ('things', ['stick', 'puck', 'puckfly', 'flash', 'bunny', 'bunnyfly', 'bunnyflip', 'fluff']),
+    'P1': ('prague', ['pigeon', 'pigeonfly', 'puddle', 'padlock', 'key', 'scissors', 'dryer', 'comb']),
+    'P3': ('aussie', ['fin', 'fin2', 'boomerang', 'boomerang2', 'surfboard', 'roo', 'roohop', 'palm']),
+    'P5': ('strahov', ['bassdrum', 'snare', 'cymbal', 'sticks', 'note', 'amp', 'cone', 'crow']),
+    'P9': ('stations', ['wash', 'cut', 'dye', 'dry', 'pay']),
+    'P10': ('customers', ['c0', 'c1', 'c2', 'c3', 'c4', 'c5', 'd0', 'd1', 'd2', 'd3', 'd4', 'd5']),
 }
 
 
@@ -365,7 +371,15 @@ def pieces(mask, least):
         cy, cx = np.mean(g, axis=0)
         near = min(big, key=lambda b: min((y - cy) ** 2 + (x - cx) ** 2 for y, x in b[::7]))
         near.extend(g)
-    return sorted(big, key=lambda g: min(x for _, x in g))
+    # row by row, then left to right: a group belongs to the row of whichever earlier group its middle lines up with
+    big.sort(key=lambda g: np.mean([y for y, _ in g]))
+    rows = []
+    for g in big:
+        cy = np.mean([y for y, _ in g]); top, bottom = min(y for y, _ in g), max(y for y, _ in g)
+        row = next((r for r in rows if r['top'] <= cy <= r['bottom']), None)
+        if row: row['groups'].append(g); row['top'] = min(row['top'], top); row['bottom'] = max(row['bottom'], bottom)
+        else: rows.append({'top': top, 'bottom': bottom, 'groups': [g]})
+    return [g for r in rows for g in sorted(r['groups'], key=lambda g: min(x for _, x in g))]
 
 
 def object_sheet(code):
@@ -375,6 +389,8 @@ def object_sheet(code):
     if not os.path.exists(path): return None
     name, parts = OBJECT_ROWS[code]
     a = np.asarray(Image.open(path).convert('RGBA')).copy()
+    r, g, b = a[..., 0].astype(int), a[..., 1].astype(int), a[..., 2].astype(int)
+    a[((r + b) / 2 - g > 70) & (r > 140) & (b > 140) & (abs(r - b) < 90)] = 0          # a magenta background, where there is one
     a[a[..., 3] < 128] = 0                              # these come with soft, faint edges: keep only what is clearly there
     p = grid(a)
     small = shrink(a, p)                                # the whole row at once, so every thing keeps the same grid
@@ -383,6 +399,7 @@ def object_sheet(code):
     frames = []
     for g in groups:
         ys, xs = np.array([y for y, _ in g]), np.array([x for _, x in g])
+        if len(ys) < 1: continue
         f = np.zeros((ys.max() - ys.min() + 1, xs.max() - xs.min() + 1, 4), np.uint8)
         f[ys - ys.min(), xs - xs.min()] = small[ys, xs]
         frames.append(Image.fromarray(f, 'RGBA'))
