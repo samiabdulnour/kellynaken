@@ -266,8 +266,8 @@
     function paint() {
       if (sn.phase === 'talk' && (was !== 'talk' || line !== sn.line)) {
         if (box) box.remove();
-        const [key, text] = sc.talk[sn.line], at = sn.line;
-        box = add(`<div class="say">${key === 'hero' ? face(who, 0) : key ? face(key, 3) : ''}${key ? `<b>${esc(speaker(key))}</b>` : ''}<p>${esc(text)}</p><i>&gt;</i></div>`);
+        const [key, text, about] = sc.talk[sn.line], at = sn.line;                 // `about`: someone the line tells of, shown with it
+        box = add(`<div class="say">${about ? face(about, 0) : key === 'hero' ? face(who, 0) : key ? face(key, 3) : ''}${key ? `<b>${esc(speaker(key))}</b>` : ''}<p>${esc(text)}</p><i>&gt;</i></div>`);
         box.addEventListener('click', () => { beep(440); Net.send({ type: 'next', line: at }); });        // either of them may tap; the line number stops a double tap skipping one
       }
       if (sn.phase !== 'talk' && box) { box.remove(); box = null; }

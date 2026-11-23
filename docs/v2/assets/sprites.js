@@ -497,6 +497,53 @@ window.SPRITES = {
     "h": 46,
     "scale": 0.5
   },
+  "vaclav": {
+    "file": "vaclav-poses.png",
+    "w": 70,
+    "h": 141,
+    "scale": 0.5,
+    "fps": 6,
+    "poses": {
+      "front": [
+        0
+      ],
+      "three": [
+        1
+      ],
+      "side": [
+        2
+      ],
+      "back": [
+        3
+      ],
+      "walk": [
+        4
+      ],
+      "run": [
+        4,
+        5
+      ],
+      "cheer": [
+        0
+      ],
+      "act": [
+        7
+      ],
+      "stand": [
+        1
+      ],
+      "joy": [
+        6
+      ]
+    },
+    "faces": {
+      "file": "vaclav-heads.png",
+      "w": 51,
+      "h": 58,
+      "n": 5,
+      "scale": 0.36
+    }
+  },
   "koalas": {
     "file": "koalas.png",
     "w": 46,

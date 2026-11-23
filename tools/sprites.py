@@ -468,7 +468,7 @@ def object_sheet(code):
 # ---- the grown-ups: a sheet each of eight figures on a transparent background, from art/source/people/<id>.webp ----
 PEOPLE = os.path.join(SOURCE, 'people')
 PEOPLE_POSES = ['front', 'three', 'side', 'back', 'walk', 'run', 'cheer', 'act']    # top row: from four sides; bottom row: walking, running, a jump for joy, their own thing
-PEOPLE_HEIGHT = {'leila': 132, 'alan': 135, 'sami': 130, 'zofia': 134}   # standing height in sprite pixels: about a third taller than the heroes
+PEOPLE_HEIGHT = {'leila': 132, 'alan': 135, 'sami': 130, 'zofia': 134, 'vaclav': 142}   # Václav was a big man   # standing height in sprite pixels: about a third taller than the heroes
 GRADE = set()                                    # sheets whose colours need lifting to the heroes' (the first, darker sheets did)
 
 
@@ -548,6 +548,8 @@ def people_figures(name, path, rows):
     """The figures of one sheet as (picture, where the body's middle is, how far the feet are off the ground),
     row by row. `rows` says how many figures each row holds; the first row stands, and sets the size."""
     a = np.asarray(Image.open(path).convert('RGBA')).copy()
+    r, g, b = a[..., 0].astype(int), a[..., 1].astype(int), a[..., 2].astype(int)
+    a[((r + b) / 2 - g > 70) & (r > 140) & (b > 140) & (abs(r - b) < 90)] = 0     # a magenta background, where there is one
     a[a[..., 3] < 128] = 0
     a[..., 3] = np.where(a[..., 3] > 0, 255, 0)
     rough = shrink(a, 4.0); first = pieces(rough[..., 3] > 0, 150)[:rows[0]]
@@ -584,11 +586,13 @@ def people_sheet(name):
     and the face, and the first sheet keeps the moving poses."""
     find = lambda stem: next((os.path.join(PEOPLE, f'{stem}.{ext}') for ext in ('png', 'webp') if os.path.exists(os.path.join(PEOPLE, f'{stem}.{ext}'))), None)
     path, stand = find(name), find(name + '-stand')
-    if not path: return None
-    frames = people_figures(name, path, [4, 4])
+    if not path and not stand: return None
     if stand:
         st = people_figures(name, stand, [5])
-        frames = [st[0], st[1], st[2], st[4]] + frames[4:]
+        moving = people_figures(name, path, [4, 4])[4:] if path else [st[0], st[1], st[0], st[0]]   # with no moving poses, standing ones stand in
+        frames = [st[0], st[1], st[2], st[4]] + moving
+    else:
+        frames = people_figures(name, path, [4, 4])
     left = max(int(np.ceil(ax)) for _, ax, _ in frames)
     right = max(int(np.ceil(f.width - ax)) for f, ax, _ in frames)
     cw, ch = int(2 * max(left, right) + 2), int(max(f.height + lift for f, _, lift in frames))
@@ -662,6 +666,9 @@ def main():
     print('star', star.size)
     b = bunny()
     if b: info['bunny'] = b; print('bunny', b['w'], 'x', b['h'])
+    for name in ('vaclav',):                          # people who are only on sheets of their own
+        p = people_sheet(name)
+        if p: info[name] = p
     for code in OBJECT_ROWS:
         got = object_sheet(code)
         if got: info[got[0]] = got[1]
