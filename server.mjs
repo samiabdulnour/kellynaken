@@ -266,6 +266,7 @@ const game = globalThis.Room.create({
   emit: (to, msg) => { const line = `data: ${JSON.stringify(msg)}\n\n`; for (const w of WHO) if ((to === 'all' || to === w) && seats[w]) seats[w].res.write(line); },
 });
 setInterval(() => { for (const w of WHO) if (seats[w]) seats[w].res.write(': ping\n\n'); }, 15000);
+setInterval(() => game.tick(), 250);                 // games that run on their own between messages (the salon)
 function sit(req, res, who, id, save) {
   res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache, no-transform', Connection: 'keep-alive', 'X-Accel-Buffering': 'no', ...CORS });
   res.write('retry: 1500\n\n');

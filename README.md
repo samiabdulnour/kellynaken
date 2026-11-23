@@ -24,9 +24,9 @@ surprise: the game never names them before they are free.
 
 | Place | Rescued there | Built so far |
 |---|---|---|
-| Praha 5, at home | Mamka (Leila) | a dash down the street, shooting the locks off the door |
-| Praha 6, Strahov | Alan | a dash up the hill, the locks on the stadium gate, the drums; the drumstick is this saga's item |
-| Australia | Sami and Žofia | a dash across the sea; the boomerang is this saga's item |
+| Praha 5, at home | Mamka (Leila) | a dash down the street, shooting the locks off the door, running the salon together (wash, cut, dye, dry, take the money) |
+| Praha 6, Strahov | Alan | a dash up the hill, the locks on the stadium gate, repeating Alan's rhythms in the rehearsal room, the concert; the drumstick is this saga's item |
+| Australia | Sami and Žofia | a dash across the sea, finding koalas hidden in the bush; the boomerang is this saga's item |
 
 Kendrick shoots a puck with his hockey stick; Kellyn throws her white bunny and stars.
 Some scenes hold an item to pick up, like a power-up: a drumstick or a boomerang. In a dash it lets you smash through

@@ -14,7 +14,7 @@
     const solo = /[?&]solo\b/.test(location.search);                    // one device, for trying things out
     const base = location.protocol === 'file:' || /github\.io$/.test(location.hostname) ? WORLD.server : '';
     if (!save.id) { save.id = Math.random().toString(36).slice(2, 10); write(); }      // this device, so it can take its seat again
-    let who = null, state = null, off = null, es = null, room = null, again = 0;
+    let who = null, state = null, off = null, es = null, room = null, again = 0, ticker = 0;
     const hear = { state() {}, fx() {}, taken() {} };
     function take(m) {
       if (m.type === 'state') {
@@ -38,7 +38,8 @@
       const mine = { places: save.places, album: save.album };
       if (solo) {
         const r = Room.create({ world: WORLD, solo: true, now: () => Date.now(), emit: (to, m) => { if (to === 'all' || to === who) { const copy = JSON.parse(JSON.stringify(m)); setTimeout(() => { if (room === r) take(copy); }, 0); } } });
-        room = r; return r.join(who, mine);
+        room = r; clearInterval(ticker); ticker = setInterval(() => { if (room === r) r.tick(); }, 250);
+        return r.join(who, mine);
       }
       listen();
     }
@@ -264,7 +265,7 @@
       if (sn.phase === 'talk' && (was !== 'talk' || line !== sn.line)) {
         if (box) box.remove();
         const [key, text] = sc.talk[sn.line], at = sn.line;
-        box = add(`<div class="say">${key === 'hero' ? face(who, 0) : ''}${key ? `<b>${esc(speaker(key))}</b>` : ''}<p>${esc(text)}</p><i>&gt;</i></div>`);
+        box = add(`<div class="say">${key === 'hero' ? face(who, 0) : key ? face(key, 3) : ''}${key ? `<b>${esc(speaker(key))}</b>` : ''}<p>${esc(text)}</p><i>&gt;</i></div>`);
         box.addEventListener('click', () => { beep(440); Net.send({ type: 'next', line: at }); });        // either of them may tap; the line number stops a double tap skipping one
       }
       if (sn.phase !== 'talk' && box) { box.remove(); box = null; }
@@ -272,7 +273,7 @@
         const card = add(`<div class="card"><h2>${esc(sc.name)}</h2><p>Tahle část se teprve staví.</p><button class="btn">Dál</button></div>`);
         card.querySelector('button').addEventListener('click', () => { beep(520, 660); Net.send({ type: 'done' }); });
       }
-      if (sn.phase === 'play' && !act) act = { run: Runner, drums: Drums, shoot: Shoot }[sc.play](sc, place, sn);
+      if (sn.phase === 'play' && !act) act = { run: Runner, drums: Drums, shoot: Shoot, echo: Echo, find: Find, salon: Salon }[sc.play](sc, place, sn);
       if (act) act.sync(sn);
       if (act && (sn.phase === 'won' || sn.phase === 'lost') && was !== sn.phase) act.over(sn.phase === 'won');
       was = sn.phase; line = sn.line;
@@ -288,12 +289,14 @@
       fx(m) { if (act && act.fx) act.fx(m); },
       get act() { return act; },
       down(x, y) { if (act && sn.phase === 'play') act.down(x, y); },      // games answer the moment a finger lands, not when it lifts
+      move(x, y, dx) { if (act && act.move) act.move(x, y, dx); },
       tap() { if (!act && box) box.click(); },
       update(dt) { t += dt; if (act) act.update(dt); },
       draw() {
         if (act) return act.draw();
         K.background(sc.bg, 0, place.look);
         const gy = (sc.ground || GROUND) - 10;                                // a little further back, clear of the speech box
+        (sc.cast || []).forEach((id, i) => K.figure(id, 146 + i * 26, gy, 'stand', t, true));
         if (mateHere()) K.hero(mate(), 98, gy, 'stand', t + 0.3);
         K.hero(who, 56, gy, 'stand', t);
       },
@@ -404,7 +407,7 @@
         if (s.told && !powered() && !s.over) view.tip.textContent = '';
       },
       fx(m) { if (m.k === 'tap') { s.flash[clamp(m.lane | 0, 0, 2)] = 0.12; s.mateTaps++; } },
-      over(won) { s.over = true; paint(); view.end(won, won ? 'To je rytmus!' : 'Skoro!', won ? 'Dveře povolily.' : `Máte ${live.hits} z ${live.need} potřebných. Zkuste to ještě jednou.`); },
+      over(won) { s.over = true; paint(); const [a, b] = (sc.say && sc.say.won) || ['To je rytmus!', 'Dveře povolily.']; view.end(won, won ? a : 'Skoro!', won ? b : `Máte ${live.hits} z ${live.need} potřebných. Zkuste to ještě jednou.`); },
       down(x) {
         if (s.over) return;
         const lane = clamp(Math.floor(x / LANE), 0, 2);
@@ -428,8 +431,10 @@
       draw() {
         K.background(sc.bg, 0, place.look);
         const two = mateHere();                                                                // they drum along in the room, a stroke for every tap
-        if (two) K.hero(mate(), W / 2 + 22, 206, 'drum', s.mateTaps / 9, true);
-        K.hero(who, two ? W / 2 - 22 : W / 2, 206, 'drum', s.taps / 9);
+        const cast = sc.cast || [], wide = cast.length ? 40 : 22;
+        cast.forEach((id, i) => K.figure(id, W / 2 + i * 26, 204 - Math.round(Math.abs(Math.sin(s.t * 6)) * 2), 'stand', s.t));
+        if (two) K.hero(mate(), W / 2 + wide, 206, 'drum', s.mateTaps / 9, true);
+        K.hero(who, two || cast.length ? W / 2 - wide : W / 2, 206, 'drum', s.taps / 9);
         rect(0, TOP, W, H - TOP, 'rgba(43,31,26,.5)');
         for (let i = 1; i < 3; i++) rect(i * LANE - 1, TOP, 2, LINE - TOP, 'rgba(255,248,231,.18)');
         rect(0, LINE - 1, W, 2, '#FFF8E7');
@@ -548,6 +553,248 @@
           else if (K.sprites.bunny) K.prop(K.sprites.bunny, x, y + 11, Math.floor(s.t * 6) % 2);    // the bunny flips over as it flies
           else { rect(x - 5, y - 4, 10, 8, '#D9CFC6'); rect(x - 4, y - 3, 8, 6, '#FFFDF8'); }
         }
+      },
+    };
+  }
+
+  // The echo: someone plays a rhythm on four drums, then it has to be played back in the same order. With two
+  // playing, each has two of the drums (Kendrick the left pair, Kellyn the right), so they must take turns to get
+  // it right. A wrong drum costs a life and the rhythm is played once more; each round it is one stroke longer.
+  function Echo(sc, place, sn) {
+    const who = me(), PW = W / 4, max = sn.lives, TOP = 236;
+    const PADS = [['#CC2233', 147], ['#E0862E', 196], ['#F0448F', 262], ['#3E7BD6', 330]];
+    const s = { t: 0, over: false, lost: false, lit: [0, 0, 0, 0], bad: 0, shownAt: 0, sounded: -1, seen: 0, taps: 0, mateTaps: 0, castTaps: 0 };
+    let live = sn;
+    const view = stage('<span class="lives"></span><span class="meter"><i></i></span>', '');
+    view.tip.classList.add('up');
+    const mine = (p) => !mateHere() || (p < 2 ? 'ken' : 'kel') === who;
+    const listening = () => Net.now() < live.listenAt;
+    const paint = () => {
+      hearts(view.hud.firstElementChild, live.lives, max);
+      view.hud.lastElementChild.firstElementChild.style.width = clamp((live.round + live.step / live.pattern.length) / live.rounds, 0, 1) * 100 + '%';
+      if (!s.over) view.tip.textContent = listening() ? 'Poslouchej a dívej se…' : mateHere() ? `Teď vy! Tvoje bubny jsou ${who === 'ken' ? 'vlevo' : 'vpravo'}.` : 'Teď ty!';
+    };
+    paint();
+    return {
+      s, kind: 'echo', peek: () => ({ pattern: live.pattern, step: live.step, round: live.round, listening: listening(), mine: [0, 1, 2, 3].filter(mine) }),
+      sync(n) {
+        if (n.last && n.last.n !== s.seen) {                                           // a stroke, by either of them: show it and sound it
+          s.seen = n.last.n; s.lit[n.last.p] = 0.18;
+          if (n.last.ok) beep(PADS[n.last.p][1]); else { s.bad = 0.5; beep(160, 120); }
+          if ((n.last.p < 2 ? 'ken' : 'kel') === who || !mateHere()) s.taps++; else s.mateTaps++;
+        }
+        live = n; paint();
+      },
+      over(won) { s.over = true; s.lost = !won; paint(); view.end(won, won ? 'Sedí to!' : 'Rozhodilo vás to.', won ? 'Rytmus máte v ruce.' : 'Zkuste to ještě jednou.'); },
+      down(x, y) {
+        if (s.over || y < TOP - 6 || listening()) return;
+        const p = clamp(Math.floor(x / PW), 0, 3);
+        if (!mine(p)) return beep(120);                                                // the other one's drum
+        s.lit[p] = 0.1; Net.send({ type: 'ev', e: 'pad', p });
+      },
+      update(dt) {
+        s.t += dt; if (s.bad > 0) s.bad -= dt;
+        for (let i = 0; i < 4; i++) if (s.lit[i] > 0) s.lit[i] -= dt;
+        if (s.over) return;
+        // the rhythm being shown: each stroke lights its drum and sounds, on the room's clock so both see it together
+        if (live.showAt !== s.shownAt) { s.shownAt = live.showAt; s.sounded = -1; }
+        const i = Math.floor((Net.now() - live.showAt) / (live.beat * 1000));
+        if (i > s.sounded && i >= 0 && i < live.pattern.length) { s.sounded = i; s.lit[live.pattern[i]] = live.beat * 0.6; beep(PADS[live.pattern[i]][1]); s.castTaps++; }
+        paint();
+      },
+      draw() {
+        K.background(sc.bg, 0, place.look);
+        const two = mateHere(), cast = sc.cast || [];
+        cast.forEach((id, k) => K.figure(id, W / 2 + k * 26, 206 - (s.castTaps % 2) * 2, 'stand', s.t));          // the one who shows the rhythm bobs with every stroke
+        if (two) K.hero(mate(), W / 2 + 46, 208, 'drum', s.mateTaps / 9, true);
+        K.hero(who, W / 2 - 46, 208, s.lost ? 'dizzy' : 'drum', s.taps / 9);
+        rect(0, TOP - 14, W, H - TOP + 14, 'rgba(43,31,26,.6)');
+        for (let k = 0; k < live.pattern.length; k++) rect(W / 2 - live.pattern.length * 5 + k * 10 + 2, TOP - 10, 6, 6, k < live.step ? '#1FA463' : 'rgba(255,248,231,.35)');   // how much of it is played back
+        for (let p = 0; p < 4; p++) {
+          const x = p * PW + 3, on = s.lit[p] > 0, own = mine(p), shake = s.bad > 0 ? Math.round(Math.sin(s.t * 60) * 2) : 0;
+          rect(x + shake, TOP, PW - 6, 46, INK); rect(x + 2 + shake, TOP + 2 + (on ? 2 : 0), PW - 10, 40, PADS[p][0]);
+          rect(x + 7 + shake, TOP + 8 + (on ? 2 : 0), PW - 20, 8, on ? '#FFF8E7' : 'rgba(255,248,231,.4)');
+          if (!own) rect(x + 2 + shake, TOP + 2, PW - 10, 40, 'rgba(43,31,26,.5)');                              // the other one's drums are dimmed
+        }
+      },
+    };
+  }
+
+  // Finding: koalas hide in the trees and peek out now and then. Tap one while it shows itself and it is found.
+  // The picture may be wider than the screen: drag to look around. Both look in the same forest, so it pays to
+  // watch different trees. All of them have to be found before the time runs out.
+  function Find(sc, place, sn) {
+    const cfg = sc.find, who = me(), GY = sc.ground || GROUND;
+    const { koalas } = Room.course.find(sn.seed, sc);
+    const s = { t: 0, over: false, lost: false, off: 0, got: new Set(), sent: 0, miss: null };
+    let live = sn;
+    const view = stage('<span class="count"></span><span class="meter"><i></i></span>', 'Koaly vykukují ze stromů. Klepni na ně, než se schovají.');
+    const pic = () => K.picture(sc.bg), width = () => (pic() ? pic().naturalWidth : W), most = () => Math.max(0, width() - W);
+    const found = (k) => s.got.has(k.id) || live.found.includes(k.id);
+    const out = (k) => { const u = s.t - k.first; return u >= 0 && u % k.period < cfg.show; };                 // peeking right now
+    const soon = (k) => { const u = s.t - k.first + 0.6; return u >= 0 && u % k.period < 0.6; };               // leaves rustle just before
+    const paint = () => { view.hud.firstElementChild.textContent = `${live.found.length} / ${live.need}`; view.hud.lastElementChild.firstElementChild.style.width = clamp(1 - s.t / cfg.seconds, 0, 1) * 100 + '%'; };
+    paint();
+    function koala(x, y, happy) {                          // a stand-in koala: round grey head, big ears
+      rect(x - 9, y - 9, 6, 6, INK); rect(x + 3, y - 9, 6, 6, INK); rect(x - 8, y - 8, 4, 4, '#B9B4AE'); rect(x + 4, y - 8, 4, 4, '#B9B4AE');
+      rect(x - 6, y - 6, 12, 11, INK); rect(x - 5, y - 5, 10, 9, '#A39E98'); rect(x - 1, y - 2, 2, 3, INK);
+      rect(x - 4, y - 3, 2, happy ? 1 : 2, INK); rect(x + 2, y - 3, 2, happy ? 1 : 2, INK);
+    }
+    return {
+      s, kind: 'find', peek: () => ({ off: s.off, most: most(), out: koalas.filter((k) => !found(k) && out(k)).map((k) => ({ id: k.id, x: k.x - s.off, y: k.y })) }),
+      sync(n) { live = n; paint(); },
+      over(won) { s.over = true; s.lost = !won; paint(); view.end(won, won ? 'Všechny koaly!' : 'Čas vypršel.', won ? 'Žádná se neschovala.' : `Našli jste ${live.found.length} z ${live.need}. Zkuste to ještě jednou.`); },
+      move(x, y, dx) { s.off = clamp(s.off - dx, 0, most()); },
+      down(x, y) {
+        if (s.over || s.t < 0 || y < 22) return;
+        const k = koalas.find((q) => !found(q) && out(q) && Math.hypot(q.x - s.off - x, q.y - y) < 14);
+        if (k) { s.got.add(k.id); beep(660, 880, 1100); view.tip.textContent = ''; Net.send({ type: 'ev', e: 'find', id: k.id }); }
+        else { s.miss = { x, y, at: s.t }; beep(180); }
+      },
+      update() {
+        if (s.over) return;
+        s.t = clock(live);
+        if (s.t >= cfg.seconds && Net.now() - s.sent > 1000) { s.sent = Net.now(); Net.send({ type: 'ev', e: 'finish' }); }
+        paint();
+      },
+      draw() {
+        const off = Math.round(clamp(s.off, 0, most()));
+        K.background(sc.bg, off, place.look);
+        for (const k of koalas) {
+          const x = Math.round(k.x - off), y = Math.round(k.y);
+          if (x < -12 || x > W + 12) continue;
+          if (found(k)) { koala(x, y - Math.round(Math.abs(Math.sin(s.t * 5 + k.id)) * 2), true); continue; }
+          if (out(k)) koala(x, y, false);
+          else if (soon(k)) { const j = Math.floor(s.t * 14) % 2; rect(x - 8 + j * 2, y - 2, 4, 2, '#DDE8B0'); rect(x + 4 - j * 2, y + 2, 4, 2, '#DDE8B0'); }   // a rustle in the leaves
+        }
+        if (s.miss && s.t - s.miss.at < 0.25) { const { x, y } = s.miss; rect(x - 4, y - 1, 8, 2, '#FFF8E7'); rect(x - 1, y - 4, 2, 8, '#FFF8E7'); }
+        if (mateHere()) K.hero(mate(), W - 28, GY, 'stand', s.t + 0.3, true);
+        K.hero(who, 28, GY, s.lost ? 'dizzy' : 'stand', s.t);
+        if (most() > 0) { rect(W / 2 - 20, H - 6, 40, 2, 'rgba(43,31,26,.6)'); rect(W / 2 - 20 + Math.round(off / most() * 30), H - 6, 10, 2, '#FFD43A'); }   // where in the forest one is looking
+      },
+    };
+  }
+
+  // The salon: customers come in and wait by the door. Each wants a few things done, in order (wash, cut, dye, dry)
+  // and then to pay. Tap a customer to take them by the hand, then tap the place they need next; whoever stands at a
+  // place works there, and two at one place work twice as fast. Customers who wait too long walk out.
+  function Salon(sc, place, sn) {
+    const cfg = sc.salon, who = me(), ST = cfg.stations, SPEED = 84, max = sn.lives;
+    const NAME = { wash: 'umýt', cut: 'ostříhat', dye: 'obarvit', dry: 'vyfoukat', pay: 'zaplatit' };
+    const QX = 14, QY = [214, 236, 258, 280];
+    const home = (w) => (w === who ? { x: 96, y: 236 } : { x: 120, y: 250 });
+    const s = { t: 0, over: false, lost: false, me: { ...home(who), to: null, go: null, walked: [] }, mate: { ...home(mate()), to: null }, shout: 0, seenNo: {}, no: null };
+    let live = sn;
+    const view = stage('<span class="lives"></span><span class="clock"></span><span class="meter"><i></i></span>', 'Klepni na zákazníka a pak na místo, kam ho vedeš. Kde stojíš, tam pracuješ.');
+    const shout = add('<p class="shout" hidden>NELÍTEJTE!</p>');
+    const spot = (i) => ({ x: ST[i].x + 13, y: ST[i].y + 22 });                                 // where a hairdresser stands to work there
+    const leading = (w) => live.cust.find((c) => c.by === w);
+    const queued = () => live.cust.filter((c) => c.at === -2).sort((a, b) => a.id - b.id);
+    const body = (w) => (w === who ? s.me : s.mate);
+    function where(c) {                                                                         // where a customer stands right now
+      if (c.at >= 0) return { x: ST[c.at].x, y: ST[c.at].y };
+      if (c.by) { const b = body(c.by); return { x: b.x - 12, y: b.y - 2 }; }
+      const k = queued().indexOf(c); return { x: QX, y: QY[Math.max(0, k)] };
+    }
+    const paint = () => {
+      hearts(view.hud.firstElementChild, live.lives, max);
+      const left = Math.max(0, Math.ceil(cfg.seconds - s.t)); view.hud.children[1].textContent = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
+      view.hud.lastElementChild.firstElementChild.style.width = clamp(live.served / live.need, 0, 1) * 100 + '%';
+    };
+    paint();
+    function walk(x, y, go) {
+      const m = s.me;
+      if (live.workers[who] !== null && live.workers[who] !== undefined) Net.send({ type: 'ev', e: 'at', st: -1 });   // leaving one's place
+      m.to = { x: clamp(x, 10, W - 10), y: clamp(y, 200, H - 4) }; m.go = go;
+      Net.send({ type: 'fx', k: 'walk', x: m.to.x, y: m.to.y });
+    }
+    function arrive() {
+      const go = s.me.go; s.me.go = null; if (!go) return;
+      if (go.take !== undefined) Net.send({ type: 'ev', e: 'take', c: go.take });
+      if (go.st !== undefined) {
+        const c = leading(who);
+        if (c) Net.send({ type: 'ev', e: 'lead', c: c.id, st: go.st });
+        else Net.send({ type: 'ev', e: 'at', st: go.st });
+      }
+    }
+    // stand-in pictures: a customer whose hair changes as the work is done, and an icon for each kind of work
+    function customer(c, x, y) {
+      const did = (k) => c.order.indexOf(k) > -1 && c.order.indexOf(k) < c.step;
+      const hair = did('dye') ? c.dye : c.hair, long = c.long && !did('cut'), wet = did('wash') && !did('dry');
+      const shake = c.no && s.no && s.no.id === c.id && s.t - s.no.at < 0.6 ? Math.round(Math.sin(s.t * 50) * 2) : 0;
+      x = Math.round(x) + shake; y = Math.round(y);
+      rect(x - 4, y - 8, 3, 8, '#3A2F33'); rect(x + 1, y - 8, 3, 8, '#3A2F33');                  // legs
+      rect(x - 6, y - 19, 12, 11, c.shirt);                                                       // body
+      rect(x - 5, y - 28, 10, 9, '#E8B58A'); rect(x + 1, y - 25, 2, 2, INK);                     // head and eye
+      rect(x - 6, y - 31 - (did('dry') ? 1 : 0), 12, 4 + (did('dry') ? 1 : 0), hair);            // hair, fluffier once dried
+      rect(x - 7, y - 29, 3, long ? 12 : 5, hair);
+      if (wet) { rect(x - 8, y - 22, 1, 2, '#7CC6F2'); rect(x + 7, y - 27, 1, 2, '#7CC6F2'); }
+    }
+    function icon(k, x, y) {
+      x = Math.round(x); y = Math.round(y);
+      if (k === 'wash') { rect(x - 5, y - 1, 10, 5, '#3E7BD6'); rect(x - 4, y, 8, 3, '#7CC6F2'); rect(x - 1, y - 5, 2, 3, '#7CC6F2'); }
+      if (k === 'cut') { rect(x - 5, y + 1, 3, 3, '#8A8F9C'); rect(x + 2, y + 1, 3, 3, '#8A8F9C'); for (let i = 0; i < 5; i++) { rect(x - 3 + i, y - i, 1, 1, '#46536A'); rect(x + 2 - i, y - i, 1, 1, '#46536A'); } }
+      if (k === 'dye') { rect(x - 3, y - 2, 6, 7, '#8E5BC8'); rect(x - 2, y - 5, 4, 3, '#FFF8E7'); rect(x - 2, y, 4, 1, '#F0448F'); }
+      if (k === 'dry') { rect(x - 5, y - 3, 8, 5, '#F0448F'); rect(x + 3, y - 2, 3, 3, '#46536A'); rect(x - 3, y + 2, 3, 4, '#F0448F'); }
+      if (k === 'pay') { rect(x - 4, y - 4, 8, 8, '#E6B340'); rect(x - 3, y - 3, 6, 6, '#FFD43A'); rect(x - 1, y - 2, 2, 4, '#B98850'); }
+    }
+    function bubble(c, x, y) {                                                                    // what they want next, and how patient they still are
+      const k = c.order[c.step], ready = c.at >= 0 && ST[c.at].k !== k, b = ready ? Math.round(Math.abs(Math.sin(s.t * 6)) * 2) : 0;
+      x = Math.round(x); y = Math.round(y) - 46 - b;
+      rect(x - 8, y - 8, 16, 15, INK); rect(x - 7, y - 7, 14, 13, '#FFF8E7'); rect(x - 1, y + 7, 2, 2, INK);
+      icon(k, x, y - 1);
+      const f = clamp(c.pat / c.max, 0, 1);
+      rect(x - 8, y + 10, 16, 3, INK); rect(x - 7, y + 11, Math.max(1, Math.round(14 * f)), 1, f > 0.5 ? '#1FA463' : f > 0.25 ? '#FFD43A' : '#CC2233');
+    }
+    return {
+      s, kind: 'salon',
+      peek: () => ({ me: { x: s.me.x, y: s.me.y, walking: !!s.me.to }, mine: leading(who) && leading(who).id, workers: live.workers, stations: ST.map((st, i) => ({ k: st.k, i, x: st.x, y: st.y, busy: live.cust.some((c) => c.at === i) })),
+        cust: live.cust.map((c) => ({ id: c.id, at: c.at, by: c.by, want: c.order[c.step], work: c.work, ...where(c) })) }),
+      sync(n) {
+        for (const c of n.cust) if (c.no && c.no !== s.seenNo[c.id]) { s.seenNo[c.id] = c.no; if (c.by === who) { s.no = { id: c.id, at: s.t }; beep(180); view.tip.textContent = `Teď chce ${NAME[c.order[c.step]]}.`; } }
+        live = n; paint();
+      },
+      fx(m) { if (m.k === 'walk') s.mate.to = { x: m.x, y: m.y }; },
+      over(won) { s.over = true; s.lost = !won; shout.hidden = true; paint(); view.end(won, won ? 'Salon je prázdný!' : 'Zákazníci utekli.', won ? `Všichni odešli spokojení. V kase je ${live.coins} korun.` : `Obsloužili jste ${live.served} z ${live.need}. Zkuste to ještě jednou.`); },
+      down(x, y) {
+        if (s.over || s.t < 0 || y < 22) return;
+        const mineNow = leading(who);
+        if (!mineNow) {                                                                           // a customer to take: one waiting, or one done at a place
+          const c = live.cust.filter((q) => !q.by).map((q) => ({ q, p: where(q) })).find(({ p }) => Math.abs(p.x - x) < 9 && y > p.y - 34 && y < p.y + 2);
+          if (c) { beep(520); view.tip.textContent = ''; return walk(c.p.x + 12, c.p.y + 2, { take: c.q.id }); }
+        }
+        const i = ST.findIndex((st) => Math.abs(st.x - x) < 16 && y > st.y - 34 && y < st.y + 28);
+        if (i > -1) { beep(440); const p = spot(i); return walk(p.x, p.y, { st: i }); }
+        walk(x, y, null);
+      },
+      update(dt) {
+        if (s.over) return;
+        s.t = clock(live);
+        for (const b of [s.me, s.mate]) {
+          if (!b.to) continue;
+          const dx = b.to.x - b.x, dy = b.to.y - b.y, d = Math.hypot(dx, dy), step = SPEED * dt;
+          if (d <= step) { b.x = b.to.x; b.y = b.to.y; b.to = null; if (b === s.me) arrive(); }
+          else { b.x += dx / d * step; b.y += dy / d * step; if (b === s.me) s.me.walked.push([s.t, step]); }
+        }
+        // Mamka does not like running about her salon
+        s.me.walked = s.me.walked.filter(([t]) => s.t - t < 3);
+        if (sc.cast && s.me.walked.reduce((a, [, d]) => a + d, 0) > 170 && s.t - s.shout > 8) { s.shout = s.t; beep(300, 300); }
+        shout.hidden = !(s.shout && s.t - s.shout < 2);
+        paint();
+      },
+      draw() {
+        K.background(sc.bg, 0, place.look);
+        ST.forEach((st, i) => {                                                                   // the places to work, as mats on the floor
+          rect(st.x - 13, st.y - 3, 26, 9, INK); rect(st.x - 12, st.y - 2, 24, 7, '#FFF8E7'); icon(st.k, st.x, st.y + 1);
+          const c = live.cust.find((q) => q.at === i);
+          if (c && st.k === c.order[c.step]) { const f = clamp(c.work / cfg.work[st.k], 0, 1); rect(st.x - 13, st.y + 8, 26, 4, INK); rect(st.x - 12, st.y + 9, Math.round(24 * f), 2, '#1FA463'); }
+        });
+        const things = [];                                                                        // everyone on the floor, drawn from the back to the front
+        for (const c of live.cust) { const p = where(c); things.push([p.y, () => { customer(c, p.x, p.y); bubble(c, p.x, p.y); }]); }
+        if (sc.cast) things.push([246, () => K.figure(sc.cast[0], 178, 246, 'stand', s.t, true)]);           // Mamka keeps an eye on things from the side
+        if (mateHere()) things.push([s.mate.y, () => K.hero(mate(), s.mate.x, s.mate.y, s.mate.to ? 'run' : live.workers[mate()] !== null ? 'cheer' : 'stand', s.t, s.mate.to ? s.mate.to.x < s.mate.x : false)]);
+        things.push([s.me.y, () => K.hero(who, s.me.x, s.me.y, s.lost ? 'dizzy' : s.me.to ? 'run' : live.workers[who] !== null && live.workers[who] !== undefined ? 'cheer' : 'stand', s.t, s.me.to ? s.me.to.x < s.me.x : false)]);
+        things.sort((a, b) => a[0] - b[0]).forEach(([, f]) => f());
       },
     };
   }

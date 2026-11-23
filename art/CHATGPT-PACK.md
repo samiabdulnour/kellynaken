@@ -5,8 +5,10 @@ Everything ChatGPT needs to draw the game's scenes and objects so they match you
 ## Where things stand
 
 - **Scenes S0 to S13: done.** All 14 are drawn and in the game. Their prompts stay below for reference, and for any scene you want to redo.
+- **Poses A1 to A6: done.** Both heroes are drawn from them.
+- **New, for the new games (Part 6):** S14 the concert, S15 the bush forest with koalas, P8 koalas, P9 the salon's work places, P10 salon customers. The concert and the bush borrow other pictures until theirs arrive.
 - **Still to draw: the objects, P1 to P7.** Start with P7 (stick, puck, bunny), because both heroes use it everywhere.
-- **The poses I need** are listed near the end: A1 to A6 for the two heroes first, then A7 to A10. The villain C11 is optional.
+- **Poses still needed:** A7 to A10, for Mamka, Alan, Sami and Žofia. The villain C11 is optional.
 - **Style:** grounded, classic pixel art that follows your character sheets and the finished scenes: natural proportions, muted colours, no black outlines.
 
 ## How to use this
@@ -291,6 +293,64 @@ Same pixel-art style and palette as set up. No text.
 
 ---
 
+## Part 6: the new games (5 images)
+
+### S14. The concert
+
+```text
+S14, a concert in the old stadium. Portrait, 2:3 (1024x1536).
+
+Night inside the huge old stadium, now full for a rock concert. Across the middle stands a big outdoor stage with a high black truss roof, coloured spotlights in pink, yellow and blue shining down through a light haze, two tall speaker stacks at the sides, and a raised drum riser in the centre, left empty because the musicians are added separately. Far behind the stage rise the old concrete stands, packed with a crowd shown only as a dark mass of simple silhouettes with raised hands and a few phone lights. The bottom third is the front of the stage floor, dark wooden boards, clear and empty.
+
+Same pixel-art style and palette as set up. No text, no logos, no band names.
+```
+
+### S15. The bush forest (for finding koalas)
+
+If you draw this one yourself, keep to the same idea: a wide picture with plenty of leafy places at different heights where a small koala could peek out. I mark the hiding places myself.
+
+```text
+S15, a eucalyptus forest in the Australian bush. Wide landscape, 3:2 (1536x1024). In the game the players drag this picture left and right to look around.
+
+A dense bush forest seen side-on in warm late-afternoon light. Ten to twelve tall eucalyptus trees with pale, peeling trunks and thick, rounded crowns of grey-green leaves stand at different distances, spread across the whole width. Their crowns and forks sit at many different heights, from just above the ground to the top of the picture, leaving lots of shadowy, leafy nooks where something small could hide. Between them: tree ferns, tall grass and fallen branches. Thin shafts of golden light fall through the leaves. The bottom fifth is a red earth path running from edge to edge, clear and empty.
+
+No animals of any kind. Same pixel-art style and palette as set up. No text.
+```
+
+### P8. Koalas
+
+```text
+P8, koalas for a hide-and-seek game. Landscape, 3:2 (1536x1024). Magenta background.
+
+Six separate drawings in one row of the same cute, round, grey koala with big fluffy ears and a large dark nose, each with clear magenta space around it: only the head and two paws peeking up over a clump of grey-green eucalyptus leaves; the same, peeking out sideways from behind the leaves; the whole koala hugging a short piece of branch, seen from the side; the same koala waving one paw, happy; the same koala with its eyes closed and smiling; a clump of eucalyptus leaves on its own, the same as in the first drawing.
+
+Same pixel-art style and palette as set up. No text.
+```
+
+### P9. The salon's work places
+
+```text
+P9, the work places in a hair salon, for a cooperative game. Landscape, 3:2 (1536x1024). Magenta background.
+
+Five separate objects in one row, all at the same scale, seen from the front at a slight angle from above, each with clear magenta space around it: a white hair-washing basin on a short stand with a curved neck rest; a pink salon chair with scissors and a comb lying on a small tray beside it; a small trolley with a bowl of hair dye, a brush and three coloured bottles; a standing hood hair dryer; a small wooden counter with a cash register and a little bell.
+
+Same pixel-art style and palette as set up. No text, no logos.
+```
+
+### P10. Salon customers
+
+```text
+P10, customers for a hair salon game. Wide landscape image, plain white background.
+
+Draw them in exactly the style of the attached character sheet: the same proportions, pixel size and coloured outlines, about two thirds as tall as the adults on the sheet.
+
+Six different friendly customers in one row, seen from the side and facing right, the same size, evenly spaced, feet on one straight line: an old lady with a grey bun and a cardigan; a teenager with a messy fringe and a hoodie; a man with a bushy beard and long scruffy hair; a woman with very long straight hair and a summer dress; a small boy with sticking-up hair and a football shirt; a grandpa with a flat cap and a moustache.
+
+Under them, a second row with the same six after their visit, each with a neat new hairdo, and the woman's hair dyed pink.
+
+No shadows, no ground, no text, no labels, nothing cut off at the edges.
+```
+
 ## The poses I need
 
 All six characters are in the game, cut from the big standing figures (front, three-quarter, side, back). What a standing figure cannot give is movement: for now the game makes two running frames by moving the legs of the side view, and the hockey stick and the bunny are drawn stand-ins.
@@ -479,6 +539,11 @@ Same pixel-art style and palette as set up. No text, no logos.
 | P6 | The drum kit | Landscape |
 | P3 | Australia objects | Landscape |
 | P4 | Rewards and map markers | Landscape |
+| S14 | Praha 6: the concert | Portrait |
+| S15 | Australia: the bush forest | Wide landscape |
+| P8 | Koalas | Landscape |
+| P9 | The salon's work places | Landscape |
+| P10 | Salon customers, before and after | Wide rows |
 | A1, A2, A3 | Kendrick: running, moving, with his things | Wide row |
 | A4, A5, A6 | Kellyn: running, moving, with her things | Wide row |
 | A7 to A10 | Mamka, Alan, Sami, Žofia | Wide row |
