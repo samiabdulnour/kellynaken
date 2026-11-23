@@ -637,15 +637,16 @@
     };
   }
 
-  // Finding: koalas hide in the trees and peek out now and then. Tap one while it shows itself and it is found.
+  // Finding: koalas hide in the trees. With `hidden` they sit still, small, in the forks and on the trunks, and only
+  // twitch now and then as a hint; without it they peek out for a moment and duck back. Tap one to find it.
   // The picture may be wider than the screen: drag to look around. Both look in the same forest, so it pays to
-  // watch different trees. All of them have to be found before the time runs out.
+  // search different trees. All of them have to be found before the time runs out.
   function Find(sc, place, sn) {
     const cfg = sc.find, who = me(), GY = sc.ground || GROUND;
     const { koalas } = Room.course.find(sn.seed, sc);
     const s = { t: 0, over: false, lost: false, off: 0, got: new Set(), sent: 0, miss: null, when: {} };
     let live = sn;
-    const view = stage('<span class="count"></span><span class="meter"><i></i></span>', 'Koaly vykukují ze stromů. Klepni na ně, než se schovají.');
+    const view = stage('<span class="count"></span><span class="meter"><i></i></span>', cfg.hidden ? 'Koaly se schovávají ve stromech. Táhni obrázkem a hledej.' : 'Koaly vykukují ze stromů. Klepni na ně, než se schovají.');
     const pic = () => K.picture(sc.bg), width = () => (pic() ? pic().naturalWidth : W), most = () => Math.max(0, width() - W);
     const found = (k) => s.got.has(k.id) || live.found.includes(k.id);
     const out = (k) => { const u = s.t - k.first; return u >= 0 && u % k.period < cfg.show; };                 // peeking right now
@@ -658,13 +659,15 @@
       rect(x - 4, y - 3, 2, happy ? 1 : 2, INK); rect(x + 2, y - 3, 2, happy ? 1 : 2, INK);
     }
     return {
-      s, kind: 'find', peek: () => ({ off: s.off, most: most(), out: koalas.filter((k) => !found(k) && out(k)).map((k) => ({ id: k.id, x: k.x - s.off, y: k.y })) }),
+      s, kind: 'find', peek: () => ({ off: s.off, most: most(), out: koalas.filter((k) => !found(k) && out(k)).map((k) => ({ id: k.id, x: k.x - s.off, y: cfg.hidden ? k.y - 6 : k.y, wx: k.x })) }),
       sync(n) { for (const id of n.found) if (!(id in s.when)) s.when[id] = s.t; live = n; paint(); },
       over(won) { s.over = true; s.lost = !won; paint(); view.end(won, won ? 'Všechny koaly!' : 'Čas vypršel.', won ? 'Žádná se neschovala.' : `Našli jste ${live.found.length} z ${live.need}. Zkuste to ještě jednou.`); },
       move(x, y, dx) { s.off = clamp(s.off - dx, 0, most()); },
       down(x, y) {
         if (s.over || s.t < 0 || y < 22) return;
-        const k = koalas.find((q) => !found(q) && out(q) && Math.hypot(q.x - s.off - x, q.y - y) < 14);
+        const k = cfg.hidden
+          ? koalas.find((q) => !found(q) && Math.abs(q.x - s.off - x) < 9 && y > q.y - 17 && y < q.y + 3)          // hidden ones can be tapped any time: they are just hard to see
+          : koalas.find((q) => !found(q) && out(q) && Math.hypot(q.x - s.off - x, q.y - y) < 14);
         if (k) { s.got.add(k.id); s.when[k.id] = s.t; beep(660, 880, 1100); view.tip.textContent = ''; Net.send({ type: 'ev', e: 'find', id: k.id }); }
         else { s.miss = { x, y, at: s.t }; beep(180); }
       },
@@ -681,6 +684,11 @@
         for (const k of koalas) {
           const x = Math.round(k.x - off), y = Math.round(k.y);
           if (x < -12 || x > W + 12) continue;
+          if (cfg.hidden && art) {                                                           // small and still; a twitch now and then gives one away
+            if (found(k)) { const fresh = s.t - (s.when[k.id] || 0) < 1.5; K.figure('koalas', x, y - (fresh ? Math.round(Math.abs(Math.sin(s.t * 8)) * 3) : 0), fresh ? 'wave' : 'happy', s.t, false, cfg.size * 1.1); rect(x - 1, y - 22, 3, 3, '#1FA463'); }
+            else K.figure('koalas', x, y - (out(k) ? 1 : 0), k.pose, s.t, out(k) ? Math.floor(s.t * 12) % 2 === 0 : k.x > width() / 2, cfg.size);
+            continue;
+          }
           if (found(k)) {
             const bob = Math.round(Math.abs(Math.sin(s.t * 5 + k.id)) * 2);
             if (art) K.figure('koalas', x, y + 11 - bob, s.t - (s.when[k.id] || 0) < 1.5 ? 'wave' : 'happy', s.t, k.x > width() / 2); else koala(x, y - bob, true);

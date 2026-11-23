@@ -104,10 +104,12 @@ window.WORLD = {
         { id: 'australia-sea', name: 'Na vlně', bg: 'australia-sea', scroll: true, play: 'run', ground: 200, tile: 'repeat', pickup: 'boomerang',
           run: { seconds: 30, low: 'žralok', high: 'bumerang', board: true, art: { low: ['aussie', 'fin', 'fin2'], high: ['aussie', 'boomerang', 'boomerang2'] } },
           talk: [['', 'Na prkno! Žraloka přeskoč, pod bumerangem zůstaň dole.']] },
-        // The bush wants a wide forest picture of its own (S15 in the art package, 'australia-bush'); the hiding places below fit the
-        // picture it borrows for now and must be set again for the new one. [x, y] on the picture.
-        { id: 'australia-outback', name: 'Buš', bg: 'australia-outback', play: 'find',
-          find: { seconds: 60, need: 8, show: 1.2, every: [4, 7], spots: [[22, 64], [44, 90], [30, 116], [92, 108], [118, 118], [132, 112], [84, 140], [176, 138], [12, 142]] },
+        // Koalas sit still, small, in the forks and on the trunks of the bush picture (S15). A hiding place is [x, y, pose]:
+        // where its feet are on the picture, and whether it hugs the trunk (branch), looks round it (side) or peeks over leaves (peek).
+        { id: 'australia-outback', name: 'Buš', bg: 'australia-bush', play: 'find', ground: 284,
+          find: { seconds: 75, need: 7, hidden: true, size: 0.28, show: 0.45, every: [6, 10],
+            spots: [[53, 118, 'branch'], [188, 130, 'branch'], [150, 32, 'side'], [104, 66, 'side'], [133, 106, 'branch'], [121, 180, 'peek'],
+              [318, 60, 'side'], [392, 90, 'branch'], [322, 114, 'branch'], [417, 148, 'branch'], [362, 222, 'peek'], [262, 178, 'branch']] },
           talk: [['', 'Cesta vede buší. Ve stromech se něco hýbe…'], ['hero', 'Koaly! Najdeme je všechny.']] },
         { id: 'australia-reef', name: 'Žraločí útes', bg: 'australia-reef', play: 'stub', ground: 246,
           talk: [['', 'Támhle někdo mává! Na skále uprostřed moře.']] },

@@ -41,7 +41,7 @@
     // Koalas in the trees: which of the scene's hiding places are used, and when each one peeks out.
     find(seed, sc) {
       const cfg = sc.find, r = rng(seed), spots = cfg.spots.map((at, i) => ({ at, i, k: r() })).sort((a, b) => a.k - b.k).slice(0, cfg.need);
-      return { koalas: spots.map((sp, id) => ({ id, x: sp.at[0], y: sp.at[1], first: 1.5 + r() * cfg.every[1], period: cfg.every[0] + r() * (cfg.every[1] - cfg.every[0]) })) };
+      return { koalas: spots.map((sp, id) => ({ id, x: sp.at[0], y: sp.at[1], pose: sp.at[2] || 'side', first: 1.5 + r() * cfg.every[1], period: cfg.every[0] + r() * (cfg.every[1] - cfg.every[0]) })) };
     },
     // Who comes into the salon and when: what each wants done, in order, and how they look.
     salon(seed, sc, two) {

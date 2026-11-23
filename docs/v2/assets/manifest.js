@@ -2,6 +2,7 @@
 window.ASSETS = {
   "bg": [
     "australia-beach",
+    "australia-bush",
     "australia-outback",
     "australia-reef",
     "australia-sea",

@@ -4,10 +4,11 @@ Everything ChatGPT needs to draw the game's scenes and objects so they match you
 
 ## Where things stand
 
-- **Scenes S0 to S14: done.** S6 has been redrawn as Bondi Beach, and S14 (the concert) was drawn from photos of the real Strahov stadium.
+- **Scenes S0 to S15: done.** S6 has been redrawn as Bondi Beach, and S14 (the concert) was drawn from photos of the real Strahov stadium.
 - **Objects P1, P3, P5, P7, P8, P9, P10: done**, made through the Figma connection and in the game: obstacles, padlocks, the puck, the bunny, the items, drums, koalas, the salon's work places and customers.
 - **Poses A1 to A6: done.** Both heroes are drawn from them.
-- **Still to draw:** S15 (the bush forest, which you are drawing), P2 (the tram), P4 (rewards and map markers), and the poses A7 to A10 for Mamka, Alan, Sami and Žofia. The villain C11 is optional.
+- **S15, the bush forest: done**, drawn after your photo of the real bush.
+- **Still to draw:** P2 (the tram), P4 (rewards and map markers), and the poses A7 to A10 for Mamka, Alan, Sami and Žofia. The villain C11 is optional.
 - **Style:** grounded, classic pixel art that follows your character sheets and the finished scenes: natural proportions, muted colours, no black outlines.
 
 ## How to use this
