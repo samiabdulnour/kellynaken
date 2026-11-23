@@ -22,6 +22,7 @@
 //   memory  pexeso: one turns the first card over, the other turns the second looking for its pair; then they swap
 //   collect run along the beach picking up what the waves wash in, and keep away from the jellyfish
 //   rescue  throw lifebuoys to the people on the rock, then pull them across before the shark gets there
+//   tower   build a house storey by storey: one drives the crane, the other lets each storey go
 //   shoot   targets pop up and slip away: tap where the shot should go. Kendrick fires a puck with his hockey stick,
 //           Kellyn throws her white bunny
 //   stub    not built yet: shows a card and lets you carry on
@@ -136,8 +137,13 @@ window.WORLD = {
         { id: 'australia-reef', name: 'Žraločí útes', bg: 'australia-reef', play: 'rescue', ground: 246, cast: ['sami', 'zofia'],
           rescue: { hits: 2, pull: 70, seconds: 14, land: { x: 92, y: 140, w: 13 }, green: [0.22, 0.40], jetty: 206 },
           talk: [['', 'Támhle někdo mává! Na skále uprostřed moře, a kolem krouží žralok.'], ['hero', 'Hodíme jim záchranné kruhy!']] },
+        // After the rescue: Sami is an architect, and his house in Sydney is waiting to be built.
+        { id: 'australia-sydney', name: 'Sydney', bg: 'australia-sydney', play: 'tower', cast: ['sami', 'zofia'],
+          tower: { need: 7, slack: 21 },
+          talk: [['sami', 'Díky, že jste nás zachránili! Víte, že jsem architekt?'], ['sami', 'Navrhl jsem v Sydney nový dům. Jenže stavba se zasekla a sám ho nepostavím.'],
+            ['zofia', 'Kendrick bude řídit jeřáb a Kellyn bude pouštět patra. Spolu to zvládnete!'], ['hero', 'Jdeme stavět!']] },
       ],
-      done: [['sami', 'To byla jízda. Díky! Přijeli jsme sem kvůli pradědovi Václavovi, chtěli jsme vidět, kde žil.'], ['zofia', 'Juchůů! Zachránili jste nás! Pradědové Václav a Georges by na vás byli pyšní.']],
+      done: [['sami', 'Díky, dům stojí! Do Austrálie jsme přijeli kvůli pradědovi Václavovi, chtěli jsme vidět, kde žil.'], ['zofia', 'Juchůů! Zachránili jste nás! Pradědové Václav a Georges by na vás byli pyšní.']],
     },
   ],
 };

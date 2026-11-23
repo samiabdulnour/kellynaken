@@ -276,7 +276,7 @@
         const card = add(`<div class="card"><h2>${esc(sc.name)}</h2><p>Tahle část se teprve staví.</p><button class="btn">Dál</button></div>`);
         card.querySelector('button').addEventListener('click', () => { beep(520, 660); Net.send({ type: 'done' }); });
       }
-      if (sn.phase === 'play' && !act) act = { run: Runner, drums: Drums, shoot: Shoot, echo: Echo, find: Find, salon: Salon, memory: Memory, collect: Collect, rescue: Rescue }[sc.play](sc, place, sn);
+      if (sn.phase === 'play' && !act) act = { run: Runner, drums: Drums, shoot: Shoot, echo: Echo, find: Find, salon: Salon, memory: Memory, collect: Collect, rescue: Rescue, tower: Tower }[sc.play](sc, place, sn);
       if (act) act.sync(sn);
       if (act && (sn.phase === 'won' || sn.phase === 'lost') && was !== sn.phase) act.over(sn.phase === 'won');
       was = sn.phase; line = sn.line;
@@ -1121,6 +1121,109 @@
           const lo = cfg.green[0], hi = cfg.green[1];
           rect(mx, my + Math.round(mh * (1 - hi)), 8, Math.round(mh * (hi - lo)), '#1FA463');
           rect(mx - 3, my + Math.round(mh * (1 - p)) - 1, 14, 3, s.cool > 0 ? '#8A8F9C' : '#FFD43A');
+        }
+      },
+    };
+  }
+
+  // The tower: Sami's house in Sydney goes up storey by storey. Kendrick drives the crane along its arm (drag), and
+  // Kellyn lets each storey go (tap) when it hangs over the top of the house; the higher the house, the more the
+  // storey swings on the hook. A storey that misses falls off. On one device, one player does both.
+  function Tower(sc, place, sn) {
+    const cfg = sc.tower, who = me(), GY = 262, SH = 25, JIB = 30, CABLE = 30, SW = 40;
+    const two = () => mateHere(), steers = () => !two() || who === 'ken', drops = () => !two() || who === 'kel';
+    const POSES = ['floor', 'plants', 'lights'];
+    const s = { t: 0, over: false, lost: false, crane: sn.crane, mateCrane: sn.crane, sent: 0, told: 0, cam: 0, fall: null, seen: 0, spark: null, target: null };
+    let live = sn, button = null;
+    const view = stage('<span class="lives"></span><span class="count"></span><span class="meter"><i></i></span>', '');
+    const crane = () => (steers() ? s.crane : s.mateCrane);
+    const hook = () => crane() + Room.course.sway(s.t, live.floors.length - 1);
+    const top = () => live.floors[live.floors.length - 1];
+    const pose = (i, n) => (i === 0 ? 'lobby' : i === n - 1 ? 'roof' : POSES[i % 3]);
+    const paint = () => {
+      hearts(view.hud.children[0], live.lives, sn.lives);
+      view.hud.children[1].textContent = `${live.floors.length} / ${live.need}`;
+      view.hud.children[2].firstElementChild.style.width = clamp(live.floors.length / live.need, 0, 1) * 100 + '%';
+    };
+    const tip = () => { if (!s.over && !s.seen) view.tip.textContent = !two() ? 'Táhni jeřáb a pusť patro.' : steers() ? `Ty řídíš jeřáb. ${heroName(mate())} pouští patra.` : `Ty pouštíš patra. Jeřáb řídí ${heroName(mate())}.`; };
+    view.tip.classList.add('up'); paint(); tip();
+    if (drops()) {                                                      // the drop button, for whoever lets the storeys go
+      button = add('<button class="btn throw drop">Pusť!</button>');
+      button.addEventListener('pointerdown', (e) => { e.stopPropagation(); e.preventDefault(); dropIt(); });
+    }
+    function dropIt() { if (s.over || s.t < 0 || Net.now() < live.busyUntil) return; beep(330); Net.send({ type: 'ev', e: 'drop' }); }
+    function steer(x) {
+      s.crane = clamp(x, 24, 168);
+      const now = Net.now();
+      if (now - s.sent > 60) { s.sent = now; Net.send({ type: 'fx', k: 'crane', x: s.crane }); }
+      if (now - s.told > 140) { s.told = now; Net.send({ type: 'ev', e: 'crane', x: s.crane }); }
+    }
+    return {
+      s, kind: 'tower',
+      peek: () => ({ steers: steers(), drops: drops(), crane: crane(), hook: hook(), top: top(), busy: Net.now() < live.busyUntil, floors: live.floors.length, need: live.need }),
+      steerTo: (x) => { s.target = x; },
+      sync(n) {
+        if (n.last && n.last.n !== s.seen) {                           // a storey has been let go: show it falling
+          s.seen = n.last.n; if (!s.over) view.tip.textContent = '';
+          s.fall = { x: n.last.x, ok: n.last.ok, perfect: n.last.perfect, at: s.t, i: n.last.ok ? n.floors.length - 1 : -1, from: JIB + CABLE - s.cam };
+          beep(...(n.last.ok ? (n.last.perfect ? [660, 880, 1100] : [520, 660]) : [200, 150]));
+        }
+        if (!steers()) s.mateCrane = n.crane;
+        live = n; paint();
+      },
+      fx(m) { if (m.k === 'crane' && !steers()) s.mateCrane = m.x; },
+      over(won) { s.over = true; s.lost = !won; if (button) button.remove(); paint(); view.end(won, won ? 'Dům stojí!' : 'Spadlo to.', won ? 'Sydney má nový mrakodrap.' : 'Zkuste to ještě jednou.'); },
+      down(x, y) {
+        if (s.over || y < 22) return;
+        if (drops() && !steers()) return dropIt();                     // Kellyn: a tap anywhere lets the storey go
+        if (steers()) steer(x);                                        // Kendrick: the crane goes where the finger is
+      },
+      move(x, y) { if (!s.over && steers()) steer(x); },
+      update(dt) {
+        if (s.over) return;
+        s.t = clock(live);
+        if (s.target !== null && steers()) { const d = s.target - s.crane; steer(s.crane + clamp(d, -90 * dt, 90 * dt)); if (Math.abs(d) < 0.5) s.target = null; }
+        const want = Math.max(0, (live.floors.length - (s.fall && s.fall.ok && s.t - s.fall.at < 0.5 ? 1 : 0)) * SH - (GY - 170));
+        s.cam += (want - s.cam) * Math.min(1, dt * 3);
+        if (s.fall && s.t - s.fall.at > 1.2) s.fall = null;
+        paint();
+      },
+      draw() {
+        const cam = Math.round(s.cam), img = K.picture(sc.bg), back = Math.round(cam * 0.5);
+        if (img) { ctx.drawImage(img, 0, back); if (back > 0) ctx.drawImage(img, 0, 0, W, 1, 0, 0, W, back + 1); }   // the sky stretches up as the camera rises
+        else K.background(sc.bg, 0, place.look);
+        const sy = (y) => y + cam, n = live.need;
+        // the house so far; a storey still falling is drawn by the fall
+        live.floors.forEach((x, i) => {
+          if (s.fall && s.fall.ok && s.fall.i === i && s.t - s.fall.at < 0.45) return;
+          if (K.has('storeys', pose(i, n))) K.figure('storeys', x, sy(GY - i * SH), pose(i, n), 0, false, 1);
+          else { rect(x - SW / 2, sy(GY - (i + 1) * SH), SW, SH, INK); rect(x - SW / 2 + 1, sy(GY - (i + 1) * SH) + 1, SW - 2, SH - 2, '#E6CFA0'); }
+        });
+        // the people down on the site, who scroll away as the house rises
+        (sc.cast || []).forEach((id, i) => K.figure(id, 160 + i * 18, sy(GY + 4), 'three', s.t, true));
+        if (mateHere()) K.hero(mate(), 42, sy(GY + 6), 'stand', s.t + 0.3);
+        K.hero(who, 20, sy(GY + 6), s.lost ? 'dizzy' : 'stand', s.t);
+        // the crane: its mast on the right, the arm across the top, the trolley, the cable and the hook
+        rect(178, JIB, 8, H - JIB, '#B8860B'); for (let y = JIB + 2; y < H; y += 8) { rect(179, y, 6, 1, '#F2C94C'); rect(180 + (y / 8 % 2 ? 0 : 3), y + 2, 1, 4, '#F2C94C'); }
+        rect(4, JIB, 188, 5, '#B8860B'); rect(4, JIB + 1, 188, 1, '#F2C94C'); for (let x = 6; x < 190; x += 6) rect(x, JIB + 2, 1, 2, '#F2C94C');
+        rect(172, JIB - 9, 18, 9, '#B8860B'); rect(174, JIB - 7, 7, 5, '#BFE3F2');                    // the cabin
+        const c = Math.round(crane()), hx = hook(), hy = JIB + CABLE;
+        rect(c - 5, JIB + 5, 10, 3, INK);
+        for (let k = 0; k <= 10; k++) rect(Math.round(c + (hx - c) * k / 10), Math.round(JIB + 8 + (hy - JIB - 8) * k / 10), 1, 2, '#46536A');
+        if (!s.over && Net.now() >= live.busyUntil && live.floors.length < n) {
+          const i = live.floors.length;
+          rect(Math.round(hx) - 3, hy - 1, 6, 2, INK);
+          if (K.has('storeys', pose(i, n))) K.figure('storeys', hx, hy + SH + 1, pose(i, n), 0, false, 1);
+          // a faint line straight down, to help aim
+          for (let y = hy + SH + 4; y < sy(GY - live.floors.length * SH); y += 6) rect(Math.round(hx), y, 1, 2, 'rgba(255,248,231,.35)');
+        }
+        // a storey on its way down: onto the house, or past it and off the screen
+        if (s.fall) {
+          const u = s.t - s.fall.at, i = s.fall.ok ? s.fall.i : live.floors.length;
+          const land = s.fall.ok ? sy(GY - i * SH) : H + 60, y0 = s.fall.from + SH + 1 + cam - Math.round(s.cam);
+          const y = Math.min(land, y0 + 420 * u * u), x = s.fall.ok ? s.fall.x : s.fall.x + u * 30;
+          if (y < land || s.fall.ok) K.figure('storeys', x, y, pose(i, n), 0, false, 1);
+          if (s.fall.ok && y >= land && s.fall.perfect && u < 1) { for (let k = 0; k < 4; k++) rect(Math.round(x - 22 + k * 14), Math.round(land - SH - 6 - (u - 0.45) * 20), 3, 3, '#FFD43A'); }
         }
       },
     };

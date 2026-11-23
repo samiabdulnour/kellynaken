@@ -921,5 +921,32 @@ window.SPRITES = {
         0
       ]
     }
+  },
+  "storeys": {
+    "file": "storeys.png",
+    "w": 43,
+    "h": 36,
+    "scale": 0.5,
+    "fps": 1,
+    "poses": {
+      "lobby": [
+        0
+      ],
+      "floor": [
+        1
+      ],
+      "plants": [
+        2
+      ],
+      "lights": [
+        3
+      ],
+      "roof": [
+        4
+      ],
+      "stand": [
+        0
+      ]
+    }
   }
 };

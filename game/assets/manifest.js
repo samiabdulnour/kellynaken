@@ -6,6 +6,7 @@ window.ASSETS = {
     "australia-outback",
     "australia-reef",
     "australia-sea",
+    "australia-sydney",
     "praha-door",
     "praha-home",
     "praha-salon",

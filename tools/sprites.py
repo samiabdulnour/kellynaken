@@ -391,6 +391,7 @@ OBJECT_ROWS = {                                  # code: (name in the game, what
     'P12': ('salonkit', ['scissors', 'comb', 'brush', 'dryer', 'spray', 'dye', 'curlers', 'clip', 'mirror', 'shampoo']),
     'P13': ('dog', ['stand', 'trot1', 'trot2', 'sit', 'bark', 'sniff']),          # praděda Václav's Yorkshire terrier
     'P14': ('voyage', ['ship', 'smoke', 'gull1', 'gull2']),                        # the intro to Australia: the refugee ship
+    'P15': ('storeys', ['lobby', 'floor', 'plants', 'lights', 'roof']),            # Sami's tower in Sydney, one storey at a time
 }
 
 
