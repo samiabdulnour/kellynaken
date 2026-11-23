@@ -7,8 +7,9 @@
 //
 // Who is waiting to be rescued in a place (`saves`) is a surprise: the game never names them before they appear.
 // Locked scenes show as ??? and the story lines only hint. Keep new texts that way. `cast` puts people into a
-// scene once they have appeared. A story line can name a third thing, someone it tells of (praděda Václav): their
-// face is shown with the line.
+// scene once they have appeared. A story line can name a third thing, someone it tells of: their face is shown with
+// the line. A fourth thing shows a picture instead of the scene while the line is read ('ship', 'photo',
+// 'travellers': the opening of Australia, told like a short film, with the past in old-photo colours).
 //
 // Each place has four scenes. A scene has a background (bg), some lines of story (talk), and a way to play.
 // `ground` is how far down the picture feet stand, when it is not the usual 232 (the sea, the jetty).
@@ -116,17 +117,21 @@ window.WORLD = {
       scenes: [
         { id: 'australia-beach', name: 'Pláž Bondi', bg: 'australia-beach', play: 'collect', ground: 226,
           collect: { seconds: 60, need: 8, stay: 3.6, every: [1.0, 1.7], jelly: 0.24, won: 'Na vzkazu stojí: POMOC! Jsme na skále za útesem.' },
-          talk: [['', 'Austrálie! Na druhém konci světa kdysi žili oba vaši pradědové, Václav a Georges.'], ['', 'Někdo sem přijel po stopách pradědy Václava, podívat se, kde žil.', 'vaclav'], ['', 'A teď na pláži Bondi vyplavilo moře roztrhaný vzkaz v láhvi.'], ['hero', 'Posbíráme všechny kousky, než je vlny zase odnesou!']] },
+          // The saga opens like a short film: the voyage, his photograph, and today's two travellers seen from behind.
+          talk: [['', 'Po válce utekl praděda Václav z Československa. Na lodi s uprchlíky plul přes celý oceán až do Austrálie.', null, 'ship'],
+            ['', 'Deset let pak žil v Brisbane. Byl to velký chlap. A nějaký čas tu žil i váš druhý praděda, Georges.', null, 'photo'],
+            ['', 'Dnes se po stopách pradědy Václava vydali dva cestovatelé. Chtěli vidět místa, kde kdysi žil.', null, 'travellers'],
+            ['', 'Jenže na pláži Bondi teď vyplavilo moře roztrhaný vzkaz v láhvi.'], ['hero', 'Posbíráme všechny kousky, než je vlny zase odnesou!']] },
         { id: 'australia-sea', name: 'Na vlně', bg: 'australia-sea', scroll: true, play: 'run', ground: 200, tile: 'repeat', pickup: 'boomerang',
           run: { seconds: 30, low: 'žralok', high: 'bumerang', board: true, art: { low: ['aussie', 'fin', 'fin2'], high: ['aussie', 'boomerang', 'boomerang2'] } },
-          talk: [['', 'Praděda Václav po válce utekl z Československa a připlul sem lodí s uprchlíky. Přes celý oceán!', 'vaclav'], ['', 'Na prkno! Žraloka přeskoč, pod bumerangem zůstaň dole.']] },
+          talk: [['', 'Praděda Václav kdysi přeplul celý oceán na lodi. Vy to zvládnete na prkně!'], ['', 'Na prkno! Žraloka přeskoč, pod bumerangem zůstaň dole.']] },
         // Koalas sit still, small, in the forks and on the trunks of the bush picture (S15). A hiding place is [x, y, pose]:
         // where its feet are on the picture, and whether it hugs the trunk (branch), looks round it (side) or peeks over leaves (peek).
         { id: 'australia-outback', name: 'Buš', bg: 'australia-bush', play: 'find', ground: 284,
           find: { seconds: 75, need: 7, hidden: true, size: 0.28, show: 0.45, every: [6, 10],
             spots: [[53, 118, 'branch'], [188, 130, 'branch'], [150, 32, 'side'], [104, 66, 'side'], [133, 106, 'branch'], [121, 180, 'peek'],
               [318, 60, 'side'], [392, 90, 'branch'], [322, 114, 'branch'], [417, 148, 'branch'], [362, 222, 'peek'], [262, 178, 'branch']] },
-          talk: [['', 'Praděda Václav pak v Austrálii žil celých deset let, v Brisbane. Byl to velký chlap.', 'vaclav'], ['', 'Cesta vede buší. Ve stromech se něco hýbe…'], ['hero', 'Koaly! Najdeme je všechny.']] },
+          talk: [['', 'Cesta vede buší. Ve stromech se něco hýbe…'], ['hero', 'Koaly! Najdeme je všechny.']] },
         // From here on they are found: stranded on the rock, waving.
         { id: 'australia-reef', name: 'Žraločí útes', bg: 'australia-reef', play: 'rescue', ground: 246, cast: ['sami', 'zofia'],
           rescue: { hits: 2, pull: 70, seconds: 14, land: { x: 92, y: 140, w: 13 }, green: [0.22, 0.40], jetty: 206 },

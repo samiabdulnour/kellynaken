@@ -261,12 +261,13 @@
   // ---- playing one scene: the story lines, then the game, then on to the next. The room says which part is on. ----
   const Play = (place, first) => {
     const sc = place.scenes[first.index], who = me();
-    let sn = first, was = null, line = -1, box = null, act = null, t = 0;
+    let sn = first, was = null, line = -1, box = null, act = null, t = 0, lineAt = 0;
     const speaker = (key) => (key === 'hero' ? heroName() : key ? (place.saves.find((s) => s.id === key) || { name: key }).name : '');
     function paint() {
       if (sn.phase === 'talk' && (was !== 'talk' || line !== sn.line)) {
         if (box) box.remove();
         const [key, text, about] = sc.talk[sn.line], at = sn.line;                 // `about`: someone the line tells of, shown with it
+        lineAt = t;
         box = add(`<div class="say">${about ? face(about, 0) : key === 'hero' ? face(who, 0) : key ? face(key, 3) : ''}${key ? `<b>${esc(speaker(key))}</b>` : ''}<p>${esc(text)}</p><i>&gt;</i></div>`);
         box.addEventListener('click', () => { beep(440); Net.send({ type: 'next', line: at }); });        // either of them may tap; the line number stops a double tap skipping one
       }
@@ -296,6 +297,8 @@
       update(dt) { t += dt; if (act) act.update(dt); },
       draw() {
         if (act) return act.draw();
+        const show = sn.phase === 'talk' && sc.talk[sn.line] && sc.talk[sn.line][3];
+        if (show) return memory(show, t - lineAt, t);                         // a picture instead of the scene, for this line of the story
         K.background(sc.bg, 0, place.look);
         const gy = (sc.ground || GROUND) - 10;                                // a little further back, clear of the speech box
         (sc.cast || []).forEach((id, i) => K.figure(id, 146 + i * 26, gy, 'stand', t, true));
@@ -304,6 +307,44 @@
       },
     };
   };
+
+  // Pictures that go with a line of the story instead of the scene, like a short film. The past is shown in the
+  // brown tones of an old photograph: praděda Václav is remembered, not met.
+  function oldPhoto(x, y, w, h) {                                     // brown tones and darker edges over what is drawn there
+    ctx.save();
+    ctx.globalCompositeOperation = 'color'; rect(x, y, w, h, 'rgb(150,112,72)');
+    ctx.globalCompositeOperation = 'multiply'; rect(x, y, w, h, 'rgb(255,238,210)');
+    ctx.restore();
+    for (let i = 0; i < 6; i++) { const a = 0.07 * (6 - i); rect(x + i, y + i, w - 2 * i, 1, `rgba(43,31,26,${a})`); rect(x + i, y + h - 1 - i, w - 2 * i, 1, `rgba(43,31,26,${a})`); rect(x + i, y + i, 1, h - 2 * i, `rgba(43,31,26,${a})`); rect(x + w - 1 - i, y + i, 1, h - 2 * i, `rgba(43,31,26,${a})`); }
+  }
+  function memory(kind, u, t) {
+    if (kind === 'ship') {                                              // the refugee ship crossing the ocean after the war
+      K.background('australia-sea', u * 18, WORLD.places.find((p) => p.id === 'australia').look, true);
+      const x = 18 + u * 9, y = 203 + Math.round(Math.sin(u * 2.2));
+      for (let k = 0; k < 4; k++) { const f = (u * 0.7 + k / 4) % 1; if (K.has('voyage', 'smoke')) K.figure('voyage', x - 4 - f * 26, y - 28 - f * 26, 'smoke', 0, false, 0.28 + f * 0.25); }
+      if (K.has('voyage', 'ship')) K.figure('voyage', x, y, 'ship', 0, false, 0.5);
+      for (let i = 0; i < 2; i++) { const gx = ((u * 26 + i * 110) % 250) - 30; if (K.has('voyage', 'gull1')) K.figure('voyage', gx, 92 + i * 26 + Math.round(Math.sin(u * 3 + i) * 4), Math.floor(u * 4 + i) % 2 ? 'gull1' : 'gull2', 0, false, 0.32); }
+      oldPhoto(0, 0, W, H);
+    } else if (kind === 'photo') {                                      // his photograph, with his little dog
+      rect(0, 0, W, H, '#3A2F33');
+      for (let y = 30; y < H; y += 14) rect(0, y, W, 1, 'rgba(255,248,231,.04)');
+      const a = Math.min(1, u / 0.9), fx = 36, fy = 44, fw = 120, fh = 156;
+      ctx.save(); ctx.globalAlpha = a;
+      rect(fx - 6, fy - 6, fw + 12, fh + 12, '#6E4A2A'); rect(fx - 4, fy - 4, fw + 8, fh + 8, '#9A6B3C'); rect(fx - 1, fy - 1, fw + 2, fh + 2, '#5A3B20');
+      rect(fx, fy, fw, fh, '#E9D8B4');
+      rect(fx, fy + fh - 34, fw, 34, '#CDB894');                       // the ground in the photo
+      if (K.sprites.vaclav) K.figure('vaclav', fx + 48, fy + fh - 8, 'front', 0, false, 0.8);       // a close photograph: bigger than in the game
+      if (K.has('dog', 'sit')) K.figure('dog', fx + 94, fy + fh - 8, 'sit', 0, true, 0.48);
+      oldPhoto(fx, fy, fw, fh);
+      for (const [cx, cy] of [[fx, fy], [fx + fw - 6, fy], [fx, fy + fh - 6], [fx + fw - 6, fy + fh - 6]]) rect(cx, cy, 6, 6, 'rgba(43,31,26,.55)');   // photo corners
+      ctx.restore();
+    } else if (kind === 'travellers') {                                 // today: two people looking out to sea, seen from behind
+      const pl = WORLD.places.find((p) => p.id === 'australia'), gy = 228;
+      K.background('australia-beach', 0, pl.look);
+      const walk = Math.max(0, 1 - u / 1.4);                            // they walk up to the water's edge
+      pl.saves.forEach((sv, i) => { if (K.sprites[sv.id]) K.figure(sv.id, 80 + i * 32, gy + Math.round(walk * 30) - (walk > 0 ? Math.round(Math.abs(Math.sin(u * 8 + i))) : 0), 'back', t); });
+    }
+  }
 
   // What every game shares: its own bar in place of the scene's, a line of advice, and the card at the end.
   function stage(barHtml, advice) {

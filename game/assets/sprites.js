@@ -897,5 +897,29 @@ window.SPRITES = {
         5
       ]
     }
+  },
+  "voyage": {
+    "file": "voyage.png",
+    "w": 147,
+    "h": 55,
+    "scale": 0.5,
+    "fps": 1,
+    "poses": {
+      "ship": [
+        0
+      ],
+      "smoke": [
+        1
+      ],
+      "gull1": [
+        2
+      ],
+      "gull2": [
+        3
+      ],
+      "stand": [
+        0
+      ]
+    }
   }
 };
