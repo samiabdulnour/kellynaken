@@ -249,6 +249,40 @@ def shrink(a, p=POSE_PIXEL):
     return out
 
 
+def soften(img):
+    """No black outlines: the dark ring round a figure becomes a darker shade of the colour just inside it,
+    as on the character sheets. Dark clothes stay dark: only the outer one or two pixels are touched, and the
+    second only where the colour inside is clearly lighter."""
+    a = np.asarray(img).astype(int).copy()
+    op = a[..., 3] > 0
+    lum = a[..., :3].mean(axis=2)
+    h, w = op.shape
+    def shift(m, dy, dx):
+        out = np.zeros_like(m)
+        out[max(dy, 0):h + min(dy, 0), max(dx, 0):w + min(dx, 0)] = m[max(-dy, 0):h + min(-dy, 0), max(-dx, 0):w + min(-dx, 0)]
+        return out
+    N4 = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+    outside = ~op
+    edge = op & np.any([shift(outside, dy, dx) for dy, dx in N4], axis=0)
+    ring1 = edge & (lum < 72)
+    near1 = np.any([shift(ring1, dy, dx) for dy, dx in N4], axis=0)
+    ring2 = op & ~ring1 & near1 & (lum < 72)
+    ring = ring1 | ring2
+    keep = op & ~ring
+    ys, xs = np.nonzero(ring)
+    for y, x in zip(ys, xs):
+        for r in (1, 2, 3):
+            y0, y1, x0, x1 = max(0, y - r), min(h, y + r + 1), max(0, x - r), min(w, x + r + 1)
+            m = keep[y0:y1, x0:x1]
+            if m.any():
+                c = np.median(a[y0:y1, x0:x1, :3][m], axis=0)
+                if ring2[y, x] and c.mean() - lum[y, x] < 45:                       # dark clothes, not an outline
+                    break
+                a[y, x, :3] = (c * 0.6).astype(int)
+                break
+    return Image.fromarray(a.astype(np.uint8), 'RGBA')
+
+
 def pose_frames(name):
     """Every drawn pose of one hero as (pose, picture, where the body's middle is, how far the feet are off the ground)."""
     frames = []
@@ -268,7 +302,7 @@ def pose_frames(name):
             band = op[int(h * 0.15):int(h * 0.5)]                        # the head and shoulders: steadier than hands, feet or a hockey stick
             xs = np.nonzero(band)[1]
             lift = 0 if pose == 'jump' else int(round((ground - 1 - rows.max()) / POSE_PIXEL))
-            frames.append((pose, Image.fromarray(small, 'RGBA'), float(np.median(xs)) + 0.5, lift))
+            frames.append((pose, soften(Image.fromarray(small, 'RGBA')), float(np.median(xs)) + 0.5, lift))
     return frames
 
 
@@ -402,7 +436,7 @@ def object_sheet(code):
         if len(ys) < 1: continue
         f = np.zeros((ys.max() - ys.min() + 1, xs.max() - xs.min() + 1, 4), np.uint8)
         f[ys - ys.min(), xs - xs.min()] = small[ys, xs]
-        frames.append(Image.fromarray(f, 'RGBA'))
+        frames.append(soften(Image.fromarray(f, 'RGBA')) if name == 'customers' else Image.fromarray(f, 'RGBA'))
     cw, ch = max(f.width for f in frames), max(f.height for f in frames)
     out = Image.new('RGBA', (cw * len(frames), ch))
     for k, f in enumerate(frames): out.paste(f, (k * cw + (cw - f.width) // 2, ch - f.height))
@@ -410,6 +444,60 @@ def object_sheet(code):
     print(name, 'from', code, '| drawn pixel', round(p, 2), '| cell', cw, 'x', ch, '|', [f.size for f in frames])
     poses = {part: [k] for k, part in enumerate(parts)}; poses.setdefault('stand', [0])      # drawn like a character, one pose per drawing
     return name, {'file': f'{name}.png', 'w': cw, 'h': ch, 'scale': 0.5, 'fps': 1, 'poses': poses}
+
+
+# ---- the grown-ups: a sheet each of eight figures on a transparent background, from art/source/people/<id>.webp ----
+PEOPLE = os.path.join(SOURCE, 'people')
+PEOPLE_POSES = ['front', 'three', 'side', 'back', 'walk', 'run', 'cheer', 'act']    # top row: from four sides; bottom row: walking, running, a jump for joy, their own thing
+PEOPLE_PIXEL = 3.9                               # one size for all four, so they keep their heights next to each other; finer than they
+                                                 # are drawn, so at half size they stand about a third taller than the heroes
+
+
+def people_sheet(name):
+    """Cut the eight figures of one grown-up and lay them out like the heroes' poses, shown at half size like them."""
+    path = next((os.path.join(PEOPLE, f'{name}.{ext}') for ext in ('png', 'webp') if os.path.exists(os.path.join(PEOPLE, f'{name}.{ext}'))), None)
+    if not path: return None
+    a = np.asarray(Image.open(path).convert('RGBA')).copy()
+    a[a[..., 3] < 128] = 0
+    a[..., 3] = np.where(a[..., 3] > 0, 255, 0)
+    small = shrink(a, PEOPLE_PIXEL)
+    groups = pieces(small[..., 3] > 0, 150)
+    assert len(groups) == 8, (name, [len(g) for g in groups])
+    frames = []
+    rows = [groups[:4], groups[4:]]
+    for row in rows:
+        ground = max(max(y for y, _ in g) for g in row) + 1
+        for g in row:
+            ys, xs = np.array([y for y, _ in g]), np.array([x for _, x in g])
+            f = np.zeros((ys.max() - ys.min() + 1, xs.max() - xs.min() + 1, 4), np.uint8)
+            f[ys - ys.min(), xs - xs.min()] = small[ys, xs]
+            h = f.shape[0]
+            band = f[int(h * 0.15):int(h * 0.5), :, 3] > 0                     # head and shoulders: where the body is, whatever the arms do
+            ax = float(np.median(np.nonzero(band)[1])) + 0.5
+            frames.append((soften(Image.fromarray(f, 'RGBA')), ax, int(ground - 1 - ys.max())))
+    left = max(int(np.ceil(ax)) for _, ax, _ in frames)
+    right = max(int(np.ceil(f.width - ax)) for f, ax, _ in frames)
+    cw, ch = int(2 * max(left, right) + 2), int(max(f.height + lift for f, _, lift in frames))
+    out = Image.new('RGBA', (cw * len(frames), ch))
+    for k, (f, ax, lift) in enumerate(frames): out.paste(f, (k * cw + cw // 2 - int(round(ax)), ch - f.height - lift))
+    out.save(os.path.join(OUT, 'sprites', f'{name}-poses.png'), optimize=True)
+    poses = {p: [k] for k, p in enumerate(PEOPLE_POSES)}
+    poses.update(stand=[1], run=[4, 5])
+    # faces for the speech box and the album: the head of the front view, and of the jump for joy for laughing
+    def head(f):
+        a = np.asarray(f); h = a.shape[0]
+        rows = a[:int(h * 0.42)]
+        xs = np.nonzero(rows[..., 3].any(axis=0))[0]
+        return Image.fromarray(rows[:, xs.min():xs.max() + 1], 'RGBA')
+    front, joy = head(frames[0][0]), head(frames[6][0])
+    heads = [front] * 5                                                            # one face for every mood: the jump for joy has fists in the way
+    fw, fh = max(i.width for i in heads), max(i.height for i in heads)
+    fimg = Image.new('RGBA', (fw * len(heads), fh))
+    for k, i in enumerate(heads): fimg.paste(i, (k * fw + (fw - i.width) // 2, fh - i.height))
+    fimg.save(os.path.join(OUT, 'sprites', f'{name}-heads.png'), optimize=True)
+    print('   drawn figures:', name, 'cell', cw, 'x', ch, '| heights', [f.height for f, _, _ in frames])
+    return {'file': f'{name}-poses.png', 'w': cw, 'h': ch, 'scale': 0.5, 'fps': 6, 'poses': poses,
+            'faces': {'file': f'{name}-heads.png', 'w': fw, 'h': fh, 'n': len(heads), 'scale': 0.36}}
 
 
 LEG_TOP = {'ken': 0.66, 'kel': 0.60, 'leila': 0.62, 'sami': 0.58, 'zofia': 0.62, 'alan': 0.58}     # where the legs start, as a share of the height
@@ -440,9 +528,9 @@ def main():
         info[name] = {'file': f'{name}.png', 'w': cw, 'h': ch, 'fps': 7,
                       'poses': {'front': [0], 'stand': [1], 'side': [2], 'back': [4], 'run': [5, 6], 'jump': [5], 'cheer': [0]},
                       'faces': {'file': f'{name}-faces.png', 'w': fw, 'h': fh, 'n': 5}}
-        drawn = pose_sheet(name) if name in POSE_ROWS else None
+        drawn = pose_sheet(name) if name in POSE_ROWS else people_sheet(name)
         if drawn:                                       # the drawn poses take over; the sheet's figures stay as `still`
-            info[name] = dict(drawn, faces=info[name]['faces'], still={k: info[name][k] for k in ('file', 'w', 'h', 'fps', 'poses')})
+            info[name] = dict(drawn, faces=drawn.get('faces') or info[name]['faces'], still={k: info[name][k] for k in ('file', 'w', 'h', 'fps', 'poses')})
             print('   drawn poses:', {k: len(v) for k, v in drawn['poses'].items()}, 'cell', drawn['w'], 'x', drawn['h'])
         if extra:
             extra[0].save(os.path.join(OUT, 'sprites', f'{name}-{EXTRAS[name][0]}.png'), optimize=True)

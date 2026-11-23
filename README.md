@@ -43,7 +43,7 @@ in the drums the drumstick makes every hit count twice for a while.
 | `art/scenes.json` | Which picture is which scene, and its size in the game. |
 | `art/source/` | The pictures as they come back from ChatGPT, named by code: `S3.png`. |
 | `art/source/characters.webp` | The character sheet: six cards of standing figures, action poses and faces. |
-| `tools/sprites.py` | Cuts the characters out of that sheet (standing figures, faces), the heroes' drawn poses from `art/source/poses/`, and rows of objects on a transparent background from `art/source/objects/` (P8, the koalas). |
+| `tools/sprites.py` | Cuts the characters: the heroes' drawn poses from `art/source/poses/`, the grown-ups' sheets of eight figures from `art/source/people/`, the faces, and rows of objects from `art/source/objects/`. Dark outlines round the characters become darker shades of their own colours. |
 | `tools/pixelate.py` | Shrinks those pictures to the game's true pixel size, keeping every colour and edge as painted. |
 
 All 14 scene backgrounds and all six characters are in. The objects (obstacles, targets, the puck, the bunny, the

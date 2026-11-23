@@ -83,7 +83,7 @@ window.WORLD = {
           talk: [['', 'Z kopce nad městem někdo volá o pomoc.'], ['', 'Nahoru se musí pěšky. Šišku přeskoč, pod vránou zůstaň dole.']] },
         { id: 'strahov-gate', name: 'Brána stadionu', bg: 'strahov-gate', play: 'shoot', pickup: 'drumstick',
           shoot: { need: 10, every: 1.3, stay: 3.2, sway: 10, target: 'zámek' },
-          talk: [['', 'Starý strahovský stadion. Brána je zavřená na řetěz a zámky se na něm houpou.']] },
+          talk: [['', 'Velký strahovský stadion. Všechny vchody jsou zavřené a na mřížích visí zámky.']] },
         // From here on he is found: he shows the rhythm, and at the concert he plays along.
         { id: 'strahov-drums', name: 'Zkušebna', bg: 'strahov-drums', play: 'echo', cast: ['alan'],
           echo: { rounds: 6, first: 3, beat: 0.6 },

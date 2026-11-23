@@ -73,7 +73,7 @@
   // f is how many screen pixels each drawn pixel takes.
   const face = (id, mood = 0, f = 2) => {
     const sp = K.sprites[id]; if (!sp) return '';
-    const c = sp.faces, u = f / 8;
+    const c = sp.faces, u = f * (c.scale || 1) / 8;                                // drawn finer faces come with a scale
     return `<span class="face" style="width:${c.w * u}em;height:${c.h * u}em;background-image:url(assets/sprites/${c.file});background-size:${c.w * c.n * u}em ${c.h * u}em;background-position:${-mood * c.w * u}em 0"></span>`;
   };
 
@@ -439,7 +439,7 @@
         K.background(sc.bg, 0, place.look);
         const two = mateHere();                                                                // they drum along in the room, a stroke for every tap
         const cast = sc.cast || [], wide = cast.length ? 40 : 22;
-        cast.forEach((id, i) => K.figure(id, W / 2 + i * 26, 204 - Math.round(Math.abs(Math.sin(s.t * 6)) * 2), 'stand', s.t));
+        cast.forEach((id, i) => K.figure(id, W / 2 + i * 26, 204, 'act', s.t));                    // Alan drums along
         if (two) K.hero(mate(), W / 2 + wide, 206, 'drum', s.mateTaps / 9, true);
         K.hero(who, two || cast.length ? W / 2 - wide : W / 2, 206, 'drum', s.taps / 9);
         rect(0, TOP, W, H - TOP, 'rgba(43,31,26,.5)');
@@ -620,7 +620,7 @@
       draw() {
         K.background(sc.bg, 0, place.look);
         const two = mateHere(), cast = sc.cast || [];
-        cast.forEach((id, k) => K.figure(id, W / 2 + k * 26, 206 - (s.castTaps % 2) * 2, 'stand', s.t));          // the one who shows the rhythm bobs with every stroke
+        cast.forEach((id, k) => K.figure(id, W / 2 + k * 26, 206 - (s.castTaps % 2) * 2, listening() ? 'act' : 'three', s.t));   // drumming while he shows it, watching while they play
         if (two) K.hero(mate(), W / 2 + 46, 208, 'drum', s.mateTaps / 9, true);
         K.hero(who, W / 2 - 46, 208, s.lost ? 'dizzy' : 'drum', s.taps / 9);
         rect(0, TOP - 14, W, H - TOP + 14, 'rgba(43,31,26,.6)');
@@ -833,7 +833,7 @@
         });
         const things = [];                                                                        // everyone on the floor, drawn from the back to the front
         for (const c of live.cust) { const p = where(c); things.push([p.y, () => { customer(c, p.x, p.y); bubble(c, p.x, p.y); }]); }
-        if (sc.cast) things.push([246, () => K.figure(sc.cast[0], 178, 246, 'stand', s.t, true)]);           // Mamka keeps an eye on things from the side
+        if (sc.cast) things.push([250, () => K.figure(sc.cast[0], 176, 250, 'three', s.t, true)]);           // Mamka keeps an eye on things from the side
         if (mateHere()) things.push([s.mate.y, () => K.hero(mate(), s.mate.x, s.mate.y, s.mate.to ? 'run' : live.workers[mate()] !== null ? 'cheer' : 'stand', s.t, s.mate.to ? s.mate.to.x < s.mate.x : false)]);
         things.push([s.me.y, () => K.hero(who, s.me.x, s.me.y, s.lost ? 'dizzy' : s.me.to ? 'run' : live.workers[who] !== null && live.workers[who] !== undefined ? 'cheer' : 'stand', s.t, s.me.to ? s.me.to.x < s.me.x : false)]);
         things.sort((a, b) => a[0] - b[0]).forEach(([, f]) => f());
@@ -858,7 +858,7 @@
         K.hero(me(), two ? 30 : 52, gy - Math.abs(Math.sin(t * 6)) * 6, 'cheer', t);
         if (two) K.hero(mate(), 66, gy - Math.abs(Math.sin(t * 6 + 2)) * 6, 'cheer', t);
         place.saves.forEach((sv, i) => {
-          if (K.sprites[sv.id]) K.figure(sv.id, 112 + i * 34, gy - Math.abs(Math.sin(t * 6 + 1 + i)) * 3, 'stand', t, true);
+          if (K.sprites[sv.id]) K.figure(sv.id, 118 + i * 40, gy, Math.floor(t * 1.5 + i) % 2 ? 'cheer' : 'three', t, true);   // jumping for joy, by turns
           else { rect(104 + i * 26, gy - 30, 12, 30, INK); rect(105 + i * 26, gy - 29, 10, 28, '#FFD43A'); }
         });
       },

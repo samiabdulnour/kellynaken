@@ -8,7 +8,9 @@ Everything ChatGPT needs to draw the game's scenes and objects so they match you
 - **Objects P1, P3, P5, P7, P8, P9, P10: done**, made through the Figma connection and in the game: obstacles, padlocks, the puck, the bunny, the items, drums, koalas, the salon's work places and customers.
 - **Poses A1 to A6: done.** Both heroes are drawn from them.
 - **S15, the bush forest: done**, drawn after your photo of the real bush.
-- **Still to draw:** P2 (the tram), P4 (rewards and map markers), and the poses A7 to A10 for Mamka, Alan, Sami and Žofia. The villain C11 is optional.
+- **Mamka, Alan, Sami and Žofia: done**, from your new sheets of eight figures each. In the game they stand about a third taller than the kids.
+- **S11, the stadium gate:** redrawn after your photos of the real Strahov stadium from outside.
+- **Still to draw:** P2 (the tram), P4 (rewards and map markers). The villain C11 is optional.
 - **Style:** grounded, classic pixel art that follows your character sheets and the finished scenes: natural proportions, muted colours, no black outlines.
 
 ## How to use this

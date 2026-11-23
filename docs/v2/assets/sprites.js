@@ -159,75 +159,151 @@ window.SPRITES = {
     }
   },
   "leila": {
-    "file": "leila.png",
-    "w": 34,
-    "h": 50,
-    "fps": 7,
+    "file": "leila-poses.png",
+    "w": 78,
+    "h": 132,
+    "scale": 0.5,
+    "fps": 6,
     "poses": {
       "front": [
         0
       ],
-      "stand": [
+      "three": [
         1
       ],
       "side": [
         2
       ],
       "back": [
+        3
+      ],
+      "walk": [
         4
       ],
       "run": [
-        5,
-        6
-      ],
-      "jump": [
+        4,
         5
       ],
       "cheer": [
-        0
+        6
+      ],
+      "act": [
+        7
+      ],
+      "stand": [
+        1
       ]
     },
     "faces": {
-      "file": "leila-faces.png",
-      "w": 18,
-      "h": 17,
-      "n": 5
+      "file": "leila-heads.png",
+      "w": 52,
+      "h": 55,
+      "n": 5,
+      "scale": 0.36
+    },
+    "still": {
+      "file": "leila.png",
+      "w": 34,
+      "h": 50,
+      "fps": 7,
+      "poses": {
+        "front": [
+          0
+        ],
+        "stand": [
+          1
+        ],
+        "side": [
+          2
+        ],
+        "back": [
+          4
+        ],
+        "run": [
+          5,
+          6
+        ],
+        "jump": [
+          5
+        ],
+        "cheer": [
+          0
+        ]
+      }
     }
   },
   "alan": {
-    "file": "alan.png",
-    "w": 30,
-    "h": 46,
-    "fps": 7,
+    "file": "alan-poses.png",
+    "w": 84,
+    "h": 135,
+    "scale": 0.5,
+    "fps": 6,
     "poses": {
       "front": [
         0
       ],
-      "stand": [
+      "three": [
         1
       ],
       "side": [
         2
       ],
       "back": [
+        3
+      ],
+      "walk": [
         4
       ],
       "run": [
-        5,
-        6
-      ],
-      "jump": [
+        4,
         5
       ],
       "cheer": [
-        0
+        6
+      ],
+      "act": [
+        7
+      ],
+      "stand": [
+        1
       ]
     },
     "faces": {
-      "file": "alan-faces.png",
-      "w": 18,
-      "h": 16,
-      "n": 5
+      "file": "alan-heads.png",
+      "w": 41,
+      "h": 56,
+      "n": 5,
+      "scale": 0.36
+    },
+    "still": {
+      "file": "alan.png",
+      "w": 30,
+      "h": 46,
+      "fps": 7,
+      "poses": {
+        "front": [
+          0
+        ],
+        "stand": [
+          1
+        ],
+        "side": [
+          2
+        ],
+        "back": [
+          4
+        ],
+        "run": [
+          5,
+          6
+        ],
+        "jump": [
+          5
+        ],
+        "cheer": [
+          0
+        ]
+      }
     },
     "extra": {
       "name": "drum",
@@ -237,39 +313,77 @@ window.SPRITES = {
     }
   },
   "sami": {
-    "file": "sami.png",
-    "w": 30,
-    "h": 49,
-    "fps": 7,
+    "file": "sami-poses.png",
+    "w": 82,
+    "h": 130,
+    "scale": 0.5,
+    "fps": 6,
     "poses": {
       "front": [
         0
       ],
-      "stand": [
+      "three": [
         1
       ],
       "side": [
         2
       ],
       "back": [
+        3
+      ],
+      "walk": [
         4
       ],
       "run": [
-        5,
-        6
-      ],
-      "jump": [
+        4,
         5
       ],
       "cheer": [
-        0
+        6
+      ],
+      "act": [
+        7
+      ],
+      "stand": [
+        1
       ]
     },
     "faces": {
-      "file": "sami-faces.png",
-      "w": 16,
-      "h": 14,
-      "n": 5
+      "file": "sami-heads.png",
+      "w": 39,
+      "h": 54,
+      "n": 5,
+      "scale": 0.36
+    },
+    "still": {
+      "file": "sami.png",
+      "w": 30,
+      "h": 49,
+      "fps": 7,
+      "poses": {
+        "front": [
+          0
+        ],
+        "stand": [
+          1
+        ],
+        "side": [
+          2
+        ],
+        "back": [
+          4
+        ],
+        "run": [
+          5,
+          6
+        ],
+        "jump": [
+          5
+        ],
+        "cheer": [
+          0
+        ]
+      }
     },
     "extra": {
       "name": "moto",
@@ -279,39 +393,77 @@ window.SPRITES = {
     }
   },
   "zofia": {
-    "file": "zofia.png",
-    "w": 32,
-    "h": 48,
-    "fps": 7,
+    "file": "zofia-poses.png",
+    "w": 82,
+    "h": 143,
+    "scale": 0.5,
+    "fps": 6,
     "poses": {
       "front": [
         0
       ],
-      "stand": [
+      "three": [
         1
       ],
       "side": [
         2
       ],
       "back": [
+        3
+      ],
+      "walk": [
         4
       ],
       "run": [
-        5,
-        6
-      ],
-      "jump": [
+        4,
         5
       ],
       "cheer": [
-        0
+        6
+      ],
+      "act": [
+        7
+      ],
+      "stand": [
+        1
       ]
     },
     "faces": {
-      "file": "zofia-faces.png",
-      "w": 20,
-      "h": 15,
-      "n": 5
+      "file": "zofia-heads.png",
+      "w": 52,
+      "h": 60,
+      "n": 5,
+      "scale": 0.36
+    },
+    "still": {
+      "file": "zofia.png",
+      "w": 32,
+      "h": 48,
+      "fps": 7,
+      "poses": {
+        "front": [
+          0
+        ],
+        "stand": [
+          1
+        ],
+        "side": [
+          2
+        ],
+        "back": [
+          4
+        ],
+        "run": [
+          5,
+          6
+        ],
+        "jump": [
+          5
+        ],
+        "cheer": [
+          0
+        ]
+      }
     },
     "extra": {
       "name": "cheer",
