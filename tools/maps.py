@@ -3,8 +3,9 @@
     czech-map      Czechia, from the real border (Natural Earth, art/source/geo/borders.json), with forests on the
                    border hills, fields, the big rivers, and Prague under a magnifying glass.
     praha-map      Prague close up, drawn like a picture map for children rather than to scale: the Vltava and its
-                   bend round Holešovice, the Castle, Petřín, the Strahov stadium, home and the salon in Praha 5,
-                   the winter stadium in Praha 7. Every Prague level has its pin here.
+                   bend round Holešovice, the Castle, Petřín, the Strahov stadium, home and the salon close together
+                   on the housing estate at the south-western edge, the winter stadium in Praha 7. Every Prague level
+                   has its pin here.
     australia-map  Australia from the real coast (art/source/geo/australia.json): the red centre, the green coasts,
                    the Great Barrier Reef, and Sydney under a magnifying glass with the harbour and Bondi.
 
@@ -194,7 +195,12 @@ def czech():
 VLTAVA = [(136, 292), (131, 266), (125, 240), (121, 214), (119, 190), (120, 168), (124, 148), (131, 132), (144, 122), (162, 118),
           (178, 112), (186, 98), (181, 84), (166, 76), (146, 72), (130, 66), (119, 54), (113, 38), (111, 18)]
 STADIUM = (42, 132, 30, 19)                                                 # Strahov: centre, half width, half height
-HOME, SALON, ARENA, CASTLE, TOWER = (30, 234), (100, 204), (156, 94), (104, 106), (88, 140)
+HOME, SALON, ARENA, CASTLE, TOWER = (26, 246), (78, 232), (156, 94), (104, 106), (88, 140)
+# Home is out on the big housing estate at the south-western edge of the city, far from the river; the salon is a few
+# blocks away. Panel blocks stand on lawns, there is a park with a pond, and metro line B runs from there into town.
+ESTATE = [(0, 200), (40, 194), (84, 202), (112, 218), (114, 288), (0, 288)]
+BLOCKS = [(10, 216, 14, 10, (242, 210, 122)), (54, 212, 18, 9, (183, 224, 200)), (104, 236, 10, 12, (244, 182, 166)),
+          (10, 280, 14, 10, (201, 183, 232)), (40, 284, 18, 9, (156, 199, 232)), (100, 280, 14, 11, (242, 210, 122))]
 
 
 def praha():
@@ -210,13 +216,31 @@ def praha():
     g.polygon([(120, 22), (192, 22), (192, 62), (170, 70), (146, 64), (128, 58), (118, 44)], fill=255)   # Troja and the zoo
     g.ellipse([140, 232, 164, 254], fill=255)                              # Vyšehrad
     g.ellipse([86, 94, 124, 120], fill=255)                                # the Castle's gardens
-    g.ellipse([12, 192, 44, 210], fill=255)                                # Klamovka, Praha 5
     g.ellipse([8, 52, 40, 82], fill=255)                                   # Hvězda, Praha 6
     woods(px, green, rnd)
-    # The streets of Praha 5: from home along the tram line to the salon, and the path up the hill to Strahov.
-    d.line([(HOME[0] + 6, HOME[1] + 2), (66, 236), (84, 224), (SALON[0] - 2, SALON[1] + 6)], fill=C['road'], width=5, joint='curve')
-    d.line([(HOME[0] + 6, HOME[1] + 2), (66, 236), (84, 224), (SALON[0] - 2, SALON[1] + 6)], fill=C['stone2'], width=1, joint='curve')
-    path = [(26, 214), (40, 204), (32, 192), (48, 182), (40, 170), (56, 162), (62, 152)]
+    # The estate: lawns with a few trees between the blocks, a park with a pond, the yellow metro line B into town.
+    lawn = Image.new('L', (W, H), 0); ImageDraw.Draw(lawn).polygon(ESTATE, fill=255)
+    LM = lawn.load()
+    for y in range(H):
+        for x in range(W):
+            if LM[x, y]: px[x, y] = C['park2'] if (x * 7 + y * 13) % 29 == 0 else (168, 214, 122) if (x + y) % 9 else (156, 206, 112)
+    d.ellipse([46, 256, 84, 276], fill=C['park']); d.ellipse([56, 262, 74, 270], fill=C['river']); d.line([(59, 264), (66, 264)], fill=C['river2'])
+    metro = [(46, 238), (70, 252), (96, 250), (116, 222)]
+    for (a, b), (c, e) in zip(metro, metro[1:]):
+        n = int(math.hypot(c - a, e - b))
+        for i in range(n):
+            if i % 4 < 2: d.rectangle([round(a + (c - a) * i / n), round(b + (e - b) * i / n), round(a + (c - a) * i / n) + 1, round(b + (e - b) * i / n) + 1], fill=(242, 194, 0))
+    mx, my = 46, 236                                                       # the metro sign: a yellow square with an M
+    d.rectangle([mx - 4, my - 4, mx + 4, my + 4], fill=(242, 194, 0))
+    for (a, b) in ((-2, -2), (-2, -1), (-2, 0), (-2, 1), (-2, 2), (2, -2), (2, -1), (2, 0), (2, 1), (2, 2), (-1, -1), (1, -1), (0, 0)): px[mx + a, my + b] = (74, 58, 52)
+    for bx, by, bw, bh, col in BLOCKS:                                     # panel blocks, front on
+        d.rectangle([bx - bw // 2, by - bh, bx + bw // 2, by], fill=col); d.line([(bx - bw // 2, by - bh), (bx + bw // 2, by - bh)], fill=(140, 130, 124))
+        for yy in range(by - bh + 2, by - 1, 3):
+            for xx in range(bx - bw // 2 + 2, bx + bw // 2 - 1, 3): px[xx, yy] = C['white']
+    # The street from home to the salon, and the path out across town and up the hill to Strahov.
+    road = [(HOME[0] + 8, HOME[1] + 1), (56, 250), (68, 244), (SALON[0] - 2, SALON[1] + 6)]
+    d.line(road, fill=C['road'], width=5, joint='curve'); d.line(road, fill=C['stone2'], width=1, joint='curve')
+    path = [(30, 206), (40, 196), (34, 186), (48, 176), (42, 166), (56, 160), (62, 152)]
     for (a, b), (c, e) in zip(path, path[1:]):                            # a dotted path up the hill
         n = int(math.hypot(c - a, e - b))
         for i in range(n):
@@ -272,9 +296,8 @@ def praha():
     ax, ay = ARENA
     d.ellipse([ax - 13, ay - 7, ax + 13, ay + 7], fill=(143, 150, 163)); d.ellipse([ax - 12, ay - 6, ax + 12, ay + 6], fill=(201, 206, 214))
     d.line([(ax - 11, ay), (ax + 11, ay)], fill=C['red'], width=2)
-    # Vyšehrad's church, two dark spires on the green hill, and a red tram on the line in Praha 5.
+    # Vyšehrad's church, two dark spires on the green hill.
     d.rectangle([148, 238, 156, 246], fill=(206, 196, 178)); d.rectangle([148, 230, 149, 238], fill=(70, 74, 70)); d.rectangle([155, 230, 156, 238], fill=(70, 74, 70))
-    d.rectangle([54, 233, 64, 237], fill=C['red']); d.rectangle([54, 235, 64, 235], fill=C['white']); d.rectangle([55, 234, 56, 234], fill=(200, 230, 255))
     save(img, 'praha-map')
 
 
@@ -359,8 +382,8 @@ def australia():
 # Where the pins go, for game/world.js.
 SPOTS = {
     'czech-map': {'praha': (LENS[0], LENS[1] + 6), 'ostrov': tuple(round(v) for v in cz(12.94, 50.306))},
-    'praha-map': {'doma': (HOME[0] - 4, HOME[1] - 12), 'ulice': (64, 232), 'pred-salonem': (SALON[0] - 6, SALON[1] + 8), 'v-salonu': (SALON[0] + 6, SALON[1] - 6),
-                  'do-kopce': (40, 186), 'brana': (STADIUM[0] + STADIUM[2] - 10, STADIUM[1] + STADIUM[3] - 2), 'zkusebna': (STADIUM[0] - STADIUM[2] + 6, STADIUM[1] + 4),
+    'praha-map': {'doma': (HOME[0] - 4, HOME[1] - 12), 'ulice': (56, 250), 'pred-salonem': (SALON[0] - 6, SALON[1] + 8), 'v-salonu': (SALON[0] + 6, SALON[1] - 6),
+                  'do-kopce': (40, 196), 'brana': (STADIUM[0] + STADIUM[2] - 10, STADIUM[1] + STADIUM[3] - 2), 'zkusebna': (STADIUM[0] - STADIUM[2] + 6, STADIUM[1] + 4),
                   'koncert': (STADIUM[0], STADIUM[1] - STADIUM[3] + 12), 'zimni': ARENA},
     'australia-map': {'bondi': (SLENS[0] + 16, SLENS[1] + 18), 'vlna': (SLENS[0] + 32, SLENS[1] + 4), 'bus': tuple(round(v) for v in au(148.5, -27.5)),
                       'utes': tuple(round(v) for v in au(147.6, -18.4)), 'sydney': (SLENS[0] - 6, SLENS[1] + 2)},

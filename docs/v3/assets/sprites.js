@@ -747,9 +747,9 @@ window.SPRITES = {
   },
   "customers": {
     "file": "customers.png",
-    "w": 26,
-    "h": 59,
-    "scale": 0.5,
+    "w": 52,
+    "h": 118,
+    "scale": 0.25,
     "fps": 1,
     "poses": {
       "c0": [
@@ -943,6 +943,24 @@ window.SPRITES = {
       ],
       "roof": [
         4
+      ],
+      "stand": [
+        0
+      ]
+    }
+  },
+  "parrot": {
+    "file": "parrot.png",
+    "w": 62,
+    "h": 57,
+    "scale": 0.5,
+    "fps": 1,
+    "poses": {
+      "parrot1": [
+        0
+      ],
+      "parrot2": [
+        1
       ],
       "stand": [
         0

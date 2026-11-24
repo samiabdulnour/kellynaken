@@ -387,6 +387,7 @@ OBJECT_ROWS = {                                  # code: (name in the game, what
     'P5': ('strahov', ['bassdrum', 'snare', 'cymbal', 'sticks', 'note', 'amp', 'cone', 'crow']),
     'P9': ('stations', ['wash', 'cut', 'dye', 'dry', 'pay']),
     'P10': ('customers', ['c0', 'c1', 'c2', 'c3', 'c4', 'c5', 'd0', 'd1', 'd2', 'd3', 'd4', 'd5']),
+    'P16': ('parrot', ['parrot1', 'parrot2']),                                      # a rainbow lorikeet, the danger to duck under at sea
     'P11': ('beach', ['bottle', 'paper', 'shell', 'star', 'crab', 'jelly', 'buoy', 'raft']),
     'P12': ('salonkit', ['scissors', 'comb', 'brush', 'dryer', 'spray', 'dye', 'curlers', 'clip', 'mirror', 'shampoo']),
     'P13': ('dog', ['stand', 'trot1', 'trot2', 'sit', 'bark', 'sniff']),          # praděda Václav's Yorkshire terrier
@@ -457,7 +458,8 @@ def object_sheet(code):
         if len(ys) < 1: continue
         f = np.zeros((ys.max() - ys.min() + 1, xs.max() - xs.min() + 1, 4), np.uint8)
         f[ys - ys.min(), xs - xs.min()] = small[ys, xs]
-        frames.append(soften(Image.fromarray(f, 'RGBA')) if name == 'customers' else Image.fromarray(f, 'RGBA'))
+        frame = soften(Image.fromarray(f, 'RGBA')) if name == 'customers' else Image.fromarray(f, 'RGBA')
+        frames.append(scale2x(frame) if name in OBJECT_FINER else frame)
     cw, ch = max(f.width for f in frames), max(f.height for f in frames)
     out = Image.new('RGBA', (cw * len(frames), ch))
     for k, f in enumerate(frames): out.paste(f, (k * cw + (cw - f.width) // 2, ch - f.height))
@@ -467,7 +469,25 @@ def object_sheet(code):
     return name, {'file': f'{name}.png', 'w': cw, 'h': ch, 'scale': OBJECT_SCALE.get(name, 0.5), 'fps': 1, 'poses': poses}
 
 
-OBJECT_SCALE = {'dog': 0.3}                       # how big a sheet is shown, when not at half size: a Yorkie comes up to the kids' knees
+OBJECT_SCALE = {'dog': 0.3, 'customers': 0.25}
+# Sheets drawn on a coarser grid than the people, made twice as fine with Scale2x (which rounds off diagonal edges
+# rather than just making the pixels bigger), so they can stand as tall as the grown-ups without looking blocky.
+OBJECT_FINER = {'customers'}
+
+
+def scale2x(img):
+    """Scale2x (EPX): every pixel becomes four, each taking a neighbour's colour where two neighbours agree."""
+    a = np.asarray(img.convert('RGBA')).astype(np.int64)
+    key = (a[..., 0] << 24) | (a[..., 1] << 16) | (a[..., 2] << 8) | a[..., 3]
+    p = np.pad(key, 1, mode='edge')
+    P, A, B, C, D = p[1:-1, 1:-1], p[:-2, 1:-1], p[1:-1, 2:], p[1:-1, :-2], p[2:, 1:-1]          # self, up, right, left, down
+    e0 = np.where((C == A) & (C != D) & (A != B), A, P); e1 = np.where((A == B) & (A != C) & (B != D), B, P)
+    e2 = np.where((D == C) & (D != B) & (C != A), C, P); e3 = np.where((B == D) & (B != A) & (D != C), D, P)
+    h, w = key.shape
+    out = np.zeros((h * 2, w * 2), np.int64)
+    out[0::2, 0::2], out[0::2, 1::2], out[1::2, 0::2], out[1::2, 1::2] = e0, e1, e2, e3
+    rgba = np.stack([(out >> 24) & 255, (out >> 16) & 255, (out >> 8) & 255, out & 255], -1).astype(np.uint8)
+    return Image.fromarray(rgba, 'RGBA')                       # how big a sheet is shown, when not at half size: a Yorkie comes up to the kids' knees
 
 
 # ---- the grown-ups: a sheet each of eight figures on a transparent background, from art/source/people/<id>.webp ----
