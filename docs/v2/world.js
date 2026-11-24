@@ -93,10 +93,10 @@ window.WORLD = {
       look: { sky: '#8FD3F4', far: '#F2C078', far2: '#E7A6B5', ground: '#A39B96', line: '#7A6F6A' },
       scenes: [
         { id: 'praha-home', name: 'Doma', at: [22, 234], label: 'below', bg: 'praha-home', play: 'shoot',
-          shoot: { need: 16, every: 1.5, stay: 3.4, sway: 2, target: 'zámek',                 // padlocks on the window, the frames, the shelves, the lamp, the TV and the cabinet
-            spots: [[62, 76], [116, 92], [140, 96], [130, 58], [172, 58], [166, 92], [118, 36], [168, 134], [150, 162], [174, 162]] },
+          shoot: { need: 16, every: 1.5, stay: 3.4, sway: 2, target: 'zámek',                 // padlocks on the lamp, the three portraits, the shelves and baskets, the sofa, the TV and its cabinet
+            spots: [[96, 30], [60, 76], [94, 76], [128, 76], [9, 46], [8, 112], [70, 138], [126, 142], [176, 110], [168, 42], [180, 74], [178, 162]] },
           talk: [['', 'Doma je divné ticho. Někdo tu chybí…'], ['', 'A někdo vás zamkl! Na dveřích, na skříních, všude visí zámky.'], ['hero', 'Ty zámky sestřelím!']] },
-        { id: 'praha-street', name: 'Ulice', at: [56, 250], label: 'below', bg: 'praha-street', scroll: true, play: 'run',
+        { id: 'praha-street', name: 'Ulice', at: [52, 250], label: 'right', bg: 'praha-street', scroll: true, play: 'run',
           run: { seconds: 40, low: 'holub', high: '', art: { low: ['prague', 'pigeon'], alt: ['prague', 'puddle'] } },
           talk: [['', 'Venku na chodníku leží hřeben a kousek dál sponka do vlasů. Stopa vede ulicí!'], ['', 'Přeskoč holuby i louže.']] },
       ],
@@ -108,15 +108,18 @@ window.WORLD = {
       saves: [{ id: 'leila', name: 'Mamka' }],           // Leila on the character sheet; in the game she is Mamka
       look: { sky: '#8FD3F4', far: '#F2C078', far2: '#E7A6B5', ground: '#A39B96', line: '#7A6F6A' },
       scenes: [
-        { id: 'praha-door', name: 'Před salonem', at: [72, 240], label: 'right', bg: 'praha-door', play: 'memory',
+        { id: 'praha-door', name: 'Před salonem', at: [62, 284], label: 'right', bg: 'praha-door', play: 'memory',
           memory: { pairs: 8, miss: 10, key: true, won: 'A pod poslední dvojicí byl klíč. Dveře jsou odemčené!',
             faces: [['salonkit', 'scissors'], ['salonkit', 'comb'], ['salonkit', 'brush'], ['salonkit', 'dryer'], ['salonkit', 'spray'], ['salonkit', 'dye'], ['salonkit', 'curlers'], ['salonkit', 'mirror']] },
           talk: [['', 'Kadeřnictví je zamčené. Na dveřích visí cedulka: Klíč dostane, kdo najde všechny dvojice.'], ['', 'Na lavičce před dveřmi leží kartičky. Samé kadeřnické věci.'], ['hero', 'Pexeso! Jeden otočí první kartičku, druhý k ní hledá dvojici.']] },
         // From here on she is found: the salon is full and she cannot get away until every customer is done.
-        { id: 'praha-salon', name: 'V salonu', at: [84, 226], label: 'right', bg: 'praha-salon', play: 'salon', cast: ['leila'],
+        { id: 'praha-salon', name: 'V salonu', at: [44, 262], label: 'right', bg: 'praha-salon', play: 'salon', cast: ['leila'],
           salon: {
             seconds: 180, need: 7, patience: 36, every: [11, 15],
-            stations: [{ k: 'wash', x: 30, y: 184 }, { k: 'cut', x: 70, y: 184 }, { k: 'dye', x: 110, y: 184 }, { k: 'dry', x: 150, y: 184 }, { k: 'pay', x: 120, y: 262 }],
+            // along the back wall: the basin, the picture's own two chairs at the mirrors (cutting, dyeing) and the dryer;
+            // `chair` means the picture already has it. The till stands in front. `side` is where the hairdresser stands.
+            stations: [{ k: 'wash', x: 18, y: 142, side: 20 }, { k: 'cut', x: 58, y: 142, chair: true, side: 20 }, { k: 'dye', x: 133, y: 142, chair: true, side: -20 },
+              { k: 'dry', x: 174, y: 142, side: -20 }, { k: 'pay', x: 120, y: 262, side: 18 }],
             work: { wash: 3, cut: 4, dye: 4, dry: 3, pay: 1.2 },
             orders: [['cut', 'pay'], ['wash', 'cut', 'dry', 'pay'], ['wash', 'dye', 'dry', 'pay'], ['wash', 'cut', 'dye', 'dry', 'pay'], ['wash', 'dry', 'pay']],
           },

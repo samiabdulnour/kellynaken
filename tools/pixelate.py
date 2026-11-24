@@ -60,7 +60,9 @@ def main():
     for sc in scenes:
         path = find(args.source, sc['code'])
         if path:
-            shrink(path, sc['size'], sc.get('fit', 'crop')).save(os.path.join(args.out, 'bg', f"{sc['id']}.png"), optimize=True)
+            # 256 colours are plenty for pixel art, and make the files less than half the size, so a phone loads them quickly
+            img = shrink(path, sc['size'], sc.get('fit', 'crop')).convert('RGB').quantize(256, method=Image.Quantize.FASTOCTREE, dither=Image.Dither.NONE)
+            img.save(os.path.join(args.out, 'bg', f"{sc['id']}.png"), optimize=True)
             done.append(sc['id'])
 
     with open(os.path.join(args.out, 'manifest.js'), 'w') as f:

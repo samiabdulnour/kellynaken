@@ -195,12 +195,12 @@ def czech():
 VLTAVA = [(136, 292), (131, 266), (125, 240), (121, 214), (119, 190), (120, 168), (124, 148), (131, 132), (144, 122), (162, 118),
           (178, 112), (186, 98), (181, 84), (166, 76), (146, 72), (130, 66), (119, 54), (113, 38), (111, 18)]
 STADIUM = (42, 132, 30, 19)                                                 # Strahov: centre, half width, half height
-HOME, SALON, ARENA, CASTLE, TOWER = (26, 246), (78, 232), (156, 94), (104, 106), (88, 140)
+HOME, SALON, ARENA, CASTLE, TOWER = (26, 246), (44, 274), (156, 94), (104, 106), (88, 140)
 # Home is out on the big housing estate at the south-western edge of the city, far from the river; the salon is a few
 # blocks away. Panel blocks stand on lawns, there is a park with a pond, and metro line B runs from there into town.
 ESTATE = [(0, 200), (40, 194), (84, 202), (112, 218), (114, 288), (0, 288)]
 BLOCKS = [(10, 216, 14, 10, (242, 210, 122)), (54, 212, 18, 9, (183, 224, 200)), (104, 236, 10, 12, (244, 182, 166)),
-          (10, 280, 14, 10, (201, 183, 232)), (40, 284, 18, 9, (156, 199, 232)), (100, 280, 14, 11, (242, 210, 122))]
+          (12, 284, 14, 10, (201, 183, 232)), (100, 284, 14, 11, (242, 210, 122))]
 
 
 def praha():
@@ -224,8 +224,8 @@ def praha():
     for y in range(H):
         for x in range(W):
             if LM[x, y]: px[x, y] = C['park2'] if (x * 7 + y * 13) % 29 == 0 else (168, 214, 122) if (x + y) % 9 else (156, 206, 112)
-    d.ellipse([46, 256, 84, 276], fill=C['park']); d.ellipse([56, 262, 74, 270], fill=C['river']); d.line([(59, 264), (66, 264)], fill=C['river2'])
-    metro = [(46, 238), (70, 252), (96, 250), (116, 222)]
+    d.ellipse([62, 250, 104, 276], fill=C['park']); d.ellipse([72, 257, 92, 267], fill=C['river']); d.line([(75, 259), (83, 259)], fill=C['river2'])
+    metro = [(46, 238), (60, 244), (96, 242), (116, 222)]
     for (a, b), (c, e) in zip(metro, metro[1:]):
         n = int(math.hypot(c - a, e - b))
         for i in range(n):
@@ -238,7 +238,7 @@ def praha():
         for yy in range(by - bh + 2, by - 1, 3):
             for xx in range(bx - bw // 2 + 2, bx + bw // 2 - 1, 3): px[xx, yy] = C['white']
     # The street from home to the salon, and the path out across town and up the hill to Strahov.
-    road = [(HOME[0] + 8, HOME[1] + 1), (56, 250), (68, 244), (SALON[0] - 2, SALON[1] + 6)]
+    road = [(HOME[0] + 6, HOME[1] + 2), (40, 254), (48, 262), (SALON[0] - 2, SALON[1] + 6)]
     d.line(road, fill=C['road'], width=5, joint='curve'); d.line(road, fill=C['stone2'], width=1, joint='curve')
     path = [(30, 206), (40, 196), (34, 186), (48, 176), (42, 166), (56, 160), (62, 152)]
     for (a, b), (c, e) in zip(path, path[1:]):                            # a dotted path up the hill
@@ -382,7 +382,7 @@ def australia():
 # Where the pins go, for game/world.js.
 SPOTS = {
     'czech-map': {'praha': (LENS[0], LENS[1] + 6), 'ostrov': tuple(round(v) for v in cz(12.94, 50.306))},
-    'praha-map': {'doma': (HOME[0] - 4, HOME[1] - 12), 'ulice': (56, 250), 'pred-salonem': (SALON[0] - 6, SALON[1] + 8), 'v-salonu': (SALON[0] + 6, SALON[1] - 6),
+    'praha-map': {'doma': (HOME[0] - 4, HOME[1] - 12), 'ulice': (52, 250), 'pred-salonem': (SALON[0] + 18, SALON[1] + 10), 'v-salonu': (SALON[0], SALON[1] - 12),
                   'do-kopce': (40, 196), 'brana': (STADIUM[0] + STADIUM[2] - 10, STADIUM[1] + STADIUM[3] - 2), 'zkusebna': (STADIUM[0] - STADIUM[2] + 6, STADIUM[1] + 4),
                   'koncert': (STADIUM[0], STADIUM[1] - STADIUM[3] + 12), 'zimni': ARENA},
     'australia-map': {'bondi': (SLENS[0] + 16, SLENS[1] + 18), 'vlna': (SLENS[0] + 32, SLENS[1] + 4), 'bus': tuple(round(v) for v in au(148.5, -27.5)),

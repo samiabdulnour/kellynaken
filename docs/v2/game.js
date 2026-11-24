@@ -91,12 +91,14 @@
   };
   const PAPER = { sky: '#F2E4BE', far: '#E2D3A2', far2: '#9BD16B', ground: '#F2E4BE', line: '#CBB57F' };
   const draft = (id) => { if (!K.hasBg(id)) add('<span class="draft">náhradní obrázek</span>'); };
+  // A map's place names stay hidden until the map itself is there, so they never float over the loading dots.
+  const holdPins = (bg) => { const hide = K.picture(bg) ? '' : 'hidden'; K.ui.querySelectorAll('.pin').forEach((el) => { if (el.style.visibility !== hide) el.style.visibility = hide; }); };
   // A character's face from the sheet, for the UI. mood: 0 calm, 1 laughing, 2 surprised, 3 smiling, 4 eyes closed.
   // f is how many screen pixels each drawn pixel takes.
   const face = (id, mood = 0, f = 2) => {
     const sp = K.sprites[id]; if (!sp) return '';
     const c = sp.faces, u = f * (c.scale || 1) / 8;                                // drawn finer faces come with a scale
-    return `<span class="face" style="width:${c.w * u}em;height:${c.h * u}em;background-image:url(assets/sprites/${c.file});background-size:${c.w * c.n * u}em ${c.h * u}em;background-position:${-mood * c.w * u}em 0"></span>`;
+    return `<span class="face" style="width:${c.w * u}em;height:${c.h * u}em;background-image:url(${K.asset(`assets/sprites/${c.file}`)});background-size:${c.w * c.n * u}em ${c.h * u}em;background-position:${-mood * c.w * u}em 0"></span>`;
   };
 
   // ---- which screen is up: the room says where everyone is, and both devices follow ----
@@ -162,24 +164,12 @@
       at.push(i); rows.push(clamp(Math.floor((0.5 - Math.asin(-ny) / Math.PI) * TH), 0, TH - 1)); lons.push(Math.atan2(nx, nz));
       shades.push(light < 0.28 ? 0.62 : light < 0.55 ? 0.82 : 1);
     }
-    // Stand-in continents as [west, east, south, north, colour], until the real picture exists.
-    const LAND = '#7BBF6A', WOOD = '#5FA85A', SAND = '#E3CB7E', ICE = '#F4F1E8';
-    const LANDS = [[-125, -70, 28, 60, LAND], [-162, -125, 55, 70, LAND], [-105, -84, 14, 28, LAND], [-100, -75, 45, 60, WOOD], [-55, -22, 62, 80, ICE],
-      [-80, -45, -20, 9, WOOD], [-72, -55, -52, -20, LAND], [-9, 36, 38, 58, LAND], [6, 28, 58, 69, WOOD], [-16, 40, 5, 34, LAND], [-12, 32, 16, 30, SAND],
-      [12, 40, -33, 5, LAND], [36, 138, 26, 70, LAND], [60, 130, 50, 68, WOOD], [38, 56, 14, 30, SAND], [70, 88, 8, 26, LAND], [98, 120, 0, 26, WOOD],
-      [114, 153, -38, -13, LAND], [120, 142, -30, -20, SAND], [-180, 180, -90, -74, ICE], [-180, 180, 83, 90, ICE]];
     let skin = null, real = false, drawn = null;
     function makeSkin() {
       const c = document.createElement('canvas'); c.width = TW; c.height = TH;
       const g = c.getContext('2d'), img = K.picture(WORLD.planet.bg);
-      if (img) { g.drawImage(img, 0, 0, TW, TH); real = true; }
-      else {
-        const box = (w, e, s, n, col) => { g.fillStyle = col; g.fillRect(Math.round((w + 180) / 360 * TW), Math.round((90 - n) / 180 * TH), Math.round((e - w) / 360 * TW), Math.round((n - s) / 180 * TH)); };
-        box(-180, 180, -90, 90, '#2F8FC6');
-        const r = K.rng(7); g.fillStyle = '#58AEDC';
-        for (let i = 0; i < 90; i++) g.fillRect(Math.floor(r() * TW), 18 + Math.floor(r() * (TH - 36)), 5, 1);
-        for (const l of LANDS) box(...l);
-      }
+      if (!img) return;                                      // the world map is still on its way
+      g.drawImage(img, 0, 0, TW, TH); real = true;
       skin = g.getImageData(0, 0, TW, TH).data; drawn = null;
     }
     function paint(rot) {
@@ -212,7 +202,7 @@
         add('<button class="btn zoom">&lt; Česko</button>').addEventListener('click', toCzechia);
         const lead = pins.find((pin) => pinState(pin) === 'todo') || pins[0];
         aim = lonOf(lead); rot = aim - 1;                          // spin round to the next place to save
-        if (!skin || (!real && K.picture(WORLD.planet.bg))) makeSkin();
+        if (!real) makeSkin();
         draft(WORLD.planet.bg);
       },
       move(x, y, dx) { rot -= dx / R; aim = null; },
@@ -233,6 +223,7 @@
         if (!real && K.picture(WORLD.planet.bg)) makeSkin();
       },
       draw() {
+        if (!real) return K.background(WORLD.planet.bg);                // the world map is still on its way: only the loading dots
         rect(0, 0, W, H, '#1A1B36');
         for (const [x, y, ph] of stars) if (Math.sin(t * 1.5 + ph) > -0.6) rect(x, y, 1, 1, '#FFF8E7');
         if (drawn !== rot) paint(rot);
@@ -286,8 +277,8 @@
         }
         if (hit) pick(hit);
       },
-      update(dt) { t += dt; },
-      draw() { zoomIn(t, () => { K.background(M.bg, 0, PAPER); for (const pin of M.pins) flag(pin.at[0], pin.at[1], state(pin), t); }); },
+      update(dt) { t += dt; holdPins(M.bg); },
+      draw() { zoomIn(t, () => { K.background(M.bg, 0, PAPER); if (K.picture(M.bg)) for (const pin of M.pins) flag(pin.at[0], pin.at[1], state(pin), t); }); },
     };
   })();
 
@@ -329,8 +320,8 @@
         for (const pin of pins) { const d = Math.hypot(pin.at[0] - x, pin.at[1] - 8 - y); if (d < best) { best = d; hit = pin; } }
         if (hit) pick(hit);
       },
-      update(dt) { t += dt; },
-      draw() { zoomIn(t, () => { K.background(R.bg, 0, PAPER); for (const pin of pins) flag(pin.at[0], pin.at[1], state(pin), t); }); },
+      update(dt) { t += dt; holdPins(R.bg); },
+      draw() { zoomIn(t, () => { K.background(R.bg, 0, PAPER); if (K.picture(R.bg)) for (const pin of pins) flag(pin.at[0], pin.at[1], state(pin), t); }); },
     };
   };
 
@@ -390,9 +381,10 @@
         } else if (go) { go.remove(); go = null; }
       },
       draw() {
-        if (act) return act.draw();
-        const show = sn.phase === 'talk' && sc.talk[sn.line] && sc.talk[sn.line][3];
+        const show = !act && sn.phase === 'talk' && sc.talk[sn.line] && sc.talk[sn.line][3];
         if (show) return memory(show, t - lineAt, t);                         // a picture instead of the scene, for this line of the story
+        if (sc.bg && !K.picture(sc.bg)) return K.background(sc.bg);         // the level's picture is still on its way: only the loading dots
+        if (act) return act.draw();
         K.background(sc.bg, 0, place.look);
         const gy = (sc.ground || GROUND) - 10;                                // a little further back, clear of the speech box
         const rock = sc.play === 'rescue' && sc.rescue.land;
@@ -417,6 +409,8 @@
     for (let i = 0; i < 6; i++) { const a = 0.07 * (6 - i); rect(x + i, y + i, w - 2 * i, 1, `rgba(43,31,26,${a})`); rect(x + i, y + h - 1 - i, w - 2 * i, 1, `rgba(43,31,26,${a})`); rect(x + i, y + i, 1, h - 2 * i, `rgba(43,31,26,${a})`); rect(x + w - 1 - i, y + i, 1, h - 2 * i, `rgba(43,31,26,${a})`); }
   }
   function memory(kind, u, t) {
+    const wait = { ship: 'australia-sea', travellers: 'australia-beach' }[kind];
+    if (wait && !K.picture(wait)) return K.background(wait);           // its picture is still on its way: only the loading dots
     if (kind === 'ship') {                                              // the refugee ship crossing the ocean after the war
       K.background('australia-sea', u * 18, WORLD.places.find((p) => p.id === 'australia').look, true);
       const x = 18 + u * 9, y = 203 + Math.round(Math.sin(u * 2.2));
@@ -989,12 +983,12 @@
       if (queued().length >= QUEUE.length) { beep(180); return say('Židle u dveří jsou plné. Odveď ho tam, kam chce.'); }
       beep(330, 260); Net.send({ type: 'ev', e: 'drop', c: c.id });
     } }]);
-    const spot = (i) => ({ x: ST[i].x + 13, y: ST[i].y + 22 });                                 // where a hairdresser stands to work there
+    const spot = (i) => ({ x: ST[i].x + (ST[i].side || 13), y: ST[i].y + 18 });                    // where a hairdresser stands to work there
     const leading = (w) => live.cust.find((c) => c.by === w);
     const queued = () => live.cust.filter((c) => c.at === -2).sort((a, b) => a.id - b.id);
     const body = (w) => (w === who ? s.me : s.mate);
     function where(c) {                                                                         // where a customer stands right now
-      if (c.at >= 0) return { x: ST[c.at].x + 4, y: ST[c.at].y + 4 };
+      if (c.at >= 0) return { x: ST[c.at].x, y: ST[c.at].y + 3 };                               // in the chair, at the basin, under the dryer
       if (c.by) { const b = body(c.by); return { x: b.x - 12, y: b.y - 2 }; }
       const [x, y] = QUEUE[clamp(queued().indexOf(c), 0, QUEUE.length - 1)]; return { x, y };
     }
@@ -1008,7 +1002,7 @@
     function walk(x, y, go) {
       const m = s.me;
       if (live.workers[who] !== null && live.workers[who] !== undefined) Net.send({ type: 'ev', e: 'at', st: -1 });   // leaving one's place
-      m.to = { x: clamp(x, 10, W - 10), y: clamp(y, 200, H - 4) }; m.go = go;
+      m.to = { x: clamp(x, 10, W - 10), y: clamp(y, 150, H - 4) }; m.go = go;
       Net.send({ type: 'fx', k: 'walk', x: m.to.x, y: m.to.y });
     }
     function arrive() {
@@ -1081,7 +1075,7 @@
           const c = live.cust.filter((q) => !q.by).map((q) => ({ q, p: where(q) })).find(({ p }) => Math.abs(p.x - x) < 9 && y > p.y - 34 && y < p.y + 2);
           if (c) { beep(520); view.tip.textContent = ''; return walk(c.p.x + 12, c.p.y + 2, { take: c.q.id }); }
         }
-        const i = ST.findIndex((st) => Math.abs(st.x - x) < 16 && y > st.y - 34 && y < st.y + 28);
+        const i = ST.findIndex((st) => Math.abs(st.x - x) < 18 && y > st.y - 48 && y < st.y + 28);
         if (i > -1) { beep(440); const p = spot(i); return walk(p.x, p.y, { st: i }); }
         walk(x, y, null);
       },
@@ -1104,20 +1098,22 @@
       draw() {
         K.background(sc.bg, 0, place.look);
         ST.forEach((st, i) => {                                                                   // the places to work, as mats on the floor
-          if (K.has('stations', st.k)) K.figure('stations', st.x + 8, st.y + 2, st.k, 0, false, 0.56);
-          else { rect(st.x - 13, st.y - 3, 26, 9, INK); rect(st.x - 12, st.y - 2, 24, 7, '#FFF8E7'); icon(st.k, st.x, st.y + 1); }
+          if (!st.chair) { if (K.has('stations', st.k)) K.figure('stations', st.x, st.y + 2, st.k, 0, st.k === 'dry', 0.64); else { rect(st.x - 13, st.y - 3, 26, 9, INK); rect(st.x - 12, st.y - 2, 24, 7, '#FFF8E7'); icon(st.k, st.x, st.y + 1); } }
+          if (st.k !== 'pay') { const py = 38; rect(st.x - 8, py - 7, 16, 14, INK); rect(st.x - 7, py - 6, 14, 12, '#FFF8E7'); icon(st.k, st.x, py - 1); }   // a little sign on the wall: what is done here
         });
         const things = [];                                                                        // everyone on the floor, drawn from the back to the front
         const worked = (c) => c.at >= 0 && ST[c.at].k === c.order[c.step];                     // being seen to: the work bar shows instead of what they want
         for (const c of live.cust) { const p = where(c); things.push([p.y, () => { customer(c, p.x, p.y); if (!worked(c)) bubble(c, p.x, p.y); }]); }
         if (sc.cast) things.push([286, () => K.figure(sc.cast[0], 178, 286, 'three', s.t, true)]);           // Mamka keeps an eye on things from the corner
         const busyAt = (w) => { const at = live.workers[w]; return at !== null && at !== undefined && live.cust.some((c) => c.at === at && ST[at].k === c.order[c.step]); };   // hands busy with the work
-        if (mateHere()) things.push([s.mate.y, () => K.hero(mate(), s.mate.x, s.mate.y, s.mate.to ? 'run' : busyAt(mate()) ? 'drum' : 'stand', s.mate.to ? s.t * 0.7 : s.t, s.mate.to ? s.mate.to.x < s.mate.x : false)]);
-        things.push([s.me.y, () => K.hero(who, s.me.x, s.me.y, s.lost ? 'dizzy' : s.me.to ? 'run' : busyAt(who) ? 'drum' : 'stand', s.me.to ? s.t * 0.7 : s.t, s.me.to ? s.me.to.x < s.me.x : false)]);
+        // at work: standing at the customer with the tool of the job in hand, going to and fro
+        const tool = (w, b) => { if (!busyAt(w)) return; const st = ST[live.workers[w]], d = st.x < b.x ? -1 : 1, tx = b.x + d * 10 + Math.round(Math.sin(s.t * 10) * 2), ty = b.y - 28 + Math.round(Math.cos(s.t * 10)); rect(tx - 7, ty - 7, 14, 13, INK); rect(tx - 6, ty - 6, 12, 11, '#FFF8E7'); icon(st.k, tx, ty - 1); };
+        if (mateHere()) things.push([s.mate.y, () => { K.hero(mate(), s.mate.x, s.mate.y, s.mate.to ? 'run' : 'stand', s.mate.to ? s.t * 0.7 : s.t, s.mate.to ? s.mate.to.x < s.mate.x : busyAt(mate()) && ST[live.workers[mate()]].x < s.mate.x); tool(mate(), s.mate); }]);
+        things.push([s.me.y, () => { K.hero(who, s.me.x, s.me.y, s.lost ? 'dizzy' : s.me.to ? 'run' : 'stand', s.me.to ? s.t * 0.7 : s.t, s.me.to ? s.me.to.x < s.me.x : busyAt(who) && ST[live.workers[who]].x < s.me.x); tool(who, s.me); }]);
         things.sort((a, b) => a[0] - b[0]).forEach(([, f]) => f());
         ST.forEach((st, i) => {                                                                   // how far the work has got, on top of everyone
           const c = live.cust.find((q) => q.at === i);
-          if (c && st.k === c.order[c.step]) { const f = clamp(c.work / cfg.work[st.k], 0, 1), bx = st.x + 4, by = st.y - 70; rect(bx - 13, by - 9, 26, 14, INK); rect(bx - 12, by - 8, 24, 12, '#FFF8E7'); icon(st.k, bx, by - 3); rect(bx - 12, by + 5, 24, 4, INK); rect(bx - 11, by + 6, Math.max(1, Math.round(22 * f)), 2, '#1FA463'); }
+          if (c && st.k === c.order[c.step]) { const f = clamp(c.work / cfg.work[st.k], 0, 1), bx = st.x, by = st.y - 72; rect(bx - 13, by - 9, 26, 14, INK); rect(bx - 12, by - 8, 24, 12, '#FFF8E7'); icon(st.k, bx, by - 3); rect(bx - 12, by + 5, 24, 4, INK); rect(bx - 11, by + 6, Math.max(1, Math.round(22 * f)), 2, '#1FA463'); }
         });
         s.pops = s.pops.filter((p) => s.t - p.at < 0.9);
         for (const p of s.pops) {
@@ -1542,7 +1538,7 @@
       const people = places.flatMap((p) => p.saves);
       add(`<div class="album">${people.map((s) => {
         const got = st().save.album.includes(s.id), sp = K.sprites[s.id], x = got && sp && sp.extra;
-        const pic = x ? `<img alt="" src="assets/sprites/${x.file}" style="width:${x.w / 8}em;height:${x.h / 8}em">` : '';
+        const pic = x ? `<img alt="" src="${K.asset(`assets/sprites/${x.file}`)}" style="width:${x.w / 8}em;height:${x.h / 8}em">` : '';
         const head = got ? face(s.id, 3) || `<span>${esc(s.name.charAt(0))}</span>` : '<span>?</span>';
         return `<div data-got="${got ? 1 : 0}">${head}${got ? esc(s.name) : '???'}${pic}</div>`;
       }).join('')}</div>`);
@@ -1552,5 +1548,8 @@
 
   K.net = Net;                                 // for looking in from outside when testing
   go(Title);
+  // Every other picture, asked for while the title is up, so a level opens without waiting for its pictures.
+  setTimeout(() => K.preload([...((window.ASSETS && window.ASSETS.bg) || []).map((id) => `assets/bg/${id}.png`),
+    ...Object.values(K.sprites).flatMap((sp) => [sp.file, sp.faces && sp.faces.file, sp.still && sp.still.file].filter(Boolean)).map((f) => `assets/sprites/${f}`)]), 400);
   if (save.who) Title.join(save.who);          // back again: straight to one's seat
 })();

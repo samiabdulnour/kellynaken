@@ -87,15 +87,24 @@ fs.writeFileSync(here + 'docs/.nojekyll', '');
 fs.writeFileSync(here + '.artifact/index.html', html);
 
 // The new pixel game lives beside the old one, at /v2/, until it is ready to take over.
+// Every build gets a version, made from the game's files: the page asks for its scripts, styles and pictures with it,
+// so after an update a phone fetches the new files at once and never mixes them with ones it still has from before.
+const walk = (dir) => fs.readdirSync(here + dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(dir + '/' + e.name) : [dir + '/' + e.name])).sort();
+const build = crypto.createHash('sha256'); for (const f of walk('game')) build.update(f).update(fs.readFileSync(here + f));
+const BUILD = build.digest('hex').slice(0, 10);
+const gamePage = (extra) => {
+  let page = read('game/index.html').replace(/(href|src)="((?:assets\/)?[\w.-]+\.(?:css|js))"/g, (m, a, f) => `${a}="${f}?v=${BUILD}"`);
+  page = page.replace('<script src="assets/manifest.js', `<script>window.BUILD = '${BUILD}';${extra || ''}</script>\n<script src="assets/manifest.js`);
+  if (!page.includes(`window.BUILD = '${BUILD}'`)) throw new Error('could not put the version into the game page');
+  return page;
+};
 fs.rmSync(here + 'docs/v2', { recursive: true, force: true });
 fs.cpSync(here + 'game', here + 'docs/v2', { recursive: true });
+fs.writeFileSync(here + 'docs/v2/index.html', gamePage());
 // /v3/: the same game for trying levels out: played alone on one device, every level open, its own save.
 fs.rmSync(here + 'docs/v3', { recursive: true, force: true });
 fs.cpSync(here + 'game', here + 'docs/v3', { recursive: true });
-const v3 = read('game/index.html').replace('<title>Kellyn a Ken</title>', '<title>Kellyn a Ken · zkušební verze</title>')
-  .replace('<script src="assets/manifest.js"></script>', '<script>window.INSPECT = true;</script>\n<script src="assets/manifest.js"></script>');
-if (!v3.includes('window.INSPECT = true')) throw new Error('v3: could not switch the game to trying-out mode');
-fs.writeFileSync(here + 'docs/v3/index.html', v3);
+fs.writeFileSync(here + 'docs/v3/index.html', gamePage(' window.INSPECT = true;').replace('<title>Kellyn a Ken</title>', '<title>Kellyn a Ken · zkušební verze</title>'));
 
 console.log('Built docs/index.html, docs/v2/ and docs/v3/');
 for (const [id, pl] of Object.entries(cfg.players)) {

@@ -1,6 +1,6 @@
 // The pixel engine: a 192 x 288 screen, one scene at a time, taps and drags,
 // saving, and the art. Real pictures are used when the art pipeline has produced them (see window.ASSETS);
-// anything still missing is a drawn placeholder, so the game is playable before the art exists.
+// a picture still on its way (or missing) shows as a dark screen with three blinking dots.
 // The characters are cut from the character sheet (window.SPRITES).
 const K = (() => {
   const W = 192, H = 288, GROUND = 232;          // GROUND: where feet stand in side-on scenes
@@ -68,33 +68,27 @@ const K = (() => {
   // ---- art ----
   const have = window.ASSETS || { bg: [] }, sprites = window.SPRITES || {};
   const cache = {};
-  const image = (path) => { if (!cache[path]) { const i = new Image(); i.src = path; cache[path] = i; } return cache[path]; };
+  // Every file is asked for with the build's version, so a phone never mixes an old file with a new one after an update.
+  const asset = (path) => (window.BUILD ? `${path}?v=${window.BUILD}` : path);
+  const image = (path) => { if (!cache[path]) { const i = new Image(); i.src = asset(path); cache[path] = i; } return cache[path]; };
   const ready = (i) => i.complete && i.naturalWidth > 0;
   const hasBg = (id) => have.bg.includes(id);
   const picture = (id) => { if (!hasBg(id)) return null; const i = image(`assets/bg/${id}.png`); return ready(i) ? i : null; };   // a finished picture, once loaded
 
-  // A stand-in background: sky, a row of blocky shapes, and the ground strip the characters stand on.
-  const shapes = {};
-  function placeholder(id, off, look) {
-    look = look || { sky: '#8FD3F4', far: '#F2C078', far2: '#E7A6B5', ground: '#8A8F9C', line: '#5B6070' };
-    if (!shapes[id]) { const r = rng(hash(id)); shapes[id] = Array.from({ length: 10 }, (_, i) => ({ x: i * 40 + Math.floor(r() * 12), w: 20 + Math.floor(r() * 18), h: 34 + Math.floor(r() * 80), alt: r() < 0.5 })); }
-    rect(0, 0, W, H, look.sky);
-    const span = 400, far = (off || 0) * 0.5;
-    for (const s of shapes[id]) {
-      const x = (((s.x - far) % span) + span) % span - 30;
-      rect(x, GROUND - s.h, s.w, s.h, s.alt ? look.far2 : look.far);
-      rect(x + 3, GROUND - s.h + 4, s.w - 6, 2, look.sky);
-    }
-    rect(0, GROUND, W, H - GROUND, look.ground);
-    rect(0, GROUND, W, 2, look.line);
-    for (let x = -((off || 0) % 24); x < W; x += 24) rect(x, GROUND + 14, 10, 2, look.line);
+  // While a picture is still loading: a dark screen with three dots taking turns.
+  function loading() {
+    ctx.fillStyle = INK; ctx.fillRect(0, 0, W, H);
+    const k = Math.floor(performance.now() / 300) % 3;
+    for (let i = 0; i < 3; i++) { ctx.fillStyle = i === k ? '#FFD43A' : '#7A6F6A'; ctx.fillRect(W / 2 - 10 + i * 8, H / 2, 4, 4); }
   }
+  // Ask for pictures ahead of time, so they are there when a scene needs them.
+  const preload = (paths) => paths.forEach((p) => image(p));
   // Draw a background. A scrolling one repeats side by side, every other copy mirrored so the seams match.
   // `plain` repeats it without mirroring, for a picture whose own two edges already meet (and whose landmark,
   // mirrored, would stand next to its twin).
   function background(id, off, look, plain) {
     const img = hasBg(id) ? image(`assets/bg/${id}.png`) : null;
-    if (!img || !ready(img)) return placeholder(id, off, look);
+    if (!img || !ready(img)) return loading();                            // still on its way (or missing): dark, with three dots
     const w = img.naturalWidth, o = Math.floor(off || 0);
     if (w <= W) { ctx.drawImage(img, 0, 0); return; }
     for (let k = Math.floor(o / w); k * w - o < W; k++) {
@@ -167,5 +161,5 @@ const K = (() => {
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
   const has = (sheet, pose) => !!(sprites[sheet] && sprites[sheet].poses && sprites[sheet].poses[pose]);
-  return { W, H, GROUND, INK, has, ctx, ui, clamp, hash, rng, rect, beep, drum, save, write, hasBg, picture, background, sprites, figure, hero: figure, prop, go, add, esc, get scene() { return scene; } };
+  return { W, H, GROUND, INK, has, ctx, ui, clamp, hash, rng, rect, beep, drum, asset, preload, save, write, hasBg, picture, background, sprites, figure, hero: figure, prop, go, add, esc, get scene() { return scene; } };
 })();
