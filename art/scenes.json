@@ -14,6 +14,6 @@
   { "code": "S8", "id": "australia-outback", "size": [192, 288] },
   { "code": "S9", "id": "australia-reef", "size": [192, 288] },
   { "code": "S14", "id": "strahov-concert", "size": [192, 288] },
-  { "code": "S15", "id": "australia-bush", "size": [432, 288] },
+  { "code": "S15", "id": "australia-bush", "size": [864, 288] },
   { "code": "S16", "id": "australia-sydney", "size": [192, 288] }
 ]

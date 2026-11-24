@@ -129,3 +129,6 @@ button{font:inherit;color:inherit}
 .go{position:absolute;inset:34% 0 auto;text-align:center;font-size:4.5em;font-weight:700;color:var(--yellow);pointer-events:none;
   text-shadow:.06em .06em 0 var(--red),.12em .12em 0 var(--ink)}
 .go:empty{display:none}
+.praise{position:absolute;inset:30% 0 auto;margin:0;text-align:center;font-size:1.8em;font-weight:700;color:var(--yellow);pointer-events:none;
+  text-shadow:.08em .08em 0 var(--red),.16em .16em 0 var(--ink);animation:rise .9s steps(6) forwards}
+@keyframes rise{to{transform:translateY(-1.5em);opacity:0}}

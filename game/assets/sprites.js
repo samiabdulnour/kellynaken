@@ -948,5 +948,23 @@ window.SPRITES = {
         0
       ]
     }
+  },
+  "parrot": {
+    "file": "parrot.png",
+    "w": 62,
+    "h": 57,
+    "scale": 0.5,
+    "fps": 1,
+    "poses": {
+      "parrot1": [
+        0
+      ],
+      "parrot2": [
+        1
+      ],
+      "stand": [
+        0
+      ]
+    }
   }
 };

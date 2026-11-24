@@ -73,8 +73,12 @@
       }
       return list;
     },
-    // How far the storey on the crane's hook swings to one side at a given moment: more, and faster, the higher the house.
-    sway(t, n) { return (5 + n * 2.2) * Math.sin(t * (1.5 + n * 0.1)); },
+    // Sami's tower gets harder as it grows; n is how many storeys already stand on the lobby. The storey on the hook
+    // swings further and faster, from the eighth storey the wind pushes it slowly to one side and back (the crane has
+    // to lean against it), and it has to land ever closer to the middle of the one below.
+    sway(t, n) { return (4 + n * 1.5) * Math.sin(t * (1.4 + n * 0.08)) + course.wind(t, n); },
+    wind(t, n) { return n >= 7 ? (n - 6) * 2.4 * Math.sin(t * 0.35 + 1) : 0; },
+    slack(base, n) { return Math.max(8, base - n * 0.5); },
     // Padlocks: on the picture's spots, never two on one spot at the same time (or anywhere, for a picture without spots).
     shoot(seed, sc, every) {
       const r = rng(seed), targets = [], spots = sc.shoot.spots, stay = sc.shoot.stay;
@@ -143,7 +147,7 @@
       if (sc.play === 'find') Object.assign(sn, { found: [], need: sc.find.need });
       if (sc.play === 'memory') { const first = two ? (Math.random() < 0.5 ? 'ken' : 'kel') : null; Object.assign(sn, { deck: course.memory(sn.seed, sc), open: [], done: [], misses: 0, maxMiss: sc.memory.miss + (two ? 2 : 0), first, turn: first, hideAt: 0 }); }
       if (sc.play === 'collect') Object.assign(sn, { got: [], stung: [], need: Math.round(sc.collect.need * (two ? 1.5 : 1)), lives: two ? 4 : 3 });
-      if (sc.play === 'tower') Object.assign(sn, { floors: [96], crane: 96, need: Math.round(sc.tower.need * (two ? 1.3 : 1)), lives: two ? 4 : 3, n: 0, last: null, busyUntil: 0, endAt: 0, endPhase: null });
+      if (sc.play === 'tower') Object.assign(sn, { floors: [96], crane: 96, need: Math.round(sc.tower.need * (two ? 1.3 : 1)), lives: two ? 5 : 4, n: 0, last: null, busyUntil: 0, endAt: 0, endPhase: null, holding: false, lifts: 0 });
       if (sc.play === 'rescue') Object.assign(sn, { stage: 'throw', hits: 0, needHits: sc.rescue.hits * (two ? 2 : 1), lives: two ? 4 : 3, pull: 0, needPull: Math.round(sc.rescue.pull * (two ? 2 : 1)), pullAt: 0 });
       if (sc.play === 'salon') Object.assign(sn, { lives: two ? 4 : 3, need: Math.round(sc.salon.need * (two ? 1.6 : 1)), served: 0, coins: 0, cust: [], next: 0, tt: 0, workers: { ken: null, kel: null } });
       if (sc.play === 'echo') { Object.assign(sn, { lives: two ? 4 : 3, round: 0, rounds: sc.echo.rounds, n: 0, last: null }); teach(sc.echo.first, 1600); }
@@ -273,11 +277,17 @@
       // The tower: Kendrick moves the crane, Kellyn lets each storey go. It lands if it is over the top of the house.
       if (kind === 'tower') {
         const two = !solo && both();
-        if (m.e === 'crane' && (!two || who === 'ken')) sn.crane = clamp(+m.x || 96, 24, 168);
-        if (m.e === 'drop' && (!two || who === 'kel') && now() >= sn.busyUntil && !sn.endAt) {
+        if (m.e === 'crane' && (!two || who === 'ken')) sn.crane = clamp(+m.x || 96, 12, 168);
+        // the hook picks up a storey from the stack on the ground, if the crane is right above it (as her phone saw it)
+        if (m.e === 'pick' && (!two || who === 'kel') && !sn.holding && now() >= sn.busyUntil && !sn.endAt) {
+          const x = Number.isFinite(+m.x) ? +m.x : sn.crane;
+          if (Math.abs(x - (sc.tower.stack || 24)) <= 12) { sn.holding = true; sn.lifts++; sn.busyUntil = now() + 1000; }
+        }
+        if (m.e === 'drop' && (!two || who === 'kel') && sn.holding && now() >= sn.busyUntil && !sn.endAt) {
+          sn.holding = false;
           // where the storey hung when she let it go, as her phone saw it (the room hears the crane only now and then)
           const t = (now() - sn.startAt) / 1000, seen = +m.x, hook = Number.isFinite(seen) ? clamp(seen, 0, 192) : sn.crane + course.sway(t, sn.floors.length - 1), off = hook - sn.floors[sn.floors.length - 1];
-          const ok = Math.abs(off) <= sc.tower.slack;
+          const ok = Math.abs(off) <= course.slack(sc.tower.slack, sn.floors.length - 1);
           sn.last = { n: ++sn.n, x: hook, ok, perfect: Math.abs(off) <= 2.5 };
           if (ok) sn.floors.push(hook); else sn.lives--;
           sn.busyUntil = now() + 1100;
