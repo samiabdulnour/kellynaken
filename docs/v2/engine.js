@@ -16,7 +16,10 @@ const K = (() => {
   function fit() {
     const most = Math.min(window.innerWidth / W, window.innerHeight / H), dpr = window.devicePixelRatio || 1;
     const steps = Math.floor(most * dpr / FINE);                       // real pixels per canvas pixel
-    document.documentElement.style.setProperty('--s', steps >= 1 ? steps * FINE / dpr : most);
+    const k = steps >= 1 ? steps * FINE / dpr : most;
+    document.documentElement.style.setProperty('--s', k);
+    // On a tall phone there is a band below the picture: the game's buttons go there, under the thumbs, covering nothing.
+    document.documentElement.classList.toggle('roomy', (window.innerHeight - H * k) / 2 >= 44 * k);
   }
   window.addEventListener('resize', fit); fit();
 
@@ -39,7 +42,22 @@ const K = (() => {
         o.connect(g).connect(ac.destination); o.start(t + i * 0.09); o.stop(t + i * 0.09 + 0.1);
       });
     } catch (e) {}
+  }  // Drums, made from a falling tone and a burst of noise: kick, snare, tom and cymbal.
+  let noise = null;
+  function drum(kind) {
+    try {
+      ac = ac || new (window.AudioContext || window.webkitAudioContext)();
+      const t = ac.currentTime, out = ac.createGain(); out.connect(ac.destination);
+      if (!noise) { noise = ac.createBuffer(1, ac.sampleRate * 0.5, ac.sampleRate); const d = noise.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; }
+      const tone = (f0, f1, len, vol) => { const o = ac.createOscillator(), g = ac.createGain(); o.type = 'sine'; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f1, t + len); g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + len); o.connect(g).connect(out); o.start(t); o.stop(t + len + 0.02); };
+      const hiss = (freq, len, vol) => { const n = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain(); n.buffer = noise; f.type = 'highpass'; f.frequency.value = freq; g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + len); n.connect(f).connect(g).connect(out); n.start(t); n.stop(t + len + 0.02); };
+      if (kind === 'kick') tone(150, 45, 0.18, 0.5);
+      if (kind === 'snare') { tone(220, 120, 0.08, 0.15); hiss(1500, 0.14, 0.2); }
+      if (kind === 'tom') tone(240, 120, 0.16, 0.4);
+      if (kind === 'cymbal') hiss(6000, 0.4, 0.12);
+    } catch (e) {}
   }
+
 
   // ---- saving: one record per device ----
   const STORE = 'kellyn-a-ken-v1' + (window.INSPECT ? '-v3' : '');          // v3, for trying levels out, keeps its own
@@ -149,5 +167,5 @@ const K = (() => {
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
   const has = (sheet, pose) => !!(sprites[sheet] && sprites[sheet].poses && sprites[sheet].poses[pose]);
-  return { W, H, GROUND, INK, has, ctx, ui, clamp, hash, rng, rect, beep, save, write, hasBg, picture, background, sprites, figure, hero: figure, prop, go, add, esc, get scene() { return scene; } };
+  return { W, H, GROUND, INK, has, ctx, ui, clamp, hash, rng, rect, beep, drum, save, write, hasBg, picture, background, sprites, figure, hero: figure, prop, go, add, esc, get scene() { return scene; } };
 })();

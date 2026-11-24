@@ -72,7 +72,7 @@
       return list;
     },
     // How far the storey on the crane's hook swings to one side at a given moment: more, and faster, the higher the house.
-    sway(t, n) { return (4 + n * 1.7) * Math.sin(t * (1.5 + n * 0.09)); },
+    sway(t, n) { return (5 + n * 2.2) * Math.sin(t * (1.5 + n * 0.1)); },
     shoot(seed, sc, every) {
       const r = rng(seed), targets = [];
       for (let at = 1.2, id = 0; id < 160; id++) { targets.push({ id, born: at, x: 74 + r() * 100, y: 56 + r() * 130, phase: r() * 6 }); at += every * (0.8 + r() * 0.4); }
@@ -137,7 +137,7 @@
       if (sc.play === 'rescue') Object.assign(sn, { stage: 'throw', hits: 0, needHits: sc.rescue.hits * (two ? 2 : 1), lives: two ? 4 : 3, pull: 0, needPull: Math.round(sc.rescue.pull * (two ? 2 : 1)), pullAt: 0 });
       if (sc.play === 'salon') Object.assign(sn, { lives: two ? 4 : 3, need: Math.round(sc.salon.need * (two ? 1.6 : 1)), served: 0, coins: 0, cust: [], next: 0, tt: 0, workers: { ken: null, kel: null } });
       if (sc.play === 'echo') { Object.assign(sn, { lives: two ? 4 : 3, round: 0, rounds: sc.echo.rounds, n: 0, last: null }); teach(sc.echo.first, 1600); }
-      if (sc.play === 'drums') Object.assign(sn, { hits: 0, need: Math.ceil(course.drums(sn.seed, sc).notes.length * (sc.drums.pass || 0.6) * (two ? 2.1 : 1)) });    // two need more than one could ever drum alone
+      if (sc.play === 'drums') Object.assign(sn, { hits: 0, need: Math.ceil(course.drums(sn.seed, sc).notes.length * (sc.drums.pass || 0.6) * (two ? 1.8 : 1)) });    // two need more than one could drum alone, but not so much that one must carry the other
     }
     // The echo game: a rhythm to repeat. `teach` makes one of the given length (or plays the same one again) and sets
     // when it is shown and from when the players may answer.
@@ -150,12 +150,12 @@
         sn.pattern = pat;
       }
       sn.step = 0;
-      sn.beat = Math.max(0.36, sc.echo.beat - sn.round * 0.035);                       // a little quicker every round
+      sn.beat = Math.max(0.45, sc.echo.beat - sn.round * 0.035);                       // a little quicker every round
       sn.showAt = now() + wait;
       sn.listenAt = sn.showAt + sn.pattern.length * sn.beat * 1000 + 250;
     }
     // The salon runs on its own between messages: customers come in, work gets done where someone stands, patience runs out.
-    const QUEUE = 4, AWAY = -1, WAITING = -2;
+    const QUEUE = 3, AWAY = -1, WAITING = -2;                                       // three chairs to wait on by the door
     function salonTick() {
       const sn = S.scene; if (!sn || sn.phase !== 'play') return false;
       const sc = place().scenes[sn.index]; if (sc.play !== 'salon') return false;
@@ -233,8 +233,9 @@
       if (kind === 'salon') {
         const cfg = sc.salon, c = sn.cust.find((q) => q.id === (m.c | 0)), st = m.st | 0;
         if (m.e === 'at') sn.workers[who] = Number.isInteger(m.st) && st >= 0 && st < cfg.stations.length ? st : null;   // where this one stands and works
-        if (m.e === 'take' && c && !c.by && !sn.cust.some((q) => q.by === who)) { c.by = who; c.at = AWAY; c.work = 0; }    // leading a customer by the hand
-        if (m.e === 'drop' && c && c.by === who) { c.by = null; c.at = WAITING; c.work = 0; }       // let go: back to the line, still waiting
+        const busy = (q) => q.at >= 0 && cfg.stations[q.at].k === q.order[q.step];          // sitting where their next thing is done: not to be pulled away
+        if (m.e === 'take' && c && !c.by && !busy(c) && !sn.cust.some((q) => q.by === who)) { c.by = who; c.at = AWAY; c.work = 0; }    // leading a customer by the hand
+        if (m.e === 'drop' && c && c.by === who && sn.cust.filter((q) => q.at === WAITING).length < QUEUE) { c.by = null; c.at = WAITING; c.work = 0; }   // let go: back to a chair by the door, if one is free
         if (m.e === 'lead' && c && c.by === who) {
           const there = cfg.stations[st];
           if (there && there.k === c.order[c.step] && !sn.cust.some((q) => q.at === st)) { c.at = st; c.by = null; c.work = 0; sn.workers[who] = st; }
@@ -264,7 +265,8 @@
         const two = !solo && both();
         if (m.e === 'crane' && (!two || who === 'ken')) sn.crane = clamp(+m.x || 96, 24, 168);
         if (m.e === 'drop' && (!two || who === 'kel') && now() >= sn.busyUntil && !sn.endAt) {
-          const t = (now() - sn.startAt) / 1000, hook = sn.crane + course.sway(t, sn.floors.length - 1), off = hook - sn.floors[sn.floors.length - 1];
+          // where the storey hung when she let it go, as her phone saw it (the room hears the crane only now and then)
+          const t = (now() - sn.startAt) / 1000, seen = +m.x, hook = Number.isFinite(seen) ? clamp(seen, 0, 192) : sn.crane + course.sway(t, sn.floors.length - 1), off = hook - sn.floors[sn.floors.length - 1];
           const ok = Math.abs(off) <= sc.tower.slack;
           sn.last = { n: ++sn.n, x: hook, ok, perfect: Math.abs(off) <= 2.5 };
           if (ok) sn.floors.push(hook); else sn.lives--;
@@ -274,7 +276,7 @@
         }
       }
       if (kind === 'rescue') {
-        if (sn.stage === 'throw' && m.e === 'hit') { if (++sn.hits >= sn.needHits) { sn.stage = 'pull'; sn.pullAt = now() + 1800; } }
+        if (sn.stage === 'throw' && m.e === 'hit') { if (++sn.hits >= sn.needHits) { sn.stage = 'pull'; sn.pullAt = now() + 2400; } }   // 3, 2, 1, pull!
         if (sn.stage === 'throw' && m.e === 'miss') { if (--sn.lives <= 0) sn.phase = 'lost'; }
         if (sn.stage === 'pull' && m.e === 'pull' && now() >= sn.pullAt) { sn.pull += clamp(m.n | 0, 0, 12); if (sn.pull >= sn.needPull) sn.phase = 'won'; }
       }
@@ -288,6 +290,7 @@
       }
       if (kind === 'drums') {
         if (m.e === 'hit') sn.hits += m.n === 2 ? 2 : 1;
+        if (m.e === 'miss') sn.hits = Math.max(0, sn.hits - 1);                                   // banging away with no note there
         if (m.e === 'finish') {                                                        // the song is over once everyone playing has said so
           sn.fin[who] = true; sn.finAt = sn.finAt || now();
           if (solo || (sn.fin.ken && sn.fin.kel) || now() - sn.finAt > 2500) sn.phase = sn.hits >= sn.need ? 'won' : 'lost';   // or one has, and the other's device has gone quiet
@@ -313,7 +316,10 @@
         const p = places.find((x) => x.id === m.place), i = m.index | 0;
         if (p && p.region === S.where.region && isOpen(p) && p.scenes[i] && (open || prog(p.id).done || i <= prog(p.id).scene)) { S.where = { screen: 'scene', place: p.id, region: p.region }; start(i); }
       }
-      else if (m.type === 'next' && sn && sn.phase === 'talk' && (m.line === undefined || m.line === sn.line)) { if (++sn.line >= sc.talk.length) begin(); }
+      else if (m.type === 'next' && sn && sn.phase === 'talk' && (m.line === undefined || m.line === sn.line)) {
+        sn.read = { ...(sn.read || {}), [who]: true };                                // with two playing, a line stays until both have read it
+        if (solo || !both() || (sn.read.ken && sn.read.kel)) { sn.read = {}; if (++sn.line >= sc.talk.length) begin(); }
+      }
       else if (m.type === 'done' && sn && sn.phase === 'stub') complete();
       else if (m.type === 'ev') event(who, m);
       else if (m.type === 'cont' && sn && sn.phase === 'won') complete();
