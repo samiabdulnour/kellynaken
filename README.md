@@ -31,7 +31,7 @@ be rescued is a surprise: the game never names them before they are free, and le
 | Domov (Praha 5, home) | nobody: someone is missing | shooting off the locks the kids were locked in with, a dash down the street after the trail |
 | Kadeřnictví (Praha 5) | Mamka (Leila) | pexeso with hairdressing things in front of the locked salon (one turns the first card, the other the second; under the last pair is the key), running the salon together (wash, cut, dye, dry, take the money) |
 | Strahov (Praha 6) | Alan | a dash up the hill, the locks on the stadium gate, repeating Alan's rhythms in the rehearsal room, the concert; the drumstick is this saga's item |
-| Australia, where both great-grandfathers lived (Václav, who came on a refugee ship after the war and lived ten years in Brisbane, and Georges) | Sami and Žofia, who came to see where Václav lived | a short film of Václav's story, the torn message on Bondi, surfing with the boomerang, koalas hidden in the bush, the lifebuoys at the shark reef, building Sami's house in Sydney with the crane |
+| Australia, where both great-grandfathers lived (Václav, who came on a refugee ship after the war, worked two years in the interior, became an Australian citizen and then lived in Brisbane, and Georges) | Sami and Žofia, who came to see where Václav lived | a short film of Václav's story, the torn message on Bondi, surfing with the boomerang, koalas hidden in the bush, the lifebuoys at the shark reef, building Sami's house in Sydney with the crane |
 | Zimní stadion (Praha 7, Sparta), Ostrov (near Karlovy Vary) | later | on the map of Czechia, locked |
 | Cyprus, Lebanon, Thailand | later | on the planet, locked |
 
