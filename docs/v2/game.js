@@ -442,11 +442,11 @@
     const hud = add(`<div class="bar hud">${barHtml}</div>`);
     K.ui.firstElementChild.remove();
     // A way out in the middle of a game, asked twice so a stray tap does not end it. With two playing, both go back.
-    const quit = add('<button class="quit" aria-label="Odejít ze hry">×</button>');
+    const quit = add('<button class="quit" aria-label="Zpět na mapu">&lt;</button>');                 // back to the map, where the other screens have their back button
     quit.addEventListener('click', () => {
       if (K.ui.querySelector('.card.ask')) return;
       beep(440);
-      const ask = add('<div class="card ask"><h2>Odejít?</h2><p>Hra skončí a vrátíte se na mapu.</p><div class="two"><button class="btn" data-a="stay">Hrát dál</button><button class="btn red" data-a="go">Odejít</button></div></div>');
+      const ask = add('<div class="card ask"><h2>Zpět na mapu?</h2><p>Tahle hra skončí. Zahrát si ji můžete kdykoli znovu.</p><div class="two"><button class="btn" data-a="stay">Hrát dál</button><button class="btn red" data-a="go">Zpět</button></div></div>');
       ask.addEventListener('click', (e) => { const b = e.target.closest('[data-a]'); if (!b) return; beep(520); if (b.dataset.a === 'go') Net.send({ type: 'back' }); else ask.remove(); });
     });
     const tip = add(`<p class="tip">${esc(advice)}</p>`);

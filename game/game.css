@@ -112,9 +112,9 @@ button{font:inherit;color:inherit}
 .pin.done{background:var(--green);color:var(--paper)}
 .pin.locked,.pin.soon{background:#D8CFC4;color:var(--ink-soft);border-color:var(--ink-soft)}
 @keyframes arrive{from{opacity:0}}
-.bar.hud{padding-right:3em}
-.quit{position:absolute;top:.3em;right:.4em;width:2em;height:2em;display:grid;place-items:center;padding:0;cursor:pointer;
-  background:none;border:.17em solid var(--ink-soft);color:var(--paper);font:inherit;font-size:1.1em;font-weight:700;line-height:1}
+.bar.hud{padding-left:2.75em}
+.quit{position:absolute;top:0;left:0;width:2.75em;height:2.75em;display:grid;place-items:center;padding:0;cursor:pointer;
+  background:none;border:0;color:var(--yellow);font:inherit;font-size:1.1em;font-weight:700;line-height:1}
 .card.ask{z-index:2}
 .card .two{display:flex;gap:.75em}
 .key.ready{background:#7CE07C;animation:nudge2 .5s steps(2,jump-none) infinite}
