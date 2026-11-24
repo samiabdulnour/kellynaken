@@ -57,6 +57,45 @@ const K = (() => {
       if (kind === 'cymbal') hiss(6000, 0.4, 0.12);
     } catch (e) {}
   }
+  // Phones only let sound start from a tap: every tap wakes the sound up (it may have been made, asleep, before one),
+  // and it sleeps while the game is out of sight.
+  const sound = () => (ac = ac || new (window.AudioContext || window.webkitAudioContext)());
+  const wake = () => { try { if (sound().state !== 'running') ac.resume(); } catch (e) {} };
+  ['pointerdown', 'pointerup', 'touchend', 'keydown'].forEach((e) => addEventListener(e, wake, true));
+  document.addEventListener('visibilitychange', () => { try { if (ac) (document.hidden ? ac.suspend() : ac.resume()); } catch (e) {} });
+
+  // ---- music: a tune looping under a level (assets/music). A scene names its tune (see go()); the next scene with
+  // the same tune lets it play on, any other fades it out. Every tune is there twice, .ogg and .m4a (iPhones may
+  // not read .ogg), and the first the phone can read is used.
+  const MUSIC = 0.4, tunes = {};
+  let tune = null, want = null, hushed = false;                         // tune: { name, src, gain }, the one playing
+  function loadTune(name) {
+    if (!tunes[name]) {
+      const get = (kind) => fetch(asset(`assets/music/${name}.${kind}`)).then((r) => { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); })
+        .then((data) => new Promise((ok, no) => sound().decodeAudioData(data, ok, no)));
+      const kinds = document.createElement('audio').canPlayType('audio/ogg; codecs="vorbis"') ? ['ogg', 'm4a'] : ['m4a', 'ogg'];
+      tunes[name] = get(kinds[0]).catch(() => get(kinds[1])).catch(() => null);
+    }
+    return tunes[name];
+  }
+  function fade(gain, to, secs) { const t = ac.currentTime; gain.gain.cancelScheduledValues(t); gain.gain.setValueAtTime(gain.gain.value, t); gain.gain.linearRampToValueAtTime(to, t + secs); }
+  function music(name) {
+    want = name || null;
+    if (tune && tune.name === want) return;
+    if (tune) { const old = tune; tune = null; try { fade(old.gain, 0, 0.6); old.src.stop(ac.currentTime + 0.7); } catch (e) {} }
+    if (!want) return;
+    loadTune(want).then((buf) => {
+      if (!buf || want !== name || tune) return;
+      try {
+        const src = ac.createBufferSource(), gain = ac.createGain();
+        src.buffer = buf; src.loop = true; gain.gain.value = 0;
+        src.connect(gain).connect(ac.destination); src.start();
+        tune = { name, src, gain }; fade(gain, hushed ? 0 : MUSIC, 1);
+      } catch (e) {}
+    });
+  }
+  // Quiet while the game is paused, back again after.
+  function hush(on) { if (hushed === !!on) return; hushed = !!on; if (tune) try { fade(tune.gain, hushed ? 0 : MUSIC, 0.4); } catch (e) {} }
 
 
   // ---- saving: one record per device ----
@@ -140,6 +179,7 @@ const K = (() => {
     ui.innerHTML = '';
     scene = next;
     if (scene.enter) scene.enter();
+    hush(false); music(scene.music);
   }
   function frame(ts) {
     const dt = last ? Math.min(0.05, (ts - last) / 1000) : 0; last = ts;
@@ -161,5 +201,5 @@ const K = (() => {
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
   const has = (sheet, pose) => !!(sprites[sheet] && sprites[sheet].poses && sprites[sheet].poses[pose]);
-  return { W, H, GROUND, INK, has, ctx, ui, clamp, hash, rng, rect, beep, drum, asset, preload, save, write, hasBg, picture, background, sprites, figure, hero: figure, prop, go, add, esc, get scene() { return scene; } };
+  return { W, H, GROUND, INK, has, ctx, ui, clamp, hash, rng, rect, beep, drum, music, hush, loadTune, asset, preload, save, write, hasBg, picture, background, sprites, figure, hero: figure, prop, go, add, esc, get scene() { return scene; }, get tune() { return tune ? { name: tune.name, volume: Math.round(tune.gain.gain.value * 100) / 100 } : null; } };
 })();

@@ -96,7 +96,7 @@ window.WORLD = {
           shoot: { need: 16, every: 1.5, stay: 3.4, sway: 2, target: 'zámek',                 // padlocks on the lamp, the three portraits, the shelves and baskets, the sofa, the TV and its cabinet
             spots: [[96, 30], [60, 76], [94, 76], [128, 76], [9, 46], [8, 112], [70, 138], [126, 142], [176, 110], [168, 42], [180, 74], [178, 162]] },
           talk: [['', 'Doma je divné ticho. Někdo tu chybí…'], ['', 'A někdo vás zamkl! Na dveřích, na skříních, všude visí zámky.'], ['hero', 'Ty zámky sestřelím!']] },
-        { id: 'praha-street', name: 'Ulice', at: [52, 250], label: 'right', bg: 'praha-street', scroll: true, play: 'run',
+        { id: 'praha-street', name: 'Ulice', at: [52, 250], label: 'right', bg: 'praha-street', scroll: true, play: 'run', music: 'street',
           run: { seconds: 40, low: 'holub', high: '', art: { low: ['prague', 'pigeon'], alt: ['prague', 'puddle'] } },
           talk: [['', 'Venku na chodníku leží hřeben a kousek dál sponka do vlasů. Stopa vede ulicí!'], ['', 'Přeskoč holuby i louže.']] },
       ],
@@ -132,7 +132,7 @@ window.WORLD = {
       saves: [{ id: 'alan', name: 'Alan' }],
       look: { sky: '#BFE3F2', far: '#A9A6A0', far2: '#8A9A72', ground: '#7FAE66', line: '#5C8650' },
       scenes: [
-        { id: 'strahov-hill', name: 'Do kopce', at: [40, 196], label: 'right', bg: 'strahov-hill', scroll: true, play: 'run', pickup: 'drumstick',
+        { id: 'strahov-hill', name: 'Do kopce', at: [40, 196], label: 'right', bg: 'strahov-hill', scroll: true, play: 'run', music: 'street', pickup: 'drumstick',
           run: { seconds: 36, low: 'šiška', high: 'vrána', art: { low: ['strahov', 'cone'], high: ['strahov', 'crow'] } },
           talk: [['', 'Z kopce nad městem někdo volá o pomoc.'], ['', 'Nahoru se musí pěšky. Šišku přeskoč, pod vránou zůstaň dole.'], ['', 'Uvidíš-li paličku, vyskoč pro ni!']] },
         { id: 'strahov-gate', name: 'Brána stadionu', at: [62, 149], label: 'below', bg: 'strahov-gate', play: 'shoot',

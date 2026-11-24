@@ -359,6 +359,7 @@
       was = sn.phase; line = sn.line;
     }
     return {
+      music: sc.music,                                                  // the level's own tune, if it has one (world.js)
       enter() {
         const bar = add(`<div class="bar"><button data-back>&lt; ${esc(WORLD.regions[place.region].name)}</button><span>${esc(sc.name)}</span></div>`);
         bar.querySelector('[data-back]').addEventListener('click', () => Net.send({ type: 'back' }));
@@ -373,6 +374,7 @@
       tap(x, y) { if (act && act.tap) { if (!sn.paused) act.tap(x, y); } else if (!act && box) box.click(); },
       update(dt) {
         t += dt; if (act && !sn.paused) act.update(dt);                                   // paused: everything stands still
+        K.hush(!!sn.paused && sn.phase === 'play');                                       // and the music goes quiet
         if (act && sn.phase === 'play' && !sn.paused) {                                  // 2, 1, Start! while the game gets going
           const c = (sn.startAt - Net.now()) / 1000;
           if (!go) go = add('<p class="go"></p>');
@@ -1549,6 +1551,7 @@
   K.net = Net;                                 // for looking in from outside when testing
   go(Title);
   // Every other picture, asked for while the title is up, so a level opens without waiting for its pictures.
+  setTimeout(() => [...new Set(WORLD.places.flatMap((p) => p.scenes.map((s) => s.music)).filter(Boolean))].forEach(K.loadTune), 1500);
   setTimeout(() => K.preload([...((window.ASSETS && window.ASSETS.bg) || []).map((id) => `assets/bg/${id}.png`),
     ...Object.values(K.sprites).flatMap((sp) => [sp.file, sp.faces && sp.faces.file, sp.still && sp.still.file].filter(Boolean)).map((f) => `assets/sprites/${f}`)]), 400);
   if (save.who) Title.join(save.who);          // back again: straight to one's seat
