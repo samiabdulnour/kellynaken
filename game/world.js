@@ -29,7 +29,7 @@
 //   collect run along the beach picking up what the waves wash in, and keep away from the jellyfish
 //   rescue  throw lifebuoys to the people on the rock, then pull them across before the shark gets there
 //   tower   build a house storey by storey: one drives the crane, the other lets each storey go
-//   shoot   targets pop up and slip away: tap where the shot should go. Kendrick fires a puck with his hockey stick,
+//   shoot   padlocks appear on the `spots` of the picture and slip away: tap one to shoot at it (with two, each has their own colour). Kendrick fires a puck with his hockey stick,
 //           Kellyn throws her white bunny
 //   stub    not built yet: shows a card and lets you carry on
 //
@@ -92,11 +92,12 @@ window.WORLD = {
       look: { sky: '#8FD3F4', far: '#F2C078', far2: '#E7A6B5', ground: '#A39B96', line: '#7A6F6A' },
       scenes: [
         { id: 'praha-home', name: 'Doma', at: [22, 234], label: 'below', bg: 'praha-home', play: 'shoot',
-          shoot: { need: 8, every: 1.5, stay: 3.4, sway: 0, target: 'zámek' },
+          shoot: { need: 12, every: 1.5, stay: 3.4, sway: 2, target: 'zámek',                 // padlocks on the window, the frames, the shelves, the lamp, the TV and the cabinet
+            spots: [[62, 76], [116, 92], [140, 96], [130, 58], [172, 58], [166, 92], [118, 36], [168, 134], [150, 162], [174, 162]] },
           talk: [['', 'Doma je divné ticho. Někdo tu chybí…'], ['', 'A někdo vás zamkl! Na dveřích, na skříních, všude visí zámky.'], ['hero', 'Ty zámky sestřelím!']] },
         { id: 'praha-street', name: 'Ulice', at: [56, 250], label: 'below', bg: 'praha-street', scroll: true, play: 'run',
-          run: { seconds: 24, low: 'holub', high: '', art: { low: ['prague', 'pigeon'] } },
-          talk: [['', 'Venku na chodníku leží hřeben a kousek dál sponka do vlasů. Stopa vede ulicí!'], ['', 'Klepni a přeskoč, co ti stojí v cestě.']] },
+          run: { seconds: 30, low: 'holub', high: '', art: { low: ['prague', 'pigeon'], alt: ['prague', 'puddle'] } },
+          talk: [['', 'Venku na chodníku leží hřeben a kousek dál sponka do vlasů. Stopa vede ulicí!'], ['', 'Přeskoč holuby i louže.']] },
       ],
       done: [['', 'Stopa končí před kadeřnictvím. Najdete ho na mapě.']],
     },
@@ -129,9 +130,10 @@ window.WORLD = {
       scenes: [
         { id: 'strahov-hill', name: 'Do kopce', at: [40, 196], label: 'right', bg: 'strahov-hill', scroll: true, play: 'run', pickup: 'drumstick',
           run: { seconds: 26, low: 'šiška', high: 'vrána', art: { low: ['strahov', 'cone'], high: ['strahov', 'crow'] } },
-          talk: [['', 'Z kopce nad městem někdo volá o pomoc.'], ['', 'Nahoru se musí pěšky. Šišku přeskoč, pod vránou zůstaň dole.']] },
+          talk: [['', 'Z kopce nad městem někdo volá o pomoc.'], ['', 'Nahoru se musí pěšky. Šišku přeskoč, pod vránou zůstaň dole.'], ['', 'Uvidíš-li paličku, vyskoč pro ni!']] },
         { id: 'strahov-gate', name: 'Brána stadionu', at: [62, 149], label: 'below', bg: 'strahov-gate', play: 'shoot',
-          shoot: { need: 10, every: 1.3, stay: 3.2, sway: 10, target: 'zámek' },
+          shoot: { need: 12, every: 1.3, stay: 3.2, sway: 3, target: 'zámek',                 // padlocks on the gates under the stands, the stair railing and the rail above
+            spots: [[52, 186], [70, 186], [88, 186], [106, 186], [124, 186], [140, 186], [164, 160], [180, 150], [120, 150], [96, 152]] },
           talk: [['', 'Velký strahovský stadion. Všechny vchody jsou zavřené a na mřížích visí zámky.']] },
         // From here on he is found: he shows the rhythm, and at the concert he plays along.
         { id: 'strahov-drums', name: 'Zkušebna', at: [18, 136], label: 'below', bg: 'strahov-drums', play: 'echo', cast: ['alan'],

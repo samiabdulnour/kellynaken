@@ -126,6 +126,6 @@ button{font:inherit;color:inherit}
 .meter.time::before{content:'';position:absolute;left:-1.3em;top:-.2em;width:1em;height:1em;border:.17em solid var(--paper);border-radius:50%;box-sizing:border-box;
   background:linear-gradient(var(--paper),var(--paper)) 50% 25%/.14em .4em no-repeat,linear-gradient(var(--paper),var(--paper)) 70% 50%/.3em .14em no-repeat}
 .say.read i{animation:none;font-weight:400;font-size:.85em;color:var(--ink-soft)}
-.go{position:absolute;inset:38% 0 auto;text-align:center;font-size:3em;font-weight:700;color:var(--yellow);pointer-events:none;
+.go{position:absolute;inset:34% 0 auto;text-align:center;font-size:4.5em;font-weight:700;color:var(--yellow);pointer-events:none;
   text-shadow:.06em .06em 0 var(--red),.12em .12em 0 var(--ink)}
 .go:empty{display:none}

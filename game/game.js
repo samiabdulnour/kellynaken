@@ -488,9 +488,12 @@
   }
   const hearts = (el, n, max) => { el.innerHTML = Array.from({ length: max }, (_, i) => `<i class="${i < n ? 'on' : ''}"></i>`).join(''); };
   // Stand-in pictures of the things you can pick up, about 12 pixels across, centred on (x, y).
-  function item(kind, x, y) {
+  function item(kind, x, y, twinkle) {
     x = Math.round(x); y = Math.round(y);
-    rect(x - 9, y - 9, 18, 18, INK); rect(x - 8, y - 8, 16, 16, '#FFF8E7');
+    if (twinkle !== undefined) for (let k = 0; k < 4; k++) {                              // something to grab: it twinkles
+      const a = k / 4 * Math.PI * 2 + twinkle * 2, r = 11 + Math.sin(twinkle * 6 + k) * 2;
+      if (Math.sin(twinkle * 9 + k * 2) > -0.3) rect(Math.round(x + Math.cos(a) * r) - 1, Math.round(y + Math.sin(a) * r) - 1, 2, 2, k % 2 ? '#FFF1A8' : '#FFD43A');
+    }
     const art = WORLD.items[kind] && WORLD.items[kind].art;
     if (art && K.has(art[0], art[1])) { const sp = K.sprites[art[0]]; return K.figure(art[0], x, y + 7, art[1], 0, false, 14 / Math.max(sp.w, sp.h) * 1.15); }
     if (kind === 'drumstick') { for (let i = 0; i < 8; i++) rect(x - 5 + i, y + 3 - i, 2, 2, '#B98850'); rect(x + 2, y - 6, 4, 4, '#8A5A2B'); }
@@ -544,7 +547,7 @@
         }
         if (s.told && how === 'hit' && !powered() && !s.over) view.tip.textContent = '';
       },
-      fx(m) { if (m.k === 'jump' && s.mate.y <= 0) s.mate.vy = JUMP; if (m.k === 'throw' && !s.mateFly) s.mateFly = { x: X - 14, y: GY - 31, vx: 190, back: false }; },
+      fx(m) { if (m.k === 'hurt') s.mateHurt = s.t; if (m.k === 'jump' && s.mate.y <= 0) s.mate.vy = JUMP; if (m.k === 'throw' && !s.mateFly) s.mateFly = { x: X - 14, y: GY - 31, vx: 190, back: false }; },
       over(won) { s.over = true; s.lost = !won; paint(); view.end(won, won ? 'Zvládnuto!' : 'Au!', won ? 'Jste na místě.' : 'Zkuste to ještě jednou.'); },
       down() { jump(); },
       throwIt,
@@ -561,8 +564,8 @@
           const d = (o.at - s.t) * SPEED;
           if (powered() && d > 0 && d < 16) { o.hit = true; o.smashed = s.t; s.whack = s.t; beep(300, 600); continue; }   // the drumstick: whack it before it reaches you
           if (Math.abs(d) > 8 || !(o.high ? s.y > 12 : s.y < 9)) continue;
-          o.hit = true;
-          s.inv = 1.1; beep(200, 150); Net.send({ type: 'ev', e: 'hurt' });
+          o.hit = true; o.knock = s.t; s.hurt = s.t;                                       // knocked away; a stumble and a heart lost
+          s.inv = 1.1; beep(200, 150); Net.send({ type: 'ev', e: 'hurt' }); Net.send({ type: 'fx', k: 'hurt' });
         }
         if (s.t >= cfg.seconds && Net.now() - s.sent > 1000) { s.sent = Net.now(); Net.send({ type: 'ev', e: 'finish' }); }
         paint();
@@ -579,21 +582,25 @@
             else { rect(x - 9, GY - 20, 18, 2, '#FFD43A'); rect(x - 1, GY - 28, 2, 18, '#FFD43A'); }
             continue;
           }
-          const look = cfg.art && cfg.art[o.high ? 'high' : 'low'];
+          const look = cfg.art && (o.alt ? cfg.art.alt : cfg.art[o.high ? 'high' : 'low']);
           if (look && K.has(look[0], look[1])) {                                             // drawn obstacles; a second drawing, if there is one, takes turns with the first
-            const pose = look.length > 2 && Math.floor(t * 6) % 2 ? look[2] : look[1];
-            K.figure(look[0], x, o.high ? GY - 54 : GY + 1, pose, t, false, 0.36);
+            let pose = look.length > 2 && Math.floor(t * 6) % 2 ? look[2] : look[1], dy = o.high ? Math.round(Math.sin(t * 8 + o.at) * 2) : 0, dx = 0;
+            const flies = K.has(look[0], look[1] + 'fly');                                   // a pigeon takes off once it is passed, or bumped into
+            if (o.knock !== undefined) { const u = t - o.knock; if (u > 0.7) continue; dy -= Math.round(u * 70); dx = Math.round(u * 40); if (flies) pose = look[1] + 'fly'; }
+            else if (flies && x < X - 6) { pose = look[1] + 'fly'; dy -= Math.round((X - 6 - x) * 0.9); }
+            K.figure(look[0], x + dx, (o.high ? GY - 54 : GY + 1) + dy, pose, t, false, 0.36);
           }
           else if (o.high) { rect(x - 7, GY - 62, 14, 5, INK); rect(x - 6, GY - 61, 12, 3, '#D2A064'); }
           else { rect(x - 6, GY - 10, 12, 10, INK); rect(x - 5, GY - 9, 10, 9, '#E0862E'); rect(x - 3, GY - 14, 6, 5, INK); rect(x - 2, GY - 13, 4, 4, '#E0862E'); }
         }
-        if (pickAt !== null && !live.picked) { const x = X + (pickAt - t) * SPEED; if (x > -12 && x < W + 12) item(sc.pickup, x, GY - 50 + Math.round(Math.sin(t * 5) * 2)); }
-        if (mateHere()) runner(mate(), X - 30, GY - 5, s.mate);                                  // a step behind, on the far side
-        const swing = powered() && t - s.whack < 0.25;
+        if (pickAt !== null && !live.picked) { const x = X + (pickAt - t) * SPEED; if (x > -12 && x < W + 12) item(sc.pickup, x, GY - 50 + Math.round(Math.sin(t * 5) * 2), t); }
+        if (mateHere() && !(t - (s.mateHurt || -9) < 1 && Math.floor(t * 14) % 2)) runner(mate(), X - 30, GY - 5, s.mate, t - (s.mateHurt || -9) < 0.45 ? 'dizzy' : null);   // a step behind; blinks when hurt
+        const swing = powered() && t - s.whack < 0.25, stumble = t - (s.hurt || -9) < 0.45;
         if (s.lost) K.hero(who, X, GY, 'dizzy', t);
-        else if (!(s.inv > 0 && Math.floor(t * 14) % 2)) runner(who, X, GY, s, swing ? 'drum' : null);
+        else if (!(s.inv > 0 && Math.floor(t * 14) % 2)) runner(who, X, GY, s, stumble ? 'dizzy' : swing ? 'drum' : null);
+        if (stumble) { const u = (t - s.hurt) / 0.45, hy = Math.round(GY - s.y - 62 - u * 14); rect(X - 4, hy, 3, 3, '#CC2233'); rect(X + 1, hy, 3, 3, '#CC2233'); rect(X - 3, hy + 2, 6, 3, '#CC2233'); rect(X - 1, hy + 5, 2, 2, '#CC2233'); }   // a heart flies off
         const left = (live.power - Net.now()) / 1000;
-        if (powered() && !swing && (left > 2 || Math.floor(t * 8) % 2)) item(sc.pickup, X, GY - s.y - 66);   // held overhead; blinks when nearly spent
+        if (powered() && !swing && (left > 1.5 || Math.floor(t * 8) % 2)) item(sc.pickup, X + 8, GY - s.y - 60);   // held up; blinks when nearly spent
         for (const f of [s.fly, s.mateFly]) {                                                    // the boomerang spinning through the air
           if (!f) continue;
           const pose = Math.floor(t * 12) % 2 ? 'boomerang2' : 'boomerang';
@@ -693,40 +700,48 @@
     const { targets } = Room.course.shoot(sn.seed, sc, sn.every);
     const s = { t: 0, over: false, lost: false, shots: [], pops: [], cool: 0, swing: 0, mateSwing: 0, thrown: 0, again: null, got: new Set(), told: new Set(), asked: false, said: false, seen: 0 };
     let live = sn;
-    const view = stage('<span class="lives"></span><span class="meter"><i></i></span>', who === 'ken' ? 'Klepni, kam má letět puk.' : 'Klepni, kam má letět králíček nebo hvězda.');
-    const paint = () => { hearts(view.hud.firstElementChild, live.lives, max); view.hud.lastElementChild.firstElementChild.style.width = clamp(live.hits / live.need, 0, 1) * 100 + '%'; };
+    // With two playing, each has their own padlocks, marked with their colour: Kendrick's red, Kellyn's pink.
+    const COLOUR = { ken: '#CC2233', kel: '#F0448F' }, owner = (tg) => (tg.id % 2 ? 'kel' : 'ken'), own = (tg) => !mateHere() || owner(tg) === who;
+    const view = stage('<span class="lives"></span><span class="count"></span><span class="meter"><i></i></span>', mateHere() ? `Klepni na zámek s ${who === 'ken' ? 'červenou' : 'růžovou'} cedulkou. To jsou tvoje.` : 'Klepni na zámek a sestřel ho.');
+    const paint = () => { hearts(view.hud.firstElementChild, live.lives, max); view.hud.children[1].textContent = `${live.hits} / ${live.need}`; view.hud.lastElementChild.firstElementChild.style.width = clamp(live.hits / live.need, 0, 1) * 100 + '%'; };
     const tx = (tg) => tg.x + Math.sin(s.t * 2 + tg.phase) * (cfg.sway || 0);
-    const up = (tg) => tg.born <= s.t && s.t - tg.born <= cfg.stay && !s.got.has(tg.id) && !live.hit.includes(tg.id) && !live.missed.includes(tg.id);
+    const done = (tg) => s.got.has(tg.id) || live.hit.includes(tg.id) || live.missed.includes(tg.id);
+    const up = (tg) => tg.born <= s.t && s.t - tg.born <= cfg.stay && !done(tg);
+    const aimedAt = (tg) => !done(tg) && s.shots.some((sh) => sh.real && sh.aim === tg.id) && s.t - tg.born <= cfg.stay + 0.9;   // a shot on its way still counts
     const pickAt = () => (sc.pickup && !live.picked && s.t > 2 ? { x: W + 12 - (((s.t - 2) * 24) % (W + 24)), y: 64 + Math.sin(s.t * 3) * 6 } : null);   // drifts across until it is hit
     // One shot from `from` towards (x, y). Only one's own shots can hit anything; the other hero's are for show.
-    function fire(w, from, x, y, real, star) {
+    function fire(w, from, x, y, real, star, aim) {
       const dx = x - from.x, dy = y - from.y, back = live.item === 'boomerang', d = Math.hypot(dx, dy) || 1;
       const kind = w === 'ken' ? 'puck' : star ? 'star' : 'bunny';
       if (kind !== 'bunny' || back) {                                                     // straight and fast; with the boomerang it turns round and comes home
         const v = kind === 'puck' ? 280 : 250;
-        s.shots.push({ kind, real, from, x: from.x, y: from.y, vx: dx / d * v, vy: dy / d * v, g: 0, r: kind === 'puck' ? 9 : kind === 'star' ? 10 : 13, turn: back ? s.t + Math.max(0.35, d / v + 0.12) : 0 });
-      } else { const T = Math.max(0.4, Math.abs(dx) / 170); s.shots.push({ kind, real, from, x: from.x, y: from.y, vx: dx / T, vy: (dy - 0.5 * G * T * T) / T, g: G, r: 13 }); }
+        s.shots.push({ kind, real, aim, from, x: from.x, y: from.y, vx: dx / d * v, vy: dy / d * v, g: 0, r: 12, turn: back ? s.t + Math.max(0.35, d / v + 0.12) : 0 });
+      } else { const T = Math.max(0.4, Math.abs(dx) / 170); s.shots.push({ kind, real, aim, from, x: from.x, y: from.y, vx: dx / T, vy: (dy - 0.5 * G * T * T) / T, g: G, r: 13 }); }
     }
-    function shoot(x, y) {
+    function shoot(x, y, aim) {
       const star = who === 'kel' && s.thrown++ % 2 === 1;                                 // Kellyn takes turns: bunny, star, bunny, star
-      fire(who, mine, x, y, true, star);
+      fire(who, mine, x, y, true, star, aim);
       Net.send({ type: 'fx', k: 'shot', x, y, star });                                    // the other device shows it flying to the same spot, from where this hero stands there
     }
     return {
-      s, kind: 'shoot', spot: (tg) => ({ x: tx(tg), y: tg.y }), live: () => targets.filter(up), pickAt,
+      s, kind: 'shoot', spot: (tg) => ({ x: tx(tg), y: tg.y }), live: () => targets.filter((tg) => up(tg) && own(tg)), pickAt,
       sync(n) {
         for (const id of n.hit.slice(s.seen)) { const tg = targets[id]; if (tg && !s.got.has(id)) s.pops.push({ x: tx(tg), y: tg.y, at: s.t }); }   // the other one's hits flash too
         s.seen = n.hit.length;
         live = n; paint();
         if (live.item && !s.said) { s.said = true; view.tip.textContent = WORLD.items[live.item].shot; }
       },
-      fx(m) { if (m.k === 'shot') { fire(mate(), theirs, m.x, m.y, false, !!m.star); s.mateSwing = 0.25; } },
+      fx(m) { if (m.k === 'shot') { fire(mate(), theirs, m.x, m.y, false, !!m.star, null); s.mateSwing = 0.25; } },
       over(won) { s.over = true; s.lost = !won; paint(); view.end(won, won ? 'Trefa!' : 'Uteklo vám jich moc.', won ? 'Cesta je volná.' : 'Zkuste to ještě jednou.'); },
       down(x, y) {
         if (s.over || s.cool > 0 || y < 22 || s.t < 0) return;
-        shoot(x, y);
+        // a tap near one of one's padlocks aims right at it; a wild shot takes longer to get ready again
+        const near = targets.filter((tg) => up(tg) && own(tg)).map((tg) => ({ tg, d: Math.hypot(tx(tg) - x, tg.y - y) })).sort((a, b) => a.d - b.d)[0];
+        const aim = near && near.d < 18 ? near.tg : null;
+        if (aim) { x = tx(aim); y = aim.y; }
+        shoot(x, y, aim ? aim.id : null);
         if (live.item === 'drumstick') s.again = { at: s.t + 0.13, x: x + 7, y: y - 7 };       // the drumstick's second beat, a little to one side
-        s.cool = 0.3; s.swing = 0.25; beep(who === 'ken' ? 330 : 660); if (!s.said) view.tip.textContent = '';
+        s.cool = aim ? 0.3 : 0.7; s.swing = 0.25; beep(who === 'ken' ? 330 : 660); if (!s.said) view.tip.textContent = '';
       },
       update(dt) {
         if (s.over) return;
@@ -740,7 +755,7 @@
           if (sh.real && p && !s.asked && Math.hypot(p.x - sh.x, p.y - sh.y) < sh.r + 4) { s.asked = true; beep(660, 880, 1100); Net.send({ type: 'ev', e: 'pick' }); }
           if (sh.real) for (const tg of targets) {
             if (tg.born > s.t) break;
-            if (!up(tg) || Math.hypot(tx(tg) - sh.x, tg.y - sh.y) >= sh.r) continue;
+            if (!own(tg) || !(up(tg) || (sh.aim === tg.id && aimedAt(tg))) || Math.hypot(tx(tg) - sh.x, tg.y - sh.y) >= sh.r + (sh.aim === tg.id ? 6 : 0)) continue;
             s.got.add(tg.id); s.pops.push({ x: tx(tg), y: tg.y, at: s.t, kind: sh.kind }); beep(780, 1040); Net.send({ type: 'ev', e: 'hit', id: tg.id });
             if (!sh.turn && !sh.home) sh.dead = true;                                     // a boomerang shot carries on through
             break;
@@ -750,24 +765,31 @@
         s.shots = s.shots.filter((sh) => !sh.dead);
         for (const tg of targets) {                                                       // the ones that got away: both devices say so, the room counts each once
           if (tg.born > s.t) break;
-          if (s.t - tg.born > cfg.stay && !s.told.has(tg.id) && !s.got.has(tg.id) && !live.hit.includes(tg.id) && !live.missed.includes(tg.id)) { s.told.add(tg.id); beep(200, 150); Net.send({ type: 'ev', e: 'miss', id: tg.id }); }
+          if (s.t - tg.born > cfg.stay && !s.told.has(tg.id) && !done(tg) && !aimedAt(tg)) { s.told.add(tg.id); s.pops.push({ x: tx(tg), y: tg.y, at: s.t, kind: 'gone' }); beep(200, 150); Net.send({ type: 'ev', e: 'miss', id: tg.id }); }
         }
-        s.pops = s.pops.filter((q) => s.t - q.at < 0.25);
+        s.pops = s.pops.filter((q) => s.t - q.at < (q.kind === 'gone' ? 0.7 : 0.25));
         paint();
       },
       draw() {
         K.background(sc.bg, 0, place.look);
         for (const tg of targets) {
           if (tg.born > s.t) break;
-          if (!up(tg)) continue;
+          if (!up(tg) && !aimedAt(tg)) continue;
           const x = Math.round(tx(tg)), y = Math.round(tg.y), left = cfg.stay - (s.t - tg.born);
-          if (left < 0.9 && Math.floor(s.t * 10) % 2) continue;                              // blinks before it slips away
+          if (left < 0.9 && left > 0 && Math.floor(s.t * 10) % 2) continue;                    // blinks before it slips away
+          if (mateHere()) { const c = COLOUR[owner(tg)]; rect(x + 3, y + 8, 7, 6, INK); rect(x + 4, y + 9, 5, 4, c); rect(x + 5, y + 6, 1, 3, INK); }   // whose it is: a little coloured tag
           if (K.has('prague', 'padlock')) { K.figure('prague', x + Math.round(Math.sin(s.t * 3 + tg.phase)), y + 10, 'padlock', 0, false, 0.36); continue; }
           rect(x - 5, y - 13, 10, 8, '#7A5320'); rect(x - 3, y - 11, 6, 6, place.look.sky);  // a stand-in padlock
           rect(x - 8, y - 6, 16, 13, '#7A5320'); rect(x - 7, y - 5, 14, 11, '#E6B340'); rect(x - 1, y - 2, 2, 5, '#7A5320');
         }
         for (const q of s.pops) {
           const x = Math.round(q.x), y = Math.round(q.y), pose = q.kind === 'bunny' ? 'fluff' : 'flash';
+          if (q.kind === 'gone') {                                                               // one that got away: a puff, and a heart rising out of it
+            const u = (s.t - q.at) / 0.7;
+            for (let k = 0; k < 5; k++) { const a = k / 5 * Math.PI * 2, r = 4 + u * 10; rect(Math.round(x + Math.cos(a) * r) - 2, Math.round(y + Math.sin(a) * r) - 2, 4, 4, 'rgba(232,220,196,' + (1 - u).toFixed(2) + ')'); }
+            const hy = Math.round(y - 8 - u * 16); rect(x - 4, hy, 3, 3, '#CC2233'); rect(x + 1, hy, 3, 3, '#CC2233'); rect(x - 3, hy + 2, 6, 3, '#CC2233'); rect(x - 1, hy + 5, 2, 2, '#CC2233');
+            continue;
+          }
           if (K.has('things', pose)) K.figure('things', x, y + 8, pose, 0, false, 0.6);
           else { rect(x - 9, y - 1, 18, 2, '#FFD43A'); rect(x - 1, y - 9, 2, 18, '#FFD43A'); rect(x - 4, y - 4, 8, 8, '#FFF8E7'); }
         }
@@ -1123,7 +1145,7 @@
     const spot = (i) => ({ x: X0 + (i % COLS) * (CW + GAP), y: Y0 + Math.floor(i / COLS) * (CH + GAP) });
     const mine = () => !live.turn || live.turn === who;
     const paint = () => {
-      view.hud.firstElementChild.textContent = `Pokusy ${Math.max(0, live.maxMiss - live.misses)}`;
+      view.hud.firstElementChild.textContent = `Dvojice ${live.done.length / 2}/${live.deck.length / 2} · Pokusy ${Math.max(0, live.maxMiss - live.misses)}`;
       view.hud.lastElementChild.innerHTML = live.turn ? `${face(live.turn, 3, 1)}<span>${mine() ? 'Otáčíš ty' : 'Otáčí ' + esc(heroName(live.turn))}</span>` : '';
       if (s.over) return;
       const second = live.open.length === 1;
@@ -1137,7 +1159,7 @@
       sync(n) { if (n.misses > s.seenMiss) { s.seenMiss = n.misses; s.shake = 0.4; beep(200, 160); } else if (n.done.length > live.done.length) beep(660, 880); live = n; paint(); },
       over(won) {
         s.over = true; s.lost = !won; paint();
-        if (won && cfg.key) { s.keyAt = s.t; s.endIn = 1.6; view.tip.textContent = ''; beep(660, 880, 1100, 1320); }     // the key comes out first, then the card
+        if (won && cfg.key) { s.keyAt = s.t; s.endIn = 2.1; view.tip.textContent = ''; beep(660, 880, 1100, 1320); }     // the key comes out, flies to the door and unlocks it; then the card
         else finish(won);
       },
       down(x, y) {
@@ -1150,7 +1172,7 @@
           }
         }
       },
-      update(dt) { s.t += dt; if (s.shake > 0) s.shake -= dt; if (s.endIn > 0 && (s.endIn -= dt) <= 0) finish(true); },
+      update(dt) { s.t += dt; if (s.shake > 0) s.shake -= dt; if (s.keyAt !== null && !s.clicked && s.t - s.keyAt > 1.4) { s.clicked = true; beep(300, 600, 900); } if (s.endIn > 0 && (s.endIn -= dt) <= 0) finish(true); },
       draw() {
         K.background(sc.bg, 0, place.look);
         rect(0, 22, W, H - 22, 'rgba(43,31,26,.55)');
@@ -1172,12 +1194,19 @@
       },
       // The cards are cleared away and a golden key rises from under the last pair, turning, with a sparkle.
       drawKey(u) {
-        const e = Math.min(1, u / 0.8), y = Math.round(150 - 86 * (1 - (1 - e) ** 3) + (e >= 1 ? Math.sin(u * 3) * 2 : 0)), turn = Math.cos(u * 5);
+        const DOOR = [100, 114], v = clamp((u - 0.9) / 0.5, 0, 1);                           // where the salon's door is on the picture
+        if (v >= 1) {                                                                        // unlocked: the door glows
+          const w = clamp((u - 1.4) / 0.6, 0, 1);
+          for (let i = 0; i < 10; i++) { const a = i / 10 * Math.PI * 2, r = 6 + w * 30; rect(Math.round(DOOR[0] + Math.cos(a) * r), Math.round(DOOR[1] + Math.sin(a) * r), 3, 3, i % 2 ? '#FFF1A8' : '#FFD43A'); }
+          return;
+        }
+        const e = Math.min(1, u / 0.8), y0 = Math.round(150 - 86 * (1 - (1 - e) ** 3) + (e >= 1 ? Math.sin(u * 3) * 2 : 0)), turn = Math.cos(u * 5);
+        const y = Math.round(y0 + (DOOR[1] - y0) * v), cx = Math.round(W / 2 + (DOOR[0] - W / 2) * v), size = 1 - 0.6 * v;
         for (let i = 0; i < 8; i++) {                                                     // sparkles round it
           const a = i / 8 * Math.PI * 2 + u * 1.5, r = 22 + Math.sin(u * 4 + i) * 4;
-          if (Math.sin(u * 9 + i * 2) > -0.2) rect(Math.round(W / 2 + Math.cos(a) * r), Math.round(y + Math.sin(a) * r * 0.8), 2, 2, i % 2 ? '#FFF1A8' : '#FFD43A');
+          if (Math.sin(u * 9 + i * 2) > -0.2) rect(Math.round(cx + Math.cos(a) * r * size), Math.round(y + Math.sin(a) * r * 0.8 * size), 2, 2, i % 2 ? '#FFF1A8' : '#FFD43A');
         }
-        ctx.save(); ctx.translate(W / 2, y); ctx.scale(Math.max(0.12, Math.abs(turn)), 1);
+        ctx.save(); ctx.translate(cx, y); ctx.scale(Math.max(0.12, Math.abs(turn)) * size, size);
         ctx.drawImage(KEY, -KEY.width / 4, -KEY.height / 4, KEY.width / 2, KEY.height / 2);    // each of its pixels half a game pixel, as fine as the people
         ctx.restore();
       },

@@ -26,7 +26,8 @@
       for (let at = 2.6; at < cfg.seconds - 2; at += 1.15 + r() * 0.95) {
         const high = !!cfg.high && obs.length > 1 && r() < 0.28;
         if (pickAt !== null && Math.abs(at - pickAt) < 0.9) continue;                 // keep the way to the pick-up clear
-        obs.push({ at, high });
+        const alt = !high && !!(cfg.art && cfg.art.alt) && r() < 0.35;               // a second kind of low thing (a puddle among the pigeons)
+        obs.push({ at, high, alt });
       }
       return { obs, pickAt };
     },
@@ -73,9 +74,17 @@
     },
     // How far the storey on the crane's hook swings to one side at a given moment: more, and faster, the higher the house.
     sway(t, n) { return (5 + n * 2.2) * Math.sin(t * (1.5 + n * 0.1)); },
+    // Padlocks: on the picture's spots, never two on one spot at the same time (or anywhere, for a picture without spots).
     shoot(seed, sc, every) {
-      const r = rng(seed), targets = [];
-      for (let at = 1.2, id = 0; id < 160; id++) { targets.push({ id, born: at, x: 74 + r() * 100, y: 56 + r() * 130, phase: r() * 6 }); at += every * (0.8 + r() * 0.4); }
+      const r = rng(seed), targets = [], spots = sc.shoot.spots, stay = sc.shoot.stay;
+      for (let at = 1.2, id = 0; id < 160; id++) {
+        if (spots) {
+          const busy = new Set(targets.filter((t) => t.born + stay + 0.3 > at).map((t) => t.spot));
+          const free = spots.map((p, i) => i).filter((i) => !busy.has(i)), i = free.length ? free[Math.floor(r() * free.length)] : Math.floor(r() * spots.length);
+          targets.push({ id, born: at, x: spots[i][0], y: spots[i][1], spot: i, phase: r() * 6 });
+        } else targets.push({ id, born: at, x: 74 + r() * 100, y: 56 + r() * 130, phase: r() * 6 });
+        at += every * (0.8 + r() * 0.4);
+      }
       return { targets };
     },
   };
@@ -128,7 +137,7 @@
       const sn = S.scene, sc = place().scenes[sn.index], two = both();
       if (!GAMES.includes(sc.play)) { sn.phase = 'stub'; return; }
       Object.assign(sn, { phase: 'play', startAt: now() + 1600, fin: {}, picked: false, power: 0 });
-      if (sc.play === 'run') sn.lives = two ? 4 : 3;
+      if (sc.play === 'run') sn.lives = two ? 5 : 3;
       if (sc.play === 'shoot') Object.assign(sn, { lives: two ? 4 : 3, hits: 0, need: Math.round(sc.shoot.need * (two ? 1.6 : 1)), every: sc.shoot.every / (two ? 1.4 : 1), hit: [], missed: [], item: null });
       if (sc.play === 'find') Object.assign(sn, { found: [], need: sc.find.need });
       if (sc.play === 'memory') { const first = two ? (Math.random() < 0.5 ? 'ken' : 'kel') : null; Object.assign(sn, { deck: course.memory(sn.seed, sc), open: [], done: [], misses: 0, maxMiss: sc.memory.miss + (two ? 2 : 0), first, turn: first, hideAt: 0 }); }
@@ -214,7 +223,7 @@
       const sc = place().scenes[sn.index], kind = sc.play;
       if (m.e === 'pick' && sc.pickup && !sn.picked) {                                  // one grabs it, both get it
         sn.picked = true;
-        if (kind === 'shoot') sn.item = sc.pickup; else sn.power = now() + 8000;
+        if (kind === 'shoot') sn.item = sc.pickup; else sn.power = now() + 5000;
       }
       if (kind === 'run') {
         if (m.e === 'hurt' && --sn.lives <= 0) sn.phase = 'lost';
@@ -250,7 +259,7 @@
         if (sn.open.length === 1) { if (sn.first) sn.turn = other(sn.first); return; }        // now the other one looks for its pair
         const [a, b] = sn.open;
         if (sn.deck[a] === sn.deck[b]) { sn.done.push(a, b); sn.open = []; if (sn.done.length === sn.deck.length) sn.phase = 'won'; }   // a pair: they stay up
-        else { sn.misses++; sn.hideAt = now() + 1100; }                                       // not a pair: they turn back over in a moment
+        else { sn.misses++; sn.hideAt = now() + 2000; }                                       // not a pair: they stay up long enough to remember, then turn back
         if (sn.first) { sn.first = other(sn.first); sn.turn = sn.first; }                     // and the roles swap
       }
       if (kind === 'collect') {
