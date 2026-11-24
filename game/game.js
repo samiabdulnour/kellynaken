@@ -424,17 +424,50 @@
 
   // What every game shares: its own bar in place of the scene's, a line of advice, and the card at the end.
   function stage(barHtml, advice) {
-    const hud = add(`<div class="bar">${barHtml}</div>`);
+    const hud = add(`<div class="bar hud">${barHtml}</div>`);
     K.ui.firstElementChild.remove();
+    // A way out in the middle of a game, asked twice so a stray tap does not end it. With two playing, both go back.
+    const quit = add('<button class="quit" aria-label="Odejít ze hry">×</button>');
+    quit.addEventListener('click', () => {
+      if (K.ui.querySelector('.card.ask')) return;
+      beep(440);
+      const ask = add('<div class="card ask"><h2>Odejít?</h2><p>Hra skončí a vrátíte se na mapu.</p><div class="two"><button class="btn" data-a="stay">Hrát dál</button><button class="btn red" data-a="go">Odejít</button></div></div>');
+      ask.addEventListener('click', (e) => { const b = e.target.closest('[data-a]'); if (!b) return; beep(520); if (b.dataset.a === 'go') Net.send({ type: 'back' }); else ask.remove(); });
+    });
     const tip = add(`<p class="tip">${esc(advice)}</p>`);
     return {
       hud, tip,
       end(won, title, text) {
-        tip.remove();
+        tip.remove(); quit.remove(); K.ui.querySelectorAll('.pad, .card.ask').forEach((p) => p.remove());
         const card = add(`<div class="card"><h2>${esc(title)}</h2><p>${esc(text)}</p><button class="btn">${won ? 'Dál' : 'Znovu'}</button></div>`);
         card.querySelector('button').addEventListener('click', () => { beep(520, 660); Net.send({ type: won ? 'cont' : 'retry' }); });
         beep(...(won ? [520, 660, 780, 1040] : [220, 160]));
       },
+    };
+  }
+  // The buttons along the bottom, the same in every game: moving (◀ ▶, held down) under the left thumb, the main
+  // thing to do under the right one, big and yellow. Tapping the picture still works as well.
+  // A key is { id, label, side: 'left' | 'right', big, hidden, count, press(), release() }; 'left' and 'right' are arrows.
+  function pad(keys) {
+    const html = (k) => `<button class="key${k.big ? ' big' : ''}" data-k="${k.id}"${k.hidden ? ' hidden' : ''}>${k.id === 'left' || k.id === 'right' ? `<i class="arrow ${k.id}"></i>` : `<span>${esc(k.label)}</span>`}${k.count !== undefined ? '<b></b>' : ''}</button>`;
+    const el = add(`<div class="pad"><div>${keys.filter((k) => k.side === 'left').map(html).join('')}</div><div>${keys.filter((k) => k.side !== 'left').map(html).join('')}</div></div>`);
+    const btn = (id) => el.querySelector(`[data-k="${id}"]`);
+    for (const k of keys) {
+      const b = btn(k.id);
+      const off = () => { if (!b.classList.contains('on')) return; b.classList.remove('on'); if (k.release) k.release(); };
+      b.addEventListener('pointerdown', (e) => {
+        e.preventDefault(); e.stopPropagation(); if (b.disabled) return;
+        b.classList.add('on'); try { b.setPointerCapture(e.pointerId); } catch (x) { /* not every browser */ }
+        if (k.press) k.press();
+      });
+      for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) b.addEventListener(ev, off);
+      b.addEventListener('contextmenu', (e) => e.preventDefault());
+    }
+    return {
+      show(id, yes) { btn(id).hidden = !yes; },
+      enable(id, yes) { btn(id).disabled = !yes; },
+      label(id, text) { btn(id).querySelector('span').textContent = text; },
+      count(id, n) { const b = btn(id).querySelector('b'); if (b) b.textContent = n; },
     };
   }
   const hearts = (el, n, max) => { el.innerHTML = Array.from({ length: max }, (_, i) => `<i class="${i < n ? 'on' : ''}"></i>`).join(''); };
@@ -456,8 +489,9 @@
     const how = sc.pickup && WORLD.items[sc.pickup].use;                    // 'hit' (the drumstick) or 'throw' (the boomerang)
     const s = { t: 0, y: 0, vy: 0, inv: 0, over: false, lost: false, obs, pickAt, asked: false, told: false, sent: 0, mate: { y: 0, vy: 0 },
       throws: 0, fly: null, whack: -9, mateFly: null, how };
-    let live = sn, button = null;
-    const view = stage('<span class="lives"></span><span class="meter"><i></i></span>', `Klepni a skoč${cfg.high ? '. Pod letící věcí zůstaň dole' : ''}.`);
+    let live = sn;
+    const view = stage('<span class="lives"></span><span class="meter"><i></i></span>', `Skákej tlačítkem nebo klepnutím${cfg.high ? '. Pod letící věcí zůstaň dole' : ''}.`);
+    const keys = pad([{ id: 'throw', label: 'Hoď', side: 'left', hidden: true, count: 0, press: () => throwIt() }, { id: 'jump', label: 'Skok', big: true, press: () => jump() }]);
     const powered = () => how === 'hit' && Net.now() < live.power;
     const paint = () => { hearts(view.hud.firstElementChild, live.lives, max); view.hud.lastElementChild.firstElementChild.style.width = clamp(s.t / cfg.seconds, 0, 1) * 100 + '%'; };
     const runner = (w, x, gy, b, pose) => {
@@ -465,13 +499,9 @@
       K.hero(w, x, gy - b.y - (cfg.board ? 1 : 0), pose || (b.y > 0 ? 'jump' : cfg.board ? 'surf' : 'run'), Math.max(0, s.t));
     };
     // The boomerang is thrown: it flies ahead at chest height, knocks out the first thing in its way, and comes back.
-    function paintButton() { if (button) { button.querySelector('b').textContent = s.throws; button.disabled = !!s.fly || !s.throws; } }
-    function giveBoomerang() {
-      s.throws = 3;
-      button = add('<button class="btn throw"><span>Hoď</span> <b></b></button>');
-      button.addEventListener('pointerdown', (e) => { e.stopPropagation(); e.preventDefault(); throwIt(); });
-      paintButton();
-    }
+    function paintButton() { if (s.how === 'throw') { keys.count('throw', s.throws); keys.enable('throw', !s.fly && s.throws > 0); } }
+    function giveBoomerang() { s.throws = 3; keys.show('throw', true); paintButton(); }
+    function jump() { if (!s.over && s.t > 0 && s.y <= 0) { s.vy = JUMP; beep(520); Net.send({ type: 'fx', k: 'jump' }); if (!s.told) view.tip.textContent = ''; } }
     function throwIt() {
       if (s.over || s.fly || !s.throws) return;
       s.throws--; s.fly = { x: X + 8, y: GY - s.y - 26, vx: 190, back: false, hit: false };
@@ -499,8 +529,8 @@
         if (s.told && how === 'hit' && !powered() && !s.over) view.tip.textContent = '';
       },
       fx(m) { if (m.k === 'jump' && s.mate.y <= 0) s.mate.vy = JUMP; if (m.k === 'throw' && !s.mateFly) s.mateFly = { x: X - 14, y: GY - 31, vx: 190, back: false }; },
-      over(won) { s.over = true; s.lost = !won; if (button) button.remove(); paint(); view.end(won, won ? 'Zvládnuto!' : 'Au!', won ? 'Jste na místě.' : 'Zkuste to ještě jednou.'); },
-      down() { if (!s.over && s.t > 0 && s.y <= 0) { s.vy = JUMP; beep(520); Net.send({ type: 'fx', k: 'jump' }); if (!s.told) view.tip.textContent = ''; } },
+      over(won) { s.over = true; s.lost = !won; paint(); view.end(won, won ? 'Zvládnuto!' : 'Au!', won ? 'Jste na místě.' : 'Zkuste to ještě jednou.'); },
+      down() { jump(); },
       throwIt,
       update(dt) {
         if (s.over) return;
@@ -808,9 +838,10 @@
   function Find(sc, place, sn) {
     const cfg = sc.find, who = me(), GY = sc.ground || GROUND;
     const { koalas } = Room.course.find(sn.seed, sc);
-    const s = { t: 0, over: false, lost: false, off: 0, got: new Set(), sent: 0, miss: null, when: {} };
+    const s = { t: 0, over: false, lost: false, off: 0, got: new Set(), sent: 0, miss: null, when: {}, pan: 0 };
     let live = sn;
-    const view = stage('<span class="count"></span><span class="meter"><i></i></span>', cfg.hidden ? 'Koaly se schovávají ve stromech. Táhni obrázkem a hledej.' : 'Koaly vykukují ze stromů. Klepni na ně, než se schovají.');
+    const view = stage('<span class="count"></span><span class="meter"><i></i></span>', cfg.hidden ? 'Koaly se schovávají ve stromech. Rozhlížej se šipkami a klepni na koalu.' : 'Koaly vykukují ze stromů. Klepni na ně, než se schovají.');
+    pad([{ id: 'left', side: 'left', press: () => { s.pan = -1; }, release: () => { s.pan = 0; } }, { id: 'right', side: 'left', press: () => { s.pan = 1; }, release: () => { s.pan = 0; } }]);
     const pic = () => K.picture(sc.bg), width = () => (pic() ? pic().naturalWidth : W), most = () => Math.max(0, width() - W);
     const found = (k) => s.got.has(k.id) || live.found.includes(k.id);
     const out = (k) => { const u = s.t - k.first; return u >= 0 && u % k.period < cfg.show; };                 // peeking right now
@@ -835,8 +866,9 @@
         if (k) { s.got.add(k.id); s.when[k.id] = s.t; beep(660, 880, 1100); view.tip.textContent = ''; Net.send({ type: 'ev', e: 'find', id: k.id }); }
         else { s.miss = { x, y, at: s.t }; beep(180); }
       },
-      update() {
+      update(dt) {
         if (s.over) return;
+        if (s.pan) s.off = clamp(s.off + s.pan * 120 * dt, 0, most());          // looking round with the arrows
         s.t = clock(live);
         if (s.t >= cfg.seconds && Net.now() - s.sent > 1000) { s.sent = Net.now(); Net.send({ type: 'ev', e: 'finish' }); }
         paint();
@@ -879,12 +911,14 @@
   function Salon(sc, place, sn) {
     const cfg = sc.salon, who = me(), ST = cfg.stations, SPEED = 84, max = sn.lives;
     const NAME = { wash: 'umýt', cut: 'ostříhat', dye: 'obarvit', dry: 'vyfoukat', pay: 'zaplatit' };
-    const QX = 14, QY = [214, 236, 258, 280];
+    const QX = 16, QY = [214, 236, 258, 280], CUST = 0.55;
     const home = (w) => (w === who ? { x: 96, y: 236 } : { x: 120, y: 250 });
     const s = { t: 0, over: false, lost: false, me: { ...home(who), to: null, go: null, walked: [] }, mate: { ...home(mate()), to: null }, shout: 0, seenNo: {}, no: null };
     let live = sn;
     const view = stage('<span class="lives"></span><span class="clock"></span><span class="meter"><i></i></span>', 'Klepni na zákazníka a pak na místo, kam ho vedeš. Kde stojíš, tam pracuješ.');
     const shout = add('<p class="shout" hidden>NELÍTEJTE!</p>');
+    // Leading someone who cannot go where they want yet: let go of them, and they wait in the line again.
+    const keys = pad([{ id: 'drop', label: 'Pustit', big: true, hidden: true, press: () => { const c = leading(who); if (c && !s.over) { beep(330, 260); Net.send({ type: 'ev', e: 'drop', c: c.id }); } } }]);
     const spot = (i) => ({ x: ST[i].x + 13, y: ST[i].y + 22 });                                 // where a hairdresser stands to work there
     const leading = (w) => live.cust.find((c) => c.by === w);
     const queued = () => live.cust.filter((c) => c.at === -2).sort((a, b) => a.id - b.id);
@@ -921,8 +955,8 @@
       const shook = c.no && s.no && s.no.id === c.id && s.t - s.no.at < 0.6 ? Math.round(Math.sin(s.t * 50) * 2) : 0;
       if (K.has('customers', 'c0')) {                                                              // drawn customers: a new hairdo once only paying is left
         const k = c.id % 6, done = c.step >= c.order.length - 1;
-        K.figure('customers', x + shook, y, (done ? 'd' : 'c') + k, 0, false, 0.56);
-        if (did('wash') && !did('dry')) { rect(x - 8, y - 26, 1, 2, '#7CC6F2'); rect(x + 7, y - 30, 1, 2, '#7CC6F2'); }
+        K.figure('customers', x + shook, y, (done ? 'd' : 'c') + k, 0, false, CUST);              // grown-ups as tall as Mamka
+        if (did('wash') && !did('dry')) { rect(x - 9, y - 52, 1, 2, '#7CC6F2'); rect(x + 8, y - 58, 1, 2, '#7CC6F2'); rect(x + 10, y - 50, 1, 2, '#7CC6F2'); }
         return;
       }
       const hair = did('dye') ? c.dye : c.hair, long = c.long && !did('cut'), wet = did('wash') && !did('dry');
@@ -945,7 +979,7 @@
     }
     function bubble(c, x, y) {                                                                    // what they want next, and how patient they still are
       const k = c.order[c.step], ready = c.at >= 0 && ST[c.at].k !== k, b = ready ? Math.round(Math.abs(Math.sin(s.t * 6)) * 2) : 0;
-      x = Math.round(x); y = Math.round(y) - 46 - b;
+      x = Math.round(x); y = Math.round(y) - 76 - b;
       rect(x - 8, y - 8, 16, 15, INK); rect(x - 7, y - 7, 14, 13, '#FFF8E7'); rect(x - 1, y + 7, 2, 2, INK);
       icon(k, x, y - 1);
       const f = clamp(c.pat / c.max, 0, 1);
@@ -957,7 +991,7 @@
         cust: live.cust.map((c) => ({ id: c.id, at: c.at, by: c.by, want: c.order[c.step], work: c.work, ...where(c) })) }),
       sync(n) {
         for (const c of n.cust) if (c.no && c.no !== s.seenNo[c.id]) { s.seenNo[c.id] = c.no; if (c.by === who) { s.no = { id: c.id, at: s.t }; beep(180); view.tip.textContent = `Teď chce ${NAME[c.order[c.step]]}.`; } }
-        live = n; paint();
+        live = n; paint(); keys.show('drop', !s.over && !!leading(who));
       },
       fx(m) { if (m.k === 'walk') s.mate.to = { x: m.x, y: m.y }; },
       over(won) { s.over = true; s.lost = !won; shout.hidden = true; paint(); view.end(won, won ? 'Salon je prázdný!' : 'Zákazníci utekli.', won ? `Všichni odešli spokojení. V kase je ${live.coins} korun.` : `Obsloužili jste ${live.served} z ${live.need}. Zkuste to ještě jednou.`); },
@@ -1104,7 +1138,9 @@
     const items = Room.course.collect(sn.seed, sc);
     const s = { t: 0, over: false, lost: false, me: { x: 60, to: null }, mate: { x: 130, to: null }, sent: 0, asked: new Set(), stungBy: new Set() };
     let live = sn;
-    const view = stage('<span class="lives"></span><span class="count"></span><span class="meter"><i></i></span>', 'Klepni, kam běžet. Sbírej kousky vzkazu. Pozor na medúzy!');
+    const view = stage('<span class="lives"></span><span class="count"></span><span class="meter"><i></i></span>', 'Běhej šipkami nebo klepni, kam běžet. Sbírej kousky vzkazu. Pozor na medúzy!');
+    const runTo = (x) => { if (s.over || s.t < 0) return; s.me.to = clamp(x, 10, W - 10); Net.send({ type: 'fx', k: 'walk', x: s.me.to }); };
+    pad([{ id: 'left', side: 'left', press: () => runTo(10), release: () => runTo(s.me.x) }, { id: 'right', side: 'left', press: () => runTo(W - 10), release: () => runTo(s.me.x) }]);
     const out = (it) => s.t >= it.at && s.t < it.at + cfg.stay;
     const taken = (it) => live.got.includes(it.id) || s.asked.has(it.id);
     const paint = () => {
@@ -1160,7 +1196,8 @@
     const cfg = sc.rescue, who = me(), GY = sc.ground || GROUND, G = 520, HX = 34, HY = GY - 26, LAND = cfg.land;
     const s = { t: 0, over: false, lost: false, buoys: [], mateBuoys: [], cool: 0, taps: 0, sentTaps: 0, lastSend: 0, splash: [], stuck: 0 };
     let live = sn, stage0 = sn.stage;
-    const view = stage('<span class="lives"></span><span class="count"></span><span class="meter"><i></i></span>', 'Klepni, když je ručička v zeleném. Hoď jim kruh!');
+    const view = stage('<span class="lives"></span><span class="count"></span><span class="meter"><i></i></span>', 'Hoď, když je ručička v zeleném!');
+    const keys = pad([{ id: 'act', label: 'Hoď', big: true, press: () => press() }]);
     const meter = (t) => (Math.sin(t * 2.6) + 1) / 2;                                    // swings 0..1
     const pulling = () => live.stage === 'pull';
     const pullT = () => (Net.now() - live.pullAt) / 1000;
@@ -1171,21 +1208,22 @@
     };
     paint();
     function launch(list, p, x0) { list.push({ x: x0, y: HY, vx: 20 + 190 * p, vy: -300, done: false }); }
+    function press() {                                                                    // throw a lifebuoy, or once they hold on, pull
+      if (s.over || s.t < 0) return;
+      if (pulling()) { if (pullT() >= 0) { s.taps++; beep(300 + (s.taps % 4) * 40); } return; }
+      if (s.cool > 0) return;
+      const p = meter(s.t); launch(s.buoys, p, HX); s.cool = 0.9; beep(440, 660);
+      Net.send({ type: 'fx', k: 'buoy', p });
+    }
     return {
       s, kind: 'rescue', peek: () => ({ stage: live.stage, meter: meter(s.t), cool: s.cool, pullT: pullT() }),
       sync(n) {
         live = n; paint();
-        if (n.stage !== stage0) { stage0 = n.stage; view.tip.textContent = 'Drží se! Klepejte co nejrychleji a táhněte je k molu!'; beep(520, 660, 780); }
+        if (n.stage !== stage0) { stage0 = n.stage; keys.label('act', 'Táhni!'); view.tip.textContent = 'Drží se! Mačkejte Táhni co nejrychleji, ať jsou u mola dřív než žralok!'; beep(520, 660, 780); }
       },
       fx(m) { if (m.k === 'buoy') launch(s.mateBuoys, m.p, HX); },                      // the same arc as on their own screen
       over(won) { s.over = true; s.lost = !won; paint(); view.end(won, won ? 'Jsou na molu!' : pulling() ? 'Žralok byl rychlejší!' : 'Došly záchranné kruhy.', won ? 'Žralok odplouvá s prázdnou.' : 'Zkuste to ještě jednou.'); },
-      down() {
-        if (s.over || s.t < 0) return;
-        if (pulling()) { if (pullT() >= 0) { s.taps++; beep(300 + (s.taps % 4) * 40); } return; }
-        if (s.cool > 0) return;
-        const p = meter(s.t); launch(s.buoys, p, HX); s.cool = 0.9; beep(440, 660);
-        Net.send({ type: 'fx', k: 'buoy', p });
-      },
+      down() { press(); },
       update(dt) {
         if (s.over) return;
         s.t = clock(live); s.cool -= dt;
@@ -1245,7 +1283,7 @@
     const two = () => mateHere(), steers = () => !two() || who === 'ken', drops = () => !two() || who === 'kel';
     const POSES = ['floor', 'plants', 'lights'];
     const s = { t: 0, over: false, lost: false, crane: sn.crane, mateCrane: sn.crane, sent: 0, told: 0, cam: 0, fall: null, seen: 0, spark: null, target: null };
-    let live = sn, button = null;
+    let live = sn;
     const view = stage('<span class="lives"></span><span class="count"></span><span class="meter"><i></i></span>', '');
     const crane = () => (steers() ? s.crane : s.mateCrane);
     const hook = () => crane() + Room.course.sway(s.t, live.floors.length - 1);
@@ -1258,10 +1296,9 @@
     };
     const tip = () => { if (!s.over && !s.seen) view.tip.textContent = !two() ? 'Táhni jeřáb a pusť patro.' : steers() ? `Ty řídíš jeřáb. ${heroName(mate())} pouští patra.` : `Ty pouštíš patra. Jeřáb řídí ${heroName(mate())}.`; };
     view.tip.classList.add('up'); paint(); tip();
-    if (drops()) {                                                      // the drop button, for whoever lets the storeys go
-      button = add('<button class="btn throw drop">Pusť!</button>');
-      button.addEventListener('pointerdown', (e) => { e.stopPropagation(); e.preventDefault(); dropIt(); });
-    }
+    // The arrows for whoever drives the crane, the big button for whoever lets the storeys go (alone: both).
+    const hold = (to) => ({ press: () => { if (!s.over) s.target = to; }, release: () => { s.target = null; } });
+    pad([...(steers() ? [{ id: 'left', side: 'left', ...hold(24) }, { id: 'right', side: 'left', ...hold(168) }] : []), ...(drops() ? [{ id: 'drop', label: 'Pusť!', big: true, press: () => dropIt() }] : [])]);
     function dropIt() { if (s.over || s.t < 0 || Net.now() < live.busyUntil) return; beep(330); Net.send({ type: 'ev', e: 'drop' }); }
     function steer(x) {
       s.crane = clamp(x, 24, 168);
@@ -1283,7 +1320,7 @@
         live = n; paint();
       },
       fx(m) { if (m.k === 'crane' && !steers()) s.mateCrane = m.x; },
-      over(won) { s.over = true; s.lost = !won; if (button) button.remove(); paint(); view.end(won, won ? 'Dům stojí!' : 'Spadlo to.', won ? 'Sydney má nový mrakodrap.' : 'Zkuste to ještě jednou.'); },
+      over(won) { s.over = true; s.lost = !won; paint(); view.end(won, won ? 'Dům stojí!' : 'Spadlo to.', won ? 'Sydney má nový mrakodrap.' : 'Zkuste to ještě jednou.'); },
       down(x, y) {
         if (s.over || y < 22) return;
         if (drops() && !steers()) return dropIt();                     // Kellyn: a tap anywhere lets the storey go

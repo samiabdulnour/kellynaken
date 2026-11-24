@@ -747,9 +747,9 @@ window.SPRITES = {
   },
   "customers": {
     "file": "customers.png",
-    "w": 26,
-    "h": 59,
-    "scale": 0.5,
+    "w": 52,
+    "h": 118,
+    "scale": 0.25,
     "fps": 1,
     "poses": {
       "c0": [
