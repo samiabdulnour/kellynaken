@@ -91,10 +91,10 @@ window.WORLD = {
       saves: [],
       look: { sky: '#8FD3F4', far: '#F2C078', far2: '#E7A6B5', ground: '#A39B96', line: '#7A6F6A' },
       scenes: [
-        { id: 'praha-home', name: 'Doma', at: [26, 222], label: 'below', bg: 'praha-home', play: 'shoot',
+        { id: 'praha-home', name: 'Doma', at: [22, 234], label: 'below', bg: 'praha-home', play: 'shoot',
           shoot: { need: 8, every: 1.5, stay: 3.4, sway: 0, target: 'zámek' },
           talk: [['', 'Doma je divné ticho. Někdo tu chybí…'], ['', 'A někdo vás zamkl! Na dveřích, na skříních, všude visí zámky.'], ['hero', 'Ty zámky sestřelím!']] },
-        { id: 'praha-street', name: 'Ulice', at: [64, 232], label: 'below', bg: 'praha-street', scroll: true, play: 'run',
+        { id: 'praha-street', name: 'Ulice', at: [56, 250], label: 'below', bg: 'praha-street', scroll: true, play: 'run',
           run: { seconds: 24, low: 'holub', high: '', art: { low: ['prague', 'pigeon'] } },
           talk: [['', 'Venku na chodníku leží hřeben a kousek dál sponka do vlasů. Stopa vede ulicí!'], ['', 'Klepni a přeskoč, co ti stojí v cestě.']] },
       ],
@@ -106,12 +106,12 @@ window.WORLD = {
       saves: [{ id: 'leila', name: 'Mamka' }],           // Leila on the character sheet; in the game she is Mamka
       look: { sky: '#8FD3F4', far: '#F2C078', far2: '#E7A6B5', ground: '#A39B96', line: '#7A6F6A' },
       scenes: [
-        { id: 'praha-door', name: 'Před salonem', at: [94, 212], label: 'right', bg: 'praha-door', play: 'memory',
+        { id: 'praha-door', name: 'Před salonem', at: [72, 240], label: 'right', bg: 'praha-door', play: 'memory',
           memory: { pairs: 8, miss: 10, key: true, won: 'A pod poslední dvojicí byl klíč. Dveře jsou odemčené!',
             faces: [['salonkit', 'scissors'], ['salonkit', 'comb'], ['salonkit', 'brush'], ['salonkit', 'dryer'], ['salonkit', 'spray'], ['salonkit', 'dye'], ['salonkit', 'curlers'], ['salonkit', 'mirror']] },
           talk: [['', 'Kadeřnictví je zamčené. Na dveřích visí cedulka: Klíč dostane, kdo najde všechny dvojice.'], ['', 'Na lavičce před dveřmi leží kartičky. Samé kadeřnické věci.'], ['hero', 'Pexeso! Jeden otočí první kartičku, druhý k ní hledá dvojici.']] },
         // From here on she is found: the salon is full and she cannot get away until every customer is done.
-        { id: 'praha-salon', name: 'V salonu', at: [106, 198], label: 'right', bg: 'praha-salon', play: 'salon', cast: ['leila'],
+        { id: 'praha-salon', name: 'V salonu', at: [84, 226], label: 'right', bg: 'praha-salon', play: 'salon', cast: ['leila'],
           salon: {
             seconds: 150, need: 5, patience: 36, every: [11, 15],
             stations: [{ k: 'wash', x: 30, y: 184 }, { k: 'cut', x: 70, y: 184 }, { k: 'dye', x: 110, y: 184 }, { k: 'dry', x: 150, y: 184 }, { k: 'pay', x: 120, y: 262 }],
@@ -127,7 +127,7 @@ window.WORLD = {
       saves: [{ id: 'alan', name: 'Alan' }],
       look: { sky: '#BFE3F2', far: '#A9A6A0', far2: '#8A9A72', ground: '#7FAE66', line: '#5C8650' },
       scenes: [
-        { id: 'strahov-hill', name: 'Do kopce', at: [40, 186], label: 'right', bg: 'strahov-hill', scroll: true, play: 'run', pickup: 'drumstick',
+        { id: 'strahov-hill', name: 'Do kopce', at: [40, 196], label: 'right', bg: 'strahov-hill', scroll: true, play: 'run', pickup: 'drumstick',
           run: { seconds: 26, low: 'šiška', high: 'vrána', art: { low: ['strahov', 'cone'], high: ['strahov', 'crow'] } },
           talk: [['', 'Z kopce nad městem někdo volá o pomoc.'], ['', 'Nahoru se musí pěšky. Šišku přeskoč, pod vránou zůstaň dole.']] },
         { id: 'strahov-gate', name: 'Brána stadionu', at: [62, 149], label: 'below', bg: 'strahov-gate', play: 'shoot',
