@@ -14,6 +14,7 @@
 //   fx {...}            something only to show on the other device (a jump, a shot, a drum tap)
 //   cont / retry        after a scene is won / lost              home             back to the map after a rescue
 //   back                up one level: from a level to its map, from a region's map to the map around it
+//   pause / resume      stop a game for both of them, and carry on from exactly where it stopped
 // The room answers everyone with its whole state after every change.
 (function (root) {
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -219,7 +220,7 @@
 
     // Something that counts, reported by a device while a game is on.
     function event(who, m) {
-      const sn = S.scene; if (!sn || sn.phase !== 'play') return;
+      const sn = S.scene; if (!sn || sn.phase !== 'play' || sn.paused) return;
       const sc = place().scenes[sn.index], kind = sc.play;
       if (m.e === 'pick' && sc.pickup && !sn.picked) {                                  // one grabs it, both get it
         sn.picked = true;
@@ -311,7 +312,12 @@
       if (!m || (who !== 'ken' && who !== 'kel')) return;
       if (m.type === 'fx') return emit(who === 'ken' ? 'kel' : 'ken', { ...m, type: 'fx', from: who });
       const sn = S.scene, sc = sn && place().scenes[sn.index];
-      if (m.type === 'back') {
+      // A pause stops the game's clock: on carrying on, every moment the game keeps is moved on by the pause.
+      if (m.type === 'pause') { if (sn && sn.phase === 'play' && !sn.paused) { sn.paused = now(); sn.pausedBy = who; } }
+      else if (m.type === 'resume') {
+        if (sn && sn.paused) { const d = now() - sn.paused; for (const k of ['startAt', 'busyUntil', 'hideAt', 'pullAt', 'power', 'showAt', 'listenAt', 'endAt', 'finAt']) if (sn[k]) sn[k] += d; sn.paused = 0; }
+      }
+      else if (m.type === 'back') {
         if (S.where.screen === 'scene' || S.where.screen === 'rescued') { S.scene = null; S.where = regionOf(place()); }
         else if (S.where.screen === 'region') S.where = { screen: world.regions[S.where.region].up };
       } else if (m.type === 'home') S.where = place() ? regionOf(place()) : { screen: 'map' };
@@ -338,7 +344,7 @@
 
     return {
       state: S,
-      tick() { const a = salonTick(), b = clockTick(); if (a || b) push(); },
+      tick() { if (S.scene && S.scene.paused) return; const a = salonTick(), b = clockTick(); if (a || b) push(); },
       join(who, save) { S.online[who] = true; merge(save); push(); },
       leave(who) {
         S.online[who] = false;

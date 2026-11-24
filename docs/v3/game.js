@@ -359,6 +359,12 @@
       if (sn.phase === 'play' && !act) act = { run: Runner, drums: Drums, shoot: Shoot, echo: Echo, find: Find, salon: Salon, memory: Memory, collect: Collect, rescue: Rescue, tower: Tower }[sc.play](sc, place, sn);
       if (act) act.sync(sn);
       if (act && (sn.phase === 'won' || sn.phase === 'lost') && was !== sn.phase) act.over(sn.phase === 'won');
+      const held = K.ui.querySelector('.card.pause');
+      if (sn.paused && sn.phase === 'play' && !held) {                                    // paused, by either of them: both see it
+        const by = sn.pausedBy && sn.pausedBy !== who && mateHere() ? `${heroName(sn.pausedBy)} dal${sn.pausedBy === 'kel' ? 'a' : ''} pauzu.` : 'Hra stojí.';
+        const card = add(`<div class="card pause"><h2>Pauza</h2><p>${esc(by)}</p><div class="two"><button class="btn" data-a="resume">Hrát dál</button><button class="btn red" data-a="back">Zpět na mapu</button></div></div>`);
+        card.addEventListener('click', (e) => { const b = e.target.closest('[data-a]'); if (b) { beep(520); Net.send({ type: b.dataset.a }); } });
+      } else if (held && (!sn.paused || sn.phase !== 'play')) held.remove();
       was = sn.phase; line = sn.line;
     }
     return {
@@ -371,12 +377,12 @@
       sync(s) { sn = s.scene; paint(); },
       fx(m) { if (act && act.fx) act.fx(m); },
       get act() { return act; },
-      down(x, y) { if (act && sn.phase === 'play') act.down(x, y); },      // games answer the moment a finger lands, not when it lifts
-      move(x, y, dx) { if (act && act.move) act.move(x, y, dx); },
-      tap(x, y) { if (act && act.tap) act.tap(x, y); else if (!act && box) box.click(); },
+      down(x, y) { if (act && sn.phase === 'play' && !sn.paused) act.down(x, y); },      // games answer the moment a finger lands, not when it lifts
+      move(x, y, dx) { if (act && act.move && !sn.paused) act.move(x, y, dx); },
+      tap(x, y) { if (act && act.tap) { if (!sn.paused) act.tap(x, y); } else if (!act && box) box.click(); },
       update(dt) {
-        t += dt; if (act) act.update(dt);
-        if (act && sn.phase === 'play') {                                                // 2, 1, Start! while the game gets going
+        t += dt; if (act && !sn.paused) act.update(dt);                                   // paused: everything stands still
+        if (act && sn.phase === 'play' && !sn.paused) {                                  // 2, 1, Start! while the game gets going
           const c = (sn.startAt - Net.now()) / 1000;
           if (!go) go = add('<p class="go"></p>');
           const text = c > 0 ? String(Math.ceil(c)) : c > -0.6 ? 'Start!' : '';
@@ -441,19 +447,15 @@
   function stage(barHtml, advice) {
     const hud = add(`<div class="bar hud">${barHtml}</div>`);
     K.ui.firstElementChild.remove();
-    // A way out in the middle of a game, asked twice so a stray tap does not end it. With two playing, both go back.
-    const quit = add('<button class="quit" aria-label="Zpět na mapu">&lt;</button>');                 // back to the map, where the other screens have their back button
-    quit.addEventListener('click', () => {
-      if (K.ui.querySelector('.card.ask')) return;
-      beep(440);
-      const ask = add('<div class="card ask"><h2>Zpět na mapu?</h2><p>Tahle hra skončí. Zahrát si ji můžete kdykoli znovu.</p><div class="two"><button class="btn" data-a="stay">Hrát dál</button><button class="btn red" data-a="go">Zpět</button></div></div>');
-      ask.addEventListener('click', (e) => { const b = e.target.closest('[data-a]'); if (!b) return; beep(520); if (b.dataset.a === 'go') Net.send({ type: 'back' }); else ask.remove(); });
-    });
+    // Pause, top left where the other screens have their back button: it stops the game for both of them and offers
+    // to carry on or to go back to the map (see Play, which shows the pause for whoever's phone it is).
+    const quit = add('<button class="quit" aria-label="Pauza"><i></i><i></i></button>');
+    quit.addEventListener('click', () => { beep(440); Net.send({ type: 'pause' }); });
     const tip = add(`<p class="tip">${esc(advice)}</p>`);
     return {
       hud, tip,
       end(won, title, text) {
-        tip.remove(); quit.remove(); K.ui.querySelectorAll('.pad, .card.ask').forEach((p) => p.remove());
+        tip.remove(); quit.remove(); K.ui.querySelectorAll('.pad, .card.pause').forEach((p) => p.remove());
         const card = add(`<div class="card"><h2>${esc(title)}</h2><p>${esc(text)}</p><div class="two"><button class="btn" data-a="${won ? 'cont' : 'retry'}">${won ? 'Dál' : 'Znovu'}</button>${won ? '' : '<button class="btn" data-a="map">Mapa</button>'}</div></div>`);
         card.addEventListener('click', (e) => { const b = e.target.closest('[data-a]'); if (!b) return; beep(520, 660); Net.send({ type: b.dataset.a === 'map' ? 'back' : b.dataset.a }); });
         beep(...(won ? [520, 660, 780, 1040] : [220, 160]));
@@ -471,7 +473,7 @@
       const b = btn(k.id);
       const off = () => { if (!b.classList.contains('on')) return; b.classList.remove('on'); if (k.release) k.release(); };
       b.addEventListener('pointerdown', (e) => {
-        e.preventDefault(); e.stopPropagation(); if (b.disabled) return;
+        e.preventDefault(); e.stopPropagation(); if (b.disabled || (st() && st().scene && st().scene.paused)) return;
         b.classList.add('on'); try { b.setPointerCapture(e.pointerId); } catch (x) { /* not every browser */ }
         if (k.press) k.press();
       });
@@ -1291,7 +1293,7 @@
     const keys = pad([{ id: 'act', label: 'Hoď', big: true, press: () => press() }]);
     const meter = (t) => (Math.sin(t * 2.6) + 1) / 2;                                    // swings 0..1
     const pulling = () => live.stage === 'pull';
-    const pullT = () => (Net.now() - live.pullAt) / 1000;
+    const pullT = () => ((live.paused || Net.now()) - live.pullAt) / 1000;              // stands still while paused
     const paint = () => {
       hearts(view.hud.children[0], live.lives, sn.lives);
       view.hud.children[1].textContent = pulling() ? `${Math.min(live.pull, live.needPull)} / ${live.needPull}` : `${live.hits} / ${live.needHits}`;
