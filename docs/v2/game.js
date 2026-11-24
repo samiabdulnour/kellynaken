@@ -1554,5 +1554,8 @@
 
   K.net = Net;                                 // for looking in from outside when testing
   go(Title);
+  // Every other picture, asked for while the title is up, so a level opens without waiting for its pictures.
+  setTimeout(() => K.preload([...((window.ASSETS && window.ASSETS.bg) || []).map((id) => `assets/bg/${id}.png`),
+    ...Object.values(K.sprites).flatMap((sp) => [sp.file, sp.faces && sp.faces.file, sp.still && sp.still.file].filter(Boolean)).map((f) => `assets/sprites/${f}`)]), 400);
   if (save.who) Title.join(save.who);          // back again: straight to one's seat
 })();

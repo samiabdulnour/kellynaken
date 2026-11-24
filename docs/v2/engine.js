@@ -94,9 +94,18 @@ const K = (() => {
   // Draw a background. A scrolling one repeats side by side, every other copy mirrored so the seams match.
   // `plain` repeats it without mirroring, for a picture whose own two edges already meet (and whose landmark,
   // mirrored, would stand next to its twin).
+  // While a picture is still loading: a dark screen with three dots taking turns, never the stand-in drawing.
+  function loading() {
+    ctx.fillStyle = INK; ctx.fillRect(0, 0, W, H);
+    const k = Math.floor(performance.now() / 300) % 3;
+    for (let i = 0; i < 3; i++) { ctx.fillStyle = i === k ? '#FFD43A' : '#7A6F6A'; ctx.fillRect(W / 2 - 10 + i * 8, H / 2, 4, 4); }
+  }
+  // Ask for pictures ahead of time, so they are there when a scene needs them.
+  const preload = (paths) => paths.forEach((p) => image(p));
   function background(id, off, look, plain) {
     const img = hasBg(id) ? image(`assets/bg/${id}.png`) : null;
-    if (!img || !ready(img)) return placeholder(id, off, look);
+    if (!img) return placeholder(id, off, look);                          // a picture that is not drawn yet at all
+    if (!ready(img)) return loading();                                    // still on its way: dark, with three dots
     const w = img.naturalWidth, o = Math.floor(off || 0);
     if (w <= W) { ctx.drawImage(img, 0, 0); return; }
     for (let k = Math.floor(o / w); k * w - o < W; k++) {
@@ -169,5 +178,5 @@ const K = (() => {
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
   const has = (sheet, pose) => !!(sprites[sheet] && sprites[sheet].poses && sprites[sheet].poses[pose]);
-  return { W, H, GROUND, INK, has, ctx, ui, clamp, hash, rng, rect, beep, drum, asset, save, write, hasBg, picture, background, sprites, figure, hero: figure, prop, go, add, esc, get scene() { return scene; } };
+  return { W, H, GROUND, INK, has, ctx, ui, clamp, hash, rng, rect, beep, drum, asset, preload, save, write, hasBg, picture, background, sprites, figure, hero: figure, prop, go, add, esc, get scene() { return scene; } };
 })();
