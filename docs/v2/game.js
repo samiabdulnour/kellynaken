@@ -8,10 +8,11 @@
 (() => {
   const { W, H, GROUND, INK, ctx, save, write, go, add, esc, rect, beep, clamp } = K;
   const WORLD = window.WORLD, places = WORLD.places, pins = WORLD.planet.pins;
+  const INSPECT = !!window.INSPECT;           // v3: one player, every level open, for trying levels out
 
   // ---- the line to the room ----
   const Net = (() => {
-    const solo = /[?&]solo\b/.test(location.search);                    // one device, for trying things out
+    const solo = INSPECT || /[?&]solo\b/.test(location.search);         // one device, for trying things out
     const base = location.protocol === 'file:' || /github\.io$/.test(location.hostname) ? WORLD.server : '';
     if (!save.id) { save.id = Math.random().toString(36).slice(2, 10); write(); }      // this device, so it can take its seat again
     let who = null, state = null, off = null, es = null, room = null, again = 0, ticker = 0;
@@ -37,7 +38,7 @@
       leave(); who = w;
       const mine = { places: save.places, album: save.album };
       if (solo) {
-        const r = Room.create({ world: WORLD, solo: true, now: () => Date.now(), emit: (to, m) => { if (to === 'all' || to === who) { const copy = JSON.parse(JSON.stringify(m)); setTimeout(() => { if (room === r) take(copy); }, 0); } } });
+        const r = Room.create({ world: WORLD, solo: true, open: INSPECT, now: () => Date.now(), emit: (to, m) => { if (to === 'all' || to === who) { const copy = JSON.parse(JSON.stringify(m)); setTimeout(() => { if (room === r) take(copy); }, 0); } } });
         room = r; clearInterval(ticker); ticker = setInterval(() => { if (room === r) r.tick(); }, 250);
         return r.join(who, mine);
       }
@@ -56,18 +57,39 @@
   const heroName = (w = me()) => WORLD.heroes[w].name;
   const clock = (sn) => (Net.now() - sn.startAt) / 1000;                 // seconds into a game, the same on both devices
 
+  // Who may play what. In the version for trying levels out (v3, window.INSPECT) everything is open.
   const progress = (p) => (st() && st().save.places[p.id]) || { scene: 0, done: false };
-  const isOpen = (p) => { const i = places.indexOf(p); return i === 0 || (i > 0 && progress(places[i - 1]).done); };
+  const isOpen = (p) => { const i = places.indexOf(p); return INSPECT || i === 0 || (i > 0 && progress(places[i - 1]).done); };
   const todo = (p) => isOpen(p) && !progress(p).done;
-  const stateOf = (p) => (progress(p).done ? 'hotovo' : isOpen(p) ? 'hraj' : 'zamčeno');
+  // A level: done, the one to play next (todo), open to play again or in any order (open), or not yet (locked).
+  const levelState = (p, i) => { const pr = progress(p); return pr.done || i < pr.scene ? 'done' : INSPECT ? 'todo' : isOpen(p) && i === pr.scene ? 'todo' : 'locked'; };
   const fullName = (p) => (p.area ? `${p.name} · ${p.area}` : p.name);
-  const behind = (pin) => (pin.places || []).map((id) => places.find((p) => p.id === id));
+  const inRegion = (r) => places.filter((p) => p.region === r);
+  const regionState = (r) => { const ps = inRegion(r); return ps.some(todo) ? 'todo' : ps.length && ps.every((p) => progress(p).done) ? 'done' : 'locked'; };
+  const behind = (pin) => (pin.map ? places.filter((p) => WORLD.regions[p.region].up === 'map') : pin.region ? inRegion(pin.region) : (pin.places || []).map((id) => places.find((p) => p.id === id)));
+  const later = (pin) => (pin.later || []).map((id) => (WORLD.later || []).find((p) => p.id === id)).filter(Boolean);   // places that open in the future
   const pinState = (pin) => {
     const ps = behind(pin);
     if (!ps.length) return 'soon';
     if (ps.some(todo)) return 'todo';
     return ps.some((p) => progress(p).done) ? 'done' : 'locked';
   };
+  // A pin on a flat map: a little flag on a post. Red and bobbing for what is next, green when done, grey when shut.
+  const flag = (x, y, state, t) => {
+    const bob = state === 'todo' ? Math.round(Math.sin(t * 5) * 2) : 0, lit = state === 'todo' || state === 'done';
+    rect(x - 1, y - 2, 2, 6, INK);
+    rect(x - 5, y - 12 + bob, 10, 10, INK);
+    rect(x - 4, y - 11 + bob, 8, 8, state === 'done' ? '#1FA463' : state === 'todo' ? '#CC2233' : '#7A6F6A');
+    rect(x - 2, y - 9 + bob, 4, 4, lit ? '#FFD43A' : '#B8ADA6');
+  };
+  const pinAt = ([x, y]) => `left:${(x / W) * 100}%;top:${(y / H) * 100}%`;    // a name next to its pin, in the UI layer
+  // Arriving on a map: it grows into place for a moment, as if zooming in.
+  const zoomIn = (t, draw) => {
+    const e = Math.min(1, t / 0.35), k = 0.55 + 0.45 * (1 - (1 - e) ** 3);
+    rect(0, 0, W, H, '#1A1B36');
+    ctx.save(); ctx.translate(W / 2, H / 2); ctx.scale(k, k); ctx.translate(-W / 2, -H / 2); draw(); ctx.restore();
+  };
+  const PAPER = { sky: '#F2E4BE', far: '#E2D3A2', far2: '#9BD16B', ground: '#F2E4BE', line: '#CBB57F' };
   const draft = (id) => { if (!K.hasBg(id)) add('<span class="draft">náhradní obrázek</span>'); };
   // A character's face from the sheet, for the UI. mood: 0 calm, 1 laughing, 2 surprised, 3 smiling, 4 eyes closed.
   // f is how many screen pixels each drawn pixel takes.
@@ -82,11 +104,11 @@
   const waiting = document.getElementById('wait');
   function route() {
     const s = st(); if (!s) return;
-    const key = s.where.screen === 'scene' ? 'scene:' + s.scene.key : s.where.screen + ':' + (s.where.place || '');
+    const key = s.where.screen === 'scene' ? 'scene:' + s.scene.key : s.where.screen + ':' + (s.where.place || s.where.region || '');
     if (key !== shown) {
       shown = key; away = false;
       const p = places.find((x) => x.id === s.where.place);
-      go(s.where.screen === 'place' ? Place(p) : s.where.screen === 'scene' ? Play(p, s.scene) : s.where.screen === 'rescued' ? Rescued(p) : Planet);
+      go(s.where.screen === 'region' ? Region(s.where.region) : s.where.screen === 'scene' ? Play(p, s.scene) : s.where.screen === 'rescued' ? Rescued(p) : s.where.screen === 'planet' ? Planet : Czechia);
     } else if (!away && K.scene && K.scene.sync) K.scene.sync(s);
     waiting.hidden = s.ready;
     waiting.textContent = `Čekám na ${heroName(mate())}. Hraje se ve dvou, každý na svém telefonu.`;
@@ -101,7 +123,8 @@
     t: 0, note: '', timers: [],
     enter() {
       add(`<div class="logo">${esc(WORLD.title).replace(' a ', '<br>a ')}<small>${esc(WORLD.subtitle)}</small></div>`);
-      const pick = add(`<div class="pick"><p>${esc(this.note || 'Kdo hraje?')}</p><div>
+      if (INSPECT) add('<p class="tip up">Zkušební verze: hraješ sám a všechno je odemčené.</p>');
+      const pick = add(`<div class="pick"><p>${esc(this.note || (INSPECT ? 'Za koho hraješ?' : 'Kdo hraje?'))}</p><div>
         <button class="btn red" data-who="ken">${face('ken', 3)}${esc(WORLD.heroes.ken.name)}</button>
         <button class="btn pink" data-who="kel">${face('kel', 3)}${esc(WORLD.heroes.kel.name)}</button></div></div>`);
       pick.addEventListener('click', (e) => { const b = e.target.closest('[data-who]'); if (b) { beep(520, 660); this.join(b.dataset.who); } });
@@ -175,42 +198,34 @@
       return { x: Math.round(CX + Math.cos(lat) * Math.sin(dl) * R), y: Math.round(CY - Math.sin(lat) * R), seen: z > 0.18 };
     };
     const stars = (() => { const r = K.rng(11); return Array.from({ length: 46 }, () => [Math.floor(r() * W), 22 + Math.floor(r() * (H - 22)), r() * 6]); })();
-    let rot = 0, aim = null, t = 0, list = null;
+    let rot = 0, aim = null, t = 0;
     const TIP = 'Otoč planetou. Klepni na místo.';
+    const toCzechia = () => { beep(660, 520); Net.send({ type: 'zoom', to: 'map' }); };
     const say = (text) => { const tip = K.ui.querySelector('.tip'); if (tip) tip.textContent = text; };
-    const close = () => { if (list) { list.remove(); list = null; say(TIP); } };
-    // Travelling takes both of them: the room moves everyone, or says who is still missing.
-    const travel = (id) => { if (!st().ready) { beep(180); close(); return say(`Čekám na ${heroName(mate())}.`); } beep(520, 780); Net.send({ type: 'go', place: id }); };
-    // Several places share this pin: a short list to pick from, right here on the planet.
-    function choose(pin) {
-      close(); say('');
-      list = add(`<div class="card choose"><h2>${esc(pin.name)}</h2>${behind(pin).map((p) => {
-        const state = stateOf(p);
-        return `<button class="row${state === 'hraj' ? ' now' : ''}" data-p="${p.id}"${state === 'zamčeno' ? ' disabled' : ''}><span>${places.indexOf(p) + 1}</span><span>${esc(fullName(p))}</span><em>${state}</em></button>`;
-      }).join('')}</div>`);
-      list.addEventListener('click', (e) => { const b = e.target.closest('[data-p]'); if (b && !b.disabled) travel(b.dataset.p); });
-    }
     return {
       get rot() { return rot; }, set rot(v) { rot = v; aim = null; },
       where(i) { return spot(pins[i], rot); },
       enter() {
-        const bar = add(`<div class="bar"><span>Planeta</span><span><button data-go="album">Album</button><button data-go="title">${esc(heroName())}</button></span></div>`);
+        const bar = add(`<div class="bar"><span>Svět</span><span><button data-go="album">Album</button><button data-go="title">${esc(heroName())}</button></span></div>`);
         bar.addEventListener('click', (e) => { const b = e.target.closest('[data-go]'); if (!b) return; if (b.dataset.go === 'album') { away = true; go(Album); } else toTitle(); });
-        add(`<p class="tip">${TIP}</p>`);
+        add(`<p class="tip up">${TIP}</p>`);
+        add('<button class="btn zoom">&lt; Česko</button>').addEventListener('click', toCzechia);
         const lead = pins.find((pin) => pinState(pin) === 'todo') || pins[0];
-        aim = lonOf(lead); rot = aim - 1; list = null;            // spin round to the next place to save
+        aim = lonOf(lead); rot = aim - 1;                          // spin round to the next place to save
         if (!skin || (!real && K.picture(WORLD.planet.bg))) makeSkin();
         draft(WORLD.planet.bg);
       },
-      move(x, y, dx) { if (list) return; rot -= dx / R; aim = null; },
+      move(x, y, dx) { rot -= dx / R; aim = null; },
+      // A pin opens its map: Czechia's, or a region's with every level on it. The rest open later.
       tap(x, y) {
-        if (list) return close();
         let hit = null, best = 14;
         for (const pin of pins) { const p = spot(pin, rot), d = Math.hypot(p.x - x, p.y - 6 - y); if (p.seen && d < best) { best = d; hit = pin; } }
         if (!hit) return;
-        const state = pinState(hit), ps = behind(hit);
-        if (state === 'soon' || state === 'locked') { beep(180); say(state === 'soon' ? 'Tohle místo se teprve otevře.' : 'Nejdřív dokonči předchozí místo.'); return; }
-        if (ps.length > 1) { beep(520, 780); choose(hit); } else travel(ps[0].id);
+        if (hit.map) return toCzechia();
+        const state = pinState(hit), l = later(hit)[0];
+        if (state === 'soon') { beep(180); return say(l ? `${fullName(l)} se teprve otevře.` : 'Tohle místo se teprve otevře.'); }
+        if (state === 'locked') { beep(180); return say('Nejdřív dokonči předchozí místo.'); }
+        beep(660, 520); Net.send({ type: 'zoom', to: hit.region });
       },
       update(dt) {
         t += dt;
@@ -226,7 +241,7 @@
           const p = spot(pin, rot); if (!p.seen) continue;
           const state = pinState(pin), bob = state === 'todo' ? Math.round(Math.sin(t * 5) * 2) : 0, lit = state === 'todo' || state === 'done';
           const col = state === 'done' ? '#1FA463' : state === 'todo' ? '#CC2233' : '#7A6F6A';
-          if (behind(pin).length > 1) { rect(p.x - 2, p.y - 18 + bob, 12, 12, INK); rect(p.x - 1, p.y - 17 + bob, 10, 10, col); }   // a second head behind: several places here
+          if (behind(pin).length + later(pin).length > 1) { rect(p.x - 2, p.y - 18 + bob, 12, 12, INK); rect(p.x - 1, p.y - 17 + bob, 10, 10, col); }   // a second head behind: several places here
           rect(p.x - 1, p.y - 2, 2, 8, INK);
           rect(p.x - 6, p.y - 14 + bob, 12, 12, INK);
           rect(p.x - 5, p.y - 13 + bob, 10, 10, col);
@@ -236,36 +251,100 @@
     };
   })();
 
-  // ---- one place: its four scenes as a list. Who is waiting there stays a secret until they are free. ----
-  const Place = (place) => ({
-    enter() { this.paint(); },
-    sync() { this.paint(); },
-    paint() {
-      K.ui.innerHTML = '';
-      const pr = progress(place);
-      const bar = add(`<div class="bar"><button data-back>&lt; Planeta</button><span>${esc(fullName(place))}</span></div>`);
-      bar.querySelector('[data-back]').addEventListener('click', () => Net.send({ type: 'back' }));
-      const head = pr.done ? `Zachráněno: ${place.saves.map((s) => s.name).join(' a ')}` : 'Kdo volá o pomoc?';
-      const list = add(`<div class="list"><h2>${esc(head)}</h2>${place.scenes.map((sc, i) => {
-        const state = pr.done || i < pr.scene ? 'hotovo' : i === pr.scene ? 'hraj' : 'zamčeno';
-        return `<button class="row${state === 'hraj' ? ' now' : ''}" data-i="${i}"${state === 'zamčeno' ? ' disabled' : ''}><span>${i + 1}</span><span>${state === 'zamčeno' ? '???' : esc(sc.name)}</span><em>${state}</em></button>`;
-      }).join('')}</div>`);
-      list.addEventListener('click', (e) => { const b = e.target.closest('[data-i]'); if (b && !b.disabled) { beep(st().ready ? 520 : 180); Net.send({ type: 'open', index: +b.dataset.i }); } });
-      draft(place.scenes[0].bg);
-    },
-    draw() { K.background(place.scenes[0].bg, 0, place.look); rect(0, 0, W, H, 'rgba(43,31,26,.55)'); },
-  });
+  // ---- Czechia close up: Prague under the glass, and the places outside it. "Svět" zooms out to the planet. ----
+  const Czechia = (() => {
+    const M = WORLD.map, laterOf = (pin) => (WORLD.later || []).find((p) => p.id === pin.later);
+    const state = (pin) => (pin.region ? regionState(pin.region) : 'soon');
+    const allDone = () => M.pins.every((pin) => !pin.region || regionState(pin.region) === 'done');
+    const TIP = 'Klepni na místo na mapě.';
+    let t = 0;
+    const say = (text) => { const tip = K.ui.querySelector('.tip'); if (tip) tip.textContent = text; };
+    function pick(pin) {
+      if (!pin.region) { beep(180); return say(`${fullName(laterOf(pin))} se teprve otevře.`); }
+      if (state(pin) === 'locked') { beep(180); return say('Nejdřív dokonči předchozí místo.'); }
+      beep(660, 520); Net.send({ type: 'zoom', to: pin.region });
+    }
+    return {
+      where(id) { const pin = M.pins.find((q) => (q.region || q.later) === id); return { x: pin.at[0], y: pin.at[1] }; },
+      enter() {
+        t = 0;
+        const bar = add(`<div class="bar"><span>${esc(M.name)}</span><span><button data-go="album">Album</button><button data-go="title">${esc(heroName())}</button></span></div>`);
+        bar.addEventListener('click', (e) => { const b = e.target.closest('[data-go]'); if (!b) return; if (b.dataset.go === 'album') { away = true; go(Album); } else toTitle(); });
+        for (const pin of M.pins) {
+          const name = pin.region ? WORLD.regions[pin.region].name : laterOf(pin).name;
+          add(`<button class="pin ${pin.label || 'below'} ${state(pin)}" data-id="${pin.region || pin.later}" style="${pinAt(pin.at)}">${esc(name)}</button>`).addEventListener('click', () => pick(pin));
+        }
+        add(`<p class="tip map">${allDone() ? 'V Česku je hotovo. Další mise čeká ve světě!' : TIP}</p>`);
+        add(`<button class="btn zoom${allDone() ? ' go' : ''}">Svět &gt;</button>`).addEventListener('click', () => { beep(520, 660); Net.send({ type: 'zoom', to: 'planet' }); });
+        draft(M.bg);
+      },
+      tap(x, y) {
+        let hit = null, best = 12;
+        for (const pin of M.pins) {
+          const d = Math.hypot(pin.at[0] - x, pin.at[1] - 8 - y); if (d < best) { best = d; hit = pin; }
+          if (!hit && pin.glass && Math.hypot(pin.glass[0] - x, pin.glass[1] - y) < pin.glass[2]) hit = pin;   // anywhere on the magnifying glass
+        }
+        if (hit) pick(hit);
+      },
+      update(dt) { t += dt; },
+      draw() { zoomIn(t, () => { K.background(M.bg, 0, PAPER); for (const pin of M.pins) flag(pin.at[0], pin.at[1], state(pin), t); }); },
+    };
+  })();
+
+  // ---- a region's map (Praha, Austrálie): every level is a pin where it happens. Tap one to play it. ----
+  const Region = (id) => {
+    const R = WORLD.regions[id], up = R.up === 'map' ? WORLD.map.name : 'Svět';
+    const pins = [...inRegion(id).flatMap((p) => p.scenes.map((sc, i) => ({ key: `${p.id}:${i}`, p, i, sc, at: sc.at, label: sc.label }))),
+      ...(R.later || []).map((l) => ({ key: l.id, soon: (WORLD.later || []).find((x) => x.id === l.id), at: l.at, label: l.label }))];
+    const state = (pin) => (pin.soon ? 'soon' : levelState(pin.p, pin.i));
+    // A level not reached yet keeps its name to itself, like the rest of the story.
+    const name = (pin) => (pin.soon ? pin.soon.name : state(pin) === 'locked' ? '???' : pin.sc.name);
+    let t = 0, tip = null;
+    const say = (text) => { if (tip) tip.textContent = text; };
+    function pick(pin) {
+      const st8 = state(pin);
+      if (st8 === 'soon') { beep(180); return say(`${fullName(pin.soon)} se teprve otevře.`); }
+      if (st8 === 'locked') { beep(180); return say('Tam se dostanete později. Nejdřív to, co svítí červeně.'); }
+      if (!st().ready) { beep(180); return say(`Čekám na ${heroName(mate())}.`); }
+      beep(520, 780); Net.send({ type: 'play', place: pin.p.id, index: pin.i });
+    }
+    function labels() {
+      K.ui.querySelectorAll('.pin').forEach((el) => el.remove());
+      for (const pin of pins) add(`<button class="pin ${pin.label || 'below'} ${state(pin)}" data-id="${pin.key}" style="${pinAt(pin.at)}">${esc(name(pin))}</button>`).addEventListener('click', () => pick(pin));
+    }
+    return {
+      where(key) { const pin = pins.find((q) => q.key === key); return { x: pin.at[0], y: pin.at[1] }; },
+      enter() {
+        t = 0;
+        const bar = add(`<div class="bar"><button data-back>&lt; ${esc(up)}</button><span>${esc(R.name)}</span></div>`);
+        bar.querySelector('[data-back]').addEventListener('click', () => { beep(440); Net.send({ type: 'back' }); });
+        const done = inRegion(id).every((p) => progress(p).done);
+        tip = add(`<p class="tip map">${INSPECT ? 'Zkušební verze: všechno je odemčené.' : done ? 'Tady je hotovo! Zahrát si můžete cokoli znovu.' : 'Klepni na místo, které svítí červeně.'}</p>`);
+        labels();
+        draft(R.bg);
+      },
+      sync() { labels(); },
+      tap(x, y) {
+        let hit = null, best = 12;
+        for (const pin of pins) { const d = Math.hypot(pin.at[0] - x, pin.at[1] - 8 - y); if (d < best) { best = d; hit = pin; } }
+        if (hit) pick(hit);
+      },
+      update(dt) { t += dt; },
+      draw() { zoomIn(t, () => { K.background(R.bg, 0, PAPER); for (const pin of pins) flag(pin.at[0], pin.at[1], state(pin), t); }); },
+    };
+  };
 
   // ---- playing one scene: the story lines, then the game, then on to the next. The room says which part is on. ----
   const Play = (place, first) => {
     const sc = place.scenes[first.index], who = me();
-    let sn = first, was = null, line = -1, box = null, act = null, t = 0;
+    let sn = first, was = null, line = -1, box = null, act = null, t = 0, lineAt = 0;
     const speaker = (key) => (key === 'hero' ? heroName() : key ? (place.saves.find((s) => s.id === key) || { name: key }).name : '');
     function paint() {
       if (sn.phase === 'talk' && (was !== 'talk' || line !== sn.line)) {
         if (box) box.remove();
-        const [key, text] = sc.talk[sn.line], at = sn.line;
-        box = add(`<div class="say">${key === 'hero' ? face(who, 0) : key ? face(key, 3) : ''}${key ? `<b>${esc(speaker(key))}</b>` : ''}<p>${esc(text)}</p><i>&gt;</i></div>`);
+        const [key, text, about] = sc.talk[sn.line], at = sn.line;                 // `about`: someone the line tells of, shown with it
+        lineAt = t;
+        box = add(`<div class="say">${about ? face(about, 0) : key === 'hero' ? face(who, 0) : key ? face(key, 3) : ''}${key ? `<b>${esc(speaker(key))}</b>` : ''}<p>${esc(text)}</p><i>&gt;</i></div>`);
         box.addEventListener('click', () => { beep(440); Net.send({ type: 'next', line: at }); });        // either of them may tap; the line number stops a double tap skipping one
       }
       if (sn.phase !== 'talk' && box) { box.remove(); box = null; }
@@ -273,14 +352,14 @@
         const card = add(`<div class="card"><h2>${esc(sc.name)}</h2><p>Tahle část se teprve staví.</p><button class="btn">Dál</button></div>`);
         card.querySelector('button').addEventListener('click', () => { beep(520, 660); Net.send({ type: 'done' }); });
       }
-      if (sn.phase === 'play' && !act) act = { run: Runner, drums: Drums, shoot: Shoot, echo: Echo, find: Find, salon: Salon, memory: Memory, collect: Collect, rescue: Rescue }[sc.play](sc, place, sn);
+      if (sn.phase === 'play' && !act) act = { run: Runner, drums: Drums, shoot: Shoot, echo: Echo, find: Find, salon: Salon, memory: Memory, collect: Collect, rescue: Rescue, tower: Tower }[sc.play](sc, place, sn);
       if (act) act.sync(sn);
       if (act && (sn.phase === 'won' || sn.phase === 'lost') && was !== sn.phase) act.over(sn.phase === 'won');
       was = sn.phase; line = sn.line;
     }
     return {
       enter() {
-        const bar = add(`<div class="bar"><button data-back>&lt; ${esc(place.name)}</button><span>${esc(sc.name)}</span></div>`);
+        const bar = add(`<div class="bar"><button data-back>&lt; ${esc(WORLD.regions[place.region].name)}</button><span>${esc(sc.name)}</span></div>`);
         bar.querySelector('[data-back]').addEventListener('click', () => Net.send({ type: 'back' }));
         draft(sc.bg);
         paint();
@@ -294,6 +373,8 @@
       update(dt) { t += dt; if (act) act.update(dt); },
       draw() {
         if (act) return act.draw();
+        const show = sn.phase === 'talk' && sc.talk[sn.line] && sc.talk[sn.line][3];
+        if (show) return memory(show, t - lineAt, t);                         // a picture instead of the scene, for this line of the story
         K.background(sc.bg, 0, place.look);
         const gy = (sc.ground || GROUND) - 10;                                // a little further back, clear of the speech box
         (sc.cast || []).forEach((id, i) => K.figure(id, 146 + i * 26, gy, 'stand', t, true));
@@ -302,6 +383,44 @@
       },
     };
   };
+
+  // Pictures that go with a line of the story instead of the scene, like a short film. The past is shown in the
+  // brown tones of an old photograph: praděda Václav is remembered, not met.
+  function oldPhoto(x, y, w, h) {                                     // brown tones and darker edges over what is drawn there
+    ctx.save();
+    ctx.globalCompositeOperation = 'color'; rect(x, y, w, h, 'rgb(150,112,72)');
+    ctx.globalCompositeOperation = 'multiply'; rect(x, y, w, h, 'rgb(255,238,210)');
+    ctx.restore();
+    for (let i = 0; i < 6; i++) { const a = 0.07 * (6 - i); rect(x + i, y + i, w - 2 * i, 1, `rgba(43,31,26,${a})`); rect(x + i, y + h - 1 - i, w - 2 * i, 1, `rgba(43,31,26,${a})`); rect(x + i, y + i, 1, h - 2 * i, `rgba(43,31,26,${a})`); rect(x + w - 1 - i, y + i, 1, h - 2 * i, `rgba(43,31,26,${a})`); }
+  }
+  function memory(kind, u, t) {
+    if (kind === 'ship') {                                              // the refugee ship crossing the ocean after the war
+      K.background('australia-sea', u * 18, WORLD.places.find((p) => p.id === 'australia').look, true);
+      const x = 18 + u * 9, y = 203 + Math.round(Math.sin(u * 2.2));
+      for (let k = 0; k < 4; k++) { const f = (u * 0.7 + k / 4) % 1; if (K.has('voyage', 'smoke')) K.figure('voyage', x - 4 - f * 26, y - 28 - f * 26, 'smoke', 0, false, 0.28 + f * 0.25); }
+      if (K.has('voyage', 'ship')) K.figure('voyage', x, y, 'ship', 0, false, 0.5);
+      for (let i = 0; i < 2; i++) { const gx = ((u * 26 + i * 110) % 250) - 30; if (K.has('voyage', 'gull1')) K.figure('voyage', gx, 92 + i * 26 + Math.round(Math.sin(u * 3 + i) * 4), Math.floor(u * 4 + i) % 2 ? 'gull1' : 'gull2', 0, false, 0.32); }
+      oldPhoto(0, 0, W, H);
+    } else if (kind === 'photo') {                                      // his photograph, with his little dog
+      rect(0, 0, W, H, '#3A2F33');
+      for (let y = 30; y < H; y += 14) rect(0, y, W, 1, 'rgba(255,248,231,.04)');
+      const a = Math.min(1, u / 0.9), fx = 36, fy = 44, fw = 120, fh = 156;
+      ctx.save(); ctx.globalAlpha = a;
+      rect(fx - 6, fy - 6, fw + 12, fh + 12, '#6E4A2A'); rect(fx - 4, fy - 4, fw + 8, fh + 8, '#9A6B3C'); rect(fx - 1, fy - 1, fw + 2, fh + 2, '#5A3B20');
+      rect(fx, fy, fw, fh, '#E9D8B4');
+      rect(fx, fy + fh - 34, fw, 34, '#CDB894');                       // the ground in the photo
+      if (K.sprites.vaclav) K.figure('vaclav', fx + 48, fy + fh - 8, 'front', 0, false, 0.8);       // a close photograph: bigger than in the game
+      if (K.has('dog', 'sit')) K.figure('dog', fx + 94, fy + fh - 8, 'sit', 0, true, 0.48);
+      oldPhoto(fx, fy, fw, fh);
+      for (const [cx, cy] of [[fx, fy], [fx + fw - 6, fy], [fx, fy + fh - 6], [fx + fw - 6, fy + fh - 6]]) rect(cx, cy, 6, 6, 'rgba(43,31,26,.55)');   // photo corners
+      ctx.restore();
+    } else if (kind === 'travellers') {                                 // today: two people looking out to sea, seen from behind
+      const pl = WORLD.places.find((p) => p.id === 'australia'), gy = 228;
+      K.background('australia-beach', 0, pl.look);
+      const walk = Math.max(0, 1 - u / 1.4);                            // they walk up to the water's edge
+      pl.saves.forEach((sv, i) => { if (K.sprites[sv.id]) K.figure(sv.id, 80 + i * 32, gy + Math.round(walk * 30) - (walk > 0 ? Math.round(Math.abs(Math.sin(u * 8 + i))) : 0), 'back', t); });
+    }
+  }
 
   // What every game shares: its own bar in place of the scene's, a line of advice, and the card at the end.
   function stage(barHtml, advice) {
@@ -889,11 +1008,30 @@
   // Pexeso: pairs of cards face down on the table. With two playing, one turns the first card over and the other
   // turns the second, looking for its pair; then they swap. A pair stays up; otherwise both turn back over.
   // Too many wrong guesses and the game is lost.
+  // A golden key, drawn pixel by pixel as finely as the characters: a round bow with a hole, the shaft, two teeth.
+  const KEY = (() => {
+    const w = 72, h = 30, c = document.createElement('canvas'); c.width = w; c.height = h;
+    const g = c.getContext('2d'), img = g.createImageData(w, h), E = [184, 134, 42], B = [255, 212, 58], L = [255, 241, 168];
+    const put = (i, j, col) => img.data.set([...col, 255], (j * w + i) * 4);
+    for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
+      const d = Math.hypot(i - 14.5, j - 14.5);
+      const bow = d < 14.5 && d > 5.5, shaft = i >= 26 && i < 70 && j >= 11 && j < 19, cap = i >= 66 && i < 71 && j >= 9 && j < 21;
+      const tooth = (i >= 50 && i < 56 && j >= 19 && j < 27) || (i >= 59 && i < 65 && j >= 19 && j < 25);
+      if (!(bow || shaft || cap || tooth)) continue;
+      const edge = (bow && (d > 12.5 || d < 7.5)) || (!bow && (j === 11 && !cap || j === 18 && !tooth || i === 70 || j === 9 || j === 20 || (tooth && (j >= 23 || i === 50 || i === 55 || i === 59 || i === 64))));
+      const lit = bow ? d > 8.5 && d < 11.5 && i + j < 22 : (j === 12 || j === 13) && i > 28 && i < 66;
+      put(i, j, edge ? E : lit ? L : B);
+    }
+    g.putImageData(img, 0, 0);
+    return c;
+  })();
+
   function Memory(sc, place, sn) {
     const cfg = sc.memory, who = me(), COLS = 4, CW = 40, CH = 50, GAP = 6, X0 = Math.round((W - (COLS * CW + (COLS - 1) * GAP)) / 2), Y0 = 36;
-    const s = { t: 0, over: false, lost: false, seenMiss: 0, shake: 0 };
+    const s = { t: 0, over: false, lost: false, seenMiss: 0, shake: 0, keyAt: null, endIn: 0 };
     let live = sn;
     const view = stage('<span class="count"></span><span class="turn"></span>', '');
+    const finish = (won) => view.end(won, won ? 'Všechny dvojice!' : 'Došly pokusy.', won ? (cfg.won || 'Výborná paměť!') : 'Zkuste to ještě jednou.');
     const spot = (i) => ({ x: X0 + (i % COLS) * (CW + GAP), y: Y0 + Math.floor(i / COLS) * (CH + GAP) });
     const mine = () => !live.turn || live.turn === who;
     const paint = () => {
@@ -909,7 +1047,11 @@
     return {
       s, kind: 'memory', peek: () => ({ deck: live.deck, open: live.open, done: live.done, mine: mine(), spot }),
       sync(n) { if (n.misses > s.seenMiss) { s.seenMiss = n.misses; s.shake = 0.4; beep(200, 160); } else if (n.done.length > live.done.length) beep(660, 880); live = n; paint(); },
-      over(won) { s.over = true; s.lost = !won; paint(); view.end(won, won ? 'Všechny dvojice!' : 'Došly pokusy.', won ? (cfg.won || 'Výborná paměť!') : 'Zkuste to ještě jednou.'); },
+      over(won) {
+        s.over = true; s.lost = !won; paint();
+        if (won && cfg.key) { s.keyAt = s.t; s.endIn = 1.6; view.tip.textContent = ''; beep(660, 880, 1100, 1320); }     // the key comes out first, then the card
+        else finish(won);
+      },
       down(x, y) {
         if (s.over || !mine() || live.open.length === 2) return;
         for (let i = 0; i < live.deck.length; i++) {
@@ -920,10 +1062,11 @@
           }
         }
       },
-      update(dt) { s.t += dt; if (s.shake > 0) s.shake -= dt; },
+      update(dt) { s.t += dt; if (s.shake > 0) s.shake -= dt; if (s.endIn > 0 && (s.endIn -= dt) <= 0) finish(true); },
       draw() {
         K.background(sc.bg, 0, place.look);
         rect(0, 22, W, H - 22, 'rgba(43,31,26,.55)');
+        if (s.keyAt !== null) return this.drawKey(s.t - s.keyAt);
         live.deck.forEach((f, i) => {
           const p = spot(i), up = live.done.includes(i) || live.open.includes(i), wrong = live.open.length === 2 && live.open.includes(i) && s.shake > 0;
           const x = p.x + (wrong ? Math.round(Math.sin(s.t * 60) * 2) : 0), y = p.y;
@@ -938,6 +1081,17 @@
           const [sheet, pose] = cfg.faces[f], sp = K.sprites[sheet];
           if (sp) K.figure(sheet, x + CW / 2, y + CH - 7, pose, 0, false, Math.min(34 / sp.w, 38 / sp.h));
         });
+      },
+      // The cards are cleared away and a golden key rises from under the last pair, turning, with a sparkle.
+      drawKey(u) {
+        const e = Math.min(1, u / 0.8), y = Math.round(150 - 86 * (1 - (1 - e) ** 3) + (e >= 1 ? Math.sin(u * 3) * 2 : 0)), turn = Math.cos(u * 5);
+        for (let i = 0; i < 8; i++) {                                                     // sparkles round it
+          const a = i / 8 * Math.PI * 2 + u * 1.5, r = 22 + Math.sin(u * 4 + i) * 4;
+          if (Math.sin(u * 9 + i * 2) > -0.2) rect(Math.round(W / 2 + Math.cos(a) * r), Math.round(y + Math.sin(a) * r * 0.8), 2, 2, i % 2 ? '#FFF1A8' : '#FFD43A');
+        }
+        ctx.save(); ctx.translate(W / 2, y); ctx.scale(Math.max(0.12, Math.abs(turn)), 1);
+        ctx.drawImage(KEY, -KEY.width / 4, -KEY.height / 4, KEY.width / 2, KEY.height / 2);    // each of its pixels half a game pixel, as fine as the people
+        ctx.restore();
       },
     };
   }
@@ -1063,7 +1217,7 @@
           rect(Math.min(HX + 8, rx), HY + 4, 1, 1, '#000');
           for (let k = 0; k <= 10; k++) { const u = k / 10; rect(Math.round(HX + 8 + (rx - HX - 8) * u), Math.round(HY + (ry - 6 - HY) * u + Math.sin(u * Math.PI) * 6), 2, 1, '#D9C08A'); }   // the rope
         }
-        (sc.cast || []).forEach((id, i) => K.figure(id, rx - 10 + i * 20, ry - (pulling() ? 2 : 0), pulling() ? 'three' : Math.floor(s.t * 2 + i) % 2 ? 'cheer' : 'front', s.t, true));
+        (sc.cast || []).forEach((id, i) => K.figure(id, rx - 10 + i * 20, ry - (pulling() ? 2 : Math.round(Math.abs(Math.sin(s.t * 4 + i * 1.7)) * 4)), pulling() ? 'three' : 'cheer', s.t, true));   // hopping and calling for help, then holding on
         if (!pulling() && s.stuck > 0 && K.has('beach', 'buoy')) K.figure('beach', LAND.x, LAND.y + 2, 'buoy', 0, false, 0.32);
         // the shark: circling during the throws, closing in on the raft while they pull
         const sx = pulling() ? 196 - (196 - rx - 14) * clamp(pullT() / cfg.seconds, 0, 1) : 100 + Math.sin(s.t * 0.9) * 70, sy = pulling() ? ry + 4 : 178;
@@ -1083,13 +1237,115 @@
     };
   }
 
+  // The tower: Sami's house in Sydney goes up storey by storey. Kendrick drives the crane along its arm (drag), and
+  // Kellyn lets each storey go (tap) when it hangs over the top of the house; the higher the house, the more the
+  // storey swings on the hook. A storey that misses falls off. On one device, one player does both.
+  function Tower(sc, place, sn) {
+    const cfg = sc.tower, who = me(), GY = 262, SH = 25, JIB = 30, CABLE = 30, SW = 40;
+    const two = () => mateHere(), steers = () => !two() || who === 'ken', drops = () => !two() || who === 'kel';
+    const POSES = ['floor', 'plants', 'lights'];
+    const s = { t: 0, over: false, lost: false, crane: sn.crane, mateCrane: sn.crane, sent: 0, told: 0, cam: 0, fall: null, seen: 0, spark: null, target: null };
+    let live = sn, button = null;
+    const view = stage('<span class="lives"></span><span class="count"></span><span class="meter"><i></i></span>', '');
+    const crane = () => (steers() ? s.crane : s.mateCrane);
+    const hook = () => crane() + Room.course.sway(s.t, live.floors.length - 1);
+    const top = () => live.floors[live.floors.length - 1];
+    const pose = (i, n) => (i === 0 ? 'lobby' : i === n - 1 ? 'roof' : POSES[i % 3]);
+    const paint = () => {
+      hearts(view.hud.children[0], live.lives, sn.lives);
+      view.hud.children[1].textContent = `${live.floors.length} / ${live.need}`;
+      view.hud.children[2].firstElementChild.style.width = clamp(live.floors.length / live.need, 0, 1) * 100 + '%';
+    };
+    const tip = () => { if (!s.over && !s.seen) view.tip.textContent = !two() ? 'Táhni jeřáb a pusť patro.' : steers() ? `Ty řídíš jeřáb. ${heroName(mate())} pouští patra.` : `Ty pouštíš patra. Jeřáb řídí ${heroName(mate())}.`; };
+    view.tip.classList.add('up'); paint(); tip();
+    if (drops()) {                                                      // the drop button, for whoever lets the storeys go
+      button = add('<button class="btn throw drop">Pusť!</button>');
+      button.addEventListener('pointerdown', (e) => { e.stopPropagation(); e.preventDefault(); dropIt(); });
+    }
+    function dropIt() { if (s.over || s.t < 0 || Net.now() < live.busyUntil) return; beep(330); Net.send({ type: 'ev', e: 'drop' }); }
+    function steer(x) {
+      s.crane = clamp(x, 24, 168);
+      const now = Net.now();
+      if (now - s.sent > 60) { s.sent = now; Net.send({ type: 'fx', k: 'crane', x: s.crane }); }
+      if (now - s.told > 140) { s.told = now; Net.send({ type: 'ev', e: 'crane', x: s.crane }); }
+    }
+    return {
+      s, kind: 'tower',
+      peek: () => ({ steers: steers(), drops: drops(), crane: crane(), hook: hook(), top: top(), busy: Net.now() < live.busyUntil, floors: live.floors.length, need: live.need }),
+      steerTo: (x) => { s.target = x; },
+      sync(n) {
+        if (n.last && n.last.n !== s.seen) {                           // a storey has been let go: show it falling
+          s.seen = n.last.n; if (!s.over) view.tip.textContent = '';
+          s.fall = { x: n.last.x, ok: n.last.ok, perfect: n.last.perfect, at: s.t, i: n.last.ok ? n.floors.length - 1 : -1, from: JIB + CABLE - s.cam };
+          beep(...(n.last.ok ? (n.last.perfect ? [660, 880, 1100] : [520, 660]) : [200, 150]));
+        }
+        if (!steers()) s.mateCrane = n.crane;
+        live = n; paint();
+      },
+      fx(m) { if (m.k === 'crane' && !steers()) s.mateCrane = m.x; },
+      over(won) { s.over = true; s.lost = !won; if (button) button.remove(); paint(); view.end(won, won ? 'Dům stojí!' : 'Spadlo to.', won ? 'Sydney má nový mrakodrap.' : 'Zkuste to ještě jednou.'); },
+      down(x, y) {
+        if (s.over || y < 22) return;
+        if (drops() && !steers()) return dropIt();                     // Kellyn: a tap anywhere lets the storey go
+        if (steers()) steer(x);                                        // Kendrick: the crane goes where the finger is
+      },
+      move(x, y) { if (!s.over && steers()) steer(x); },
+      update(dt) {
+        if (s.over) return;
+        s.t = clock(live);
+        if (s.target !== null && steers()) { const d = s.target - s.crane; steer(s.crane + clamp(d, -90 * dt, 90 * dt)); if (Math.abs(d) < 0.5) s.target = null; }
+        const want = Math.max(0, (live.floors.length - (s.fall && s.fall.ok && s.t - s.fall.at < 0.5 ? 1 : 0)) * SH - (GY - 170));
+        s.cam += (want - s.cam) * Math.min(1, dt * 3);
+        if (s.fall && s.t - s.fall.at > 1.2) s.fall = null;
+        paint();
+      },
+      draw() {
+        const cam = Math.round(s.cam), img = K.picture(sc.bg), back = Math.round(cam * 0.5);
+        if (img) { ctx.drawImage(img, 0, back); if (back > 0) ctx.drawImage(img, 0, 0, W, 1, 0, 0, W, back + 1); }   // the sky stretches up as the camera rises
+        else K.background(sc.bg, 0, place.look);
+        const sy = (y) => y + cam, n = live.need;
+        // the house so far; a storey still falling is drawn by the fall
+        live.floors.forEach((x, i) => {
+          if (s.fall && s.fall.ok && s.fall.i === i && s.t - s.fall.at < 0.45) return;
+          if (K.has('storeys', pose(i, n))) K.figure('storeys', x, sy(GY - i * SH), pose(i, n), 0, false);
+          else { rect(x - SW / 2, sy(GY - (i + 1) * SH), SW, SH, INK); rect(x - SW / 2 + 1, sy(GY - (i + 1) * SH) + 1, SW - 2, SH - 2, '#E6CFA0'); }
+        });
+        // the people down on the site, who scroll away as the house rises
+        (sc.cast || []).forEach((id, i) => K.figure(id, 160 + i * 18, sy(GY + 4), 'three', s.t, true));
+        if (mateHere()) K.hero(mate(), 42, sy(GY + 6), 'stand', s.t + 0.3);
+        K.hero(who, 20, sy(GY + 6), s.lost ? 'dizzy' : 'stand', s.t);
+        // the crane: only its arm across the top (the mast is out of the picture), the cabin, the trolley, the cable and the hook
+        rect(4, JIB, 188, 5, '#B8860B'); rect(4, JIB + 1, 188, 1, '#F2C94C'); for (let x = 6; x < 190; x += 6) rect(x, JIB + 2, 1, 2, '#F2C94C');
+        rect(172, JIB - 9, 18, 9, '#B8860B'); rect(174, JIB - 7, 7, 5, '#BFE3F2');                    // the cabin
+        const c = Math.round(crane()), hx = hook(), hy = JIB + CABLE;
+        rect(c - 5, JIB + 5, 10, 3, INK);
+        for (let k = 0; k <= 10; k++) rect(Math.round(c + (hx - c) * k / 10), Math.round(JIB + 8 + (hy - JIB - 8) * k / 10), 1, 2, '#46536A');
+        if (!s.over && Net.now() >= live.busyUntil && live.floors.length < n) {
+          const i = live.floors.length;
+          rect(Math.round(hx) - 3, hy - 1, 6, 2, INK);
+          if (K.has('storeys', pose(i, n))) K.figure('storeys', hx, hy + SH + 1, pose(i, n), 0, false);
+          // a faint line straight down, to help aim
+          for (let y = hy + SH + 4; y < sy(GY - live.floors.length * SH); y += 6) rect(Math.round(hx), y, 1, 2, 'rgba(255,248,231,.35)');
+        }
+        // a storey on its way down: onto the house, or past it and off the screen
+        if (s.fall) {
+          const u = s.t - s.fall.at, i = s.fall.ok ? s.fall.i : live.floors.length;
+          const land = s.fall.ok ? sy(GY - i * SH) : H + 60, y0 = s.fall.from + SH + 1 + cam;    // from the hook, where it hung (`from` is on the house, not the screen)
+          const y = Math.min(land, y0 + 420 * u * u), x = s.fall.ok ? s.fall.x : s.fall.x + u * 30;
+          if (y < land || s.fall.ok) K.figure('storeys', x, y, pose(i, n), 0, false);
+          if (s.fall.ok && y >= land && s.fall.perfect && u < 1) { for (let k = 0; k < 4; k++) rect(Math.round(x - 22 + k * 14), Math.round(land - SH - 6 - (u - 0.45) * 20), 3, 3, '#FFD43A'); }
+        }
+      },
+    };
+  }
+
   // ---- a place is finished: the people are free, and now they can be named ----
   const Rescued = (place) => {
     let t = 0;
     return {
       enter() {
-        const lines = (place.done || []).map(([key, text]) => `<p class="line">${face(key, 1)}<span><strong>${esc((place.saves.find((s) => s.id === key) || { name: key }).name)}:</strong> ${esc(text)}</span></p>`).join('');
-        const card = add(`<div class="card top"><h2>Zachráněno!</h2>${lines}<button class="btn">Dál</button></div>`);
+        const lines = (place.done || []).map(([key, text]) => (key ? `<p class="line">${face(key, 1)}<span><strong>${esc((place.saves.find((s) => s.id === key) || { name: key }).name)}:</strong> ${esc(text)}</span></p>` : `<p>${esc(text)}</p>`)).join('');
+        const card = add(`<div class="card top"><h2>${place.saves.length ? 'Zachráněno!' : 'Hotovo!'}</h2>${lines}<button class="btn">${place.saves.length ? 'Dál' : 'Na mapu'}</button></div>`);
         card.querySelector('button').addEventListener('click', () => { beep(520, 660); Net.send({ type: 'home' }); });
         beep(520, 660, 780, 1040);
       },
@@ -1100,7 +1356,7 @@
         K.hero(me(), two ? 30 : 52, gy - Math.abs(Math.sin(t * 6)) * 6, 'cheer', t);
         if (two) K.hero(mate(), 66, gy - Math.abs(Math.sin(t * 6 + 2)) * 6, 'cheer', t);
         place.saves.forEach((sv, i) => {
-          if (K.sprites[sv.id]) K.figure(sv.id, 118 + i * 40, gy, Math.floor(t * 1.5 + i) % 2 ? 'cheer' : 'three', t, true);   // jumping for joy, by turns
+          if (K.sprites[sv.id]) K.figure(sv.id, 118 + i * 40, gy - Math.round(Math.abs(Math.sin(t * 5 + i * 1.7)) * 5), 'cheer', t, true);   // hopping for joy
           else { rect(104 + i * 26, gy - 30, 12, 30, INK); rect(105 + i * 26, gy - 29, 10, 28, '#FFD43A'); }
         });
       },
@@ -1110,7 +1366,7 @@
   // ---- the album: everyone rescued so far ----
   const Album = {
     enter() {
-      const bar = add('<div class="bar"><button data-back>&lt; Planeta</button><span>Album</span></div>');
+      const bar = add('<div class="bar"><button data-back>&lt; Zpět</button><span>Album</span></div>');
       bar.querySelector('[data-back]').addEventListener('click', () => { away = false; shown = null; route(); });
       const people = places.flatMap((p) => p.saves);
       add(`<div class="album">${people.map((s) => {

@@ -40,10 +40,11 @@ window.SPRITES = {
       ]
     },
     "faces": {
-      "file": "ken-faces.png",
-      "w": 20,
-      "h": 15,
-      "n": 5
+      "file": "ken-heads.png",
+      "w": 44,
+      "h": 49,
+      "n": 5,
+      "scale": 0.36
     },
     "still": {
       "file": "ken.png",
@@ -116,10 +117,11 @@ window.SPRITES = {
       ]
     },
     "faces": {
-      "file": "kel-faces.png",
-      "w": 20,
-      "h": 16,
-      "n": 5
+      "file": "kel-heads.png",
+      "w": 49,
+      "h": 44,
+      "n": 5,
+      "scale": 0.36
     },
     "still": {
       "file": "kel.png",
@@ -161,7 +163,7 @@ window.SPRITES = {
   "leila": {
     "file": "leila-poses.png",
     "w": 78,
-    "h": 131,
+    "h": 130,
     "scale": 0.5,
     "fps": 6,
     "poses": {
@@ -185,19 +187,22 @@ window.SPRITES = {
         5
       ],
       "cheer": [
-        6
+        0
       ],
       "act": [
         7
       ],
       "stand": [
         1
+      ],
+      "joy": [
+        6
       ]
     },
     "faces": {
       "file": "leila-heads.png",
-      "w": 49,
-      "h": 55,
+      "w": 58,
+      "h": 54,
       "n": 5,
       "scale": 0.36
     },
@@ -234,8 +239,8 @@ window.SPRITES = {
   },
   "alan": {
     "file": "alan-poses.png",
-    "w": 82,
-    "h": 134,
+    "w": 88,
+    "h": 146,
     "scale": 0.5,
     "fps": 6,
     "poses": {
@@ -259,19 +264,22 @@ window.SPRITES = {
         5
       ],
       "cheer": [
-        6
+        0
       ],
       "act": [
         7
       ],
       "stand": [
         1
+      ],
+      "joy": [
+        6
       ]
     },
     "faces": {
       "file": "alan-heads.png",
-      "w": 40,
-      "h": 55,
+      "w": 57,
+      "h": 60,
       "n": 5,
       "scale": 0.36
     },
@@ -314,8 +322,8 @@ window.SPRITES = {
   },
   "sami": {
     "file": "sami-poses.png",
-    "w": 80,
-    "h": 130,
+    "w": 88,
+    "h": 145,
     "scale": 0.5,
     "fps": 6,
     "poses": {
@@ -339,19 +347,22 @@ window.SPRITES = {
         5
       ],
       "cheer": [
-        6
+        0
       ],
       "act": [
         7
       ],
       "stand": [
         1
+      ],
+      "joy": [
+        6
       ]
     },
     "faces": {
       "file": "sami-heads.png",
-      "w": 39,
-      "h": 54,
+      "w": 47,
+      "h": 60,
       "n": 5,
       "scale": 0.36
     },
@@ -394,8 +405,8 @@ window.SPRITES = {
   },
   "zofia": {
     "file": "zofia-poses.png",
-    "w": 72,
-    "h": 134,
+    "w": 70,
+    "h": 130,
     "scale": 0.5,
     "fps": 6,
     "poses": {
@@ -419,19 +430,22 @@ window.SPRITES = {
         5
       ],
       "cheer": [
-        6
+        0
       ],
       "act": [
         7
       ],
       "stand": [
         1
+      ],
+      "joy": [
+        6
       ]
     },
     "faces": {
       "file": "zofia-heads.png",
-      "w": 49,
-      "h": 56,
+      "w": 55,
+      "h": 54,
       "n": 5,
       "scale": 0.36
     },
@@ -482,6 +496,53 @@ window.SPRITES = {
     "w": 27,
     "h": 46,
     "scale": 0.5
+  },
+  "vaclav": {
+    "file": "vaclav-poses.png",
+    "w": 68,
+    "h": 137,
+    "scale": 0.5,
+    "fps": 6,
+    "poses": {
+      "front": [
+        0
+      ],
+      "three": [
+        1
+      ],
+      "side": [
+        2
+      ],
+      "back": [
+        3
+      ],
+      "walk": [
+        4
+      ],
+      "run": [
+        4,
+        5
+      ],
+      "cheer": [
+        0
+      ],
+      "act": [
+        7
+      ],
+      "stand": [
+        1
+      ],
+      "joy": [
+        6
+      ]
+    },
+    "faces": {
+      "file": "vaclav-heads.png",
+      "w": 50,
+      "h": 57,
+      "n": 5,
+      "scale": 0.36
+    }
   },
   "koalas": {
     "file": "koalas.png",
@@ -804,6 +865,84 @@ window.SPRITES = {
       ],
       "shampoo": [
         9
+      ],
+      "stand": [
+        0
+      ]
+    }
+  },
+  "dog": {
+    "file": "dog.png",
+    "w": 61,
+    "h": 67,
+    "scale": 0.3,
+    "fps": 1,
+    "poses": {
+      "stand": [
+        0
+      ],
+      "trot1": [
+        1
+      ],
+      "trot2": [
+        2
+      ],
+      "sit": [
+        3
+      ],
+      "bark": [
+        4
+      ],
+      "sniff": [
+        5
+      ]
+    }
+  },
+  "voyage": {
+    "file": "voyage.png",
+    "w": 147,
+    "h": 55,
+    "scale": 0.5,
+    "fps": 1,
+    "poses": {
+      "ship": [
+        0
+      ],
+      "smoke": [
+        1
+      ],
+      "gull1": [
+        2
+      ],
+      "gull2": [
+        3
+      ],
+      "stand": [
+        0
+      ]
+    }
+  },
+  "storeys": {
+    "file": "storeys.png",
+    "w": 86,
+    "h": 92,
+    "scale": 0.5,
+    "fps": 1,
+    "poses": {
+      "lobby": [
+        0
+      ],
+      "floor": [
+        1
+      ],
+      "plants": [
+        2
+      ],
+      "lights": [
+        3
+      ],
+      "roof": [
+        4
       ],
       "stand": [
         0

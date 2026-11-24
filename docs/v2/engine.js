@@ -42,7 +42,7 @@ const K = (() => {
   }
 
   // ---- saving: one record per device ----
-  const STORE = 'kellyn-a-ken-v1';
+  const STORE = 'kellyn-a-ken-v1' + (window.INSPECT ? '-v3' : '');          // v3, for trying levels out, keeps its own
   const save = { who: null, places: {}, album: [] };
   try { Object.assign(save, JSON.parse(localStorage.getItem(STORE) || '{}')); } catch (e) {}
   const write = () => { try { localStorage.setItem(STORE, JSON.stringify(save)); } catch (e) {} };

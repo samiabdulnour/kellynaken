@@ -7,12 +7,13 @@
 // for trying things out on one device.
 //
 // Messages a device sends:
-//   go {place}          open a place from the planet             open {index}     start one of its scenes
+//   zoom {to}           go to another map: 'planet', 'map' (Czechia) or a region ('praha', 'australia')
+//   play {place, index} start a level from its pin on a region's map
 //   next                the next line of the story               done             leave a scene that has no game yet
-//   ev {e, ...}         something that counts: hurt, hit, miss, pick, finish, pad, find, flip, grab, sting, pull
+//   ev {e, ...}         something that counts: hurt, hit, miss, pick, finish, pad, find, flip, grab, sting, pull, crane, drop
 //   fx {...}            something only to show on the other device (a jump, a shot, a drum tap)
-//   cont / retry        after a scene is won / lost              home             back to the planet after a rescue
-//   back                up one level
+//   cont / retry        after a scene is won / lost              home             back to the map after a rescue
+//   back                up one level: from a level to its map, from a region's map to the map around it
 // The room answers everyone with its whole state after every change.
 (function (root) {
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -70,6 +71,8 @@
       }
       return list;
     },
+    // How far the storey on the crane's hook swings to one side at a given moment: more, and faster, the higher the house.
+    sway(t, n) { return (4 + n * 1.7) * Math.sin(t * (1.5 + n * 0.09)); },
     shoot(seed, sc, every) {
       const r = rng(seed), targets = [];
       for (let at = 1.2, id = 0; id < 160; id++) { targets.push({ id, born: at, x: 74 + r() * 100, y: 56 + r() * 130, phase: r() * 6 }); at += every * (0.8 + r() * 0.4); }
@@ -77,23 +80,35 @@
     },
   };
 
-  function create({ world, solo, now, emit }) {
-    const places = world.places, GAMES = ['run', 'drums', 'shoot', 'echo', 'find', 'salon', 'memory', 'collect', 'rescue'];
+  // `open`: every level may be played in any order (the version for trying levels out).
+  function create({ world, solo, now, emit, open }) {
+    const places = world.places, GAMES = ['run', 'drums', 'shoot', 'echo', 'find', 'salon', 'memory', 'collect', 'rescue', 'tower'];
     const owner = (pad) => (pad < 2 ? 'ken' : 'kel');                                 // in the echo game each of them has two of the four drums
-    const S = { online: { ken: false, kel: false }, save: { places: {}, album: [] }, where: { screen: 'planet' }, scene: null };
+    const S = { online: { ken: false, kel: false }, save: { places: {}, album: [] }, where: { screen: 'map' }, scene: null };
     let serial = 0;
     const prog = (id) => (S.save.places[id] = S.save.places[id] || { scene: 0, done: false });
-    const isOpen = (p) => { const i = places.indexOf(p); return i === 0 || (i > 0 && prog(places[i - 1].id).done); };
+    const isOpen = (p) => { const i = places.indexOf(p); return !!open || i === 0 || (i > 0 && prog(places[i - 1].id).done); };
     const both = () => S.online.ken && S.online.kel;
     const ready = () => !!solo || both();
     const place = () => places.find((p) => p.id === S.where.place);
+    const regionOf = (p) => ({ screen: 'region', region: p.region });                       // the map a place's levels are on
+    const SCREENS = ['planet', 'map', ...Object.keys(world.regions || {})];
     const push = () => emit('all', { type: 'state', now: now(), ready: ready(), solo: !!solo, online: S.online, save: S.save, where: S.where, scene: S.scene });
 
+    // Praha 5 used to be one place of four scenes (pexeso, street, padlocks, salon). It is now two on the map of
+    // Czechia: Domov (padlocks, street) and Kadeřnictví (pexeso, salon). Carry what was played over.
+    function upgrade(saved) {
+      const old = saved && saved.praha5;
+      if (!old || saved.domov) return saved;
+      const n = old.done ? 4 : old.scene | 0;
+      return { ...saved, domov: { scene: n >= 2 ? 2 : 0, done: n >= 2 }, kadernictvi: { scene: n >= 4 ? 2 : n >= 1 ? 1 : 0, done: n >= 4 } };
+    }
     // Two devices may each remember a different amount: keep whichever got further.
     function merge(save) {
       if (!save || typeof save !== 'object') return;
+      const saved = upgrade(save.places);
       for (const p of places) {
-        const theirs = save.places && save.places[p.id];
+        const theirs = saved && saved[p.id];
         if (!theirs) continue;
         const mine = prog(p.id);
         mine.scene = Math.max(mine.scene, Math.min(p.scenes.length, theirs.scene | 0));
@@ -105,7 +120,7 @@
     function start(index, skipTalk) {
       const p = place(), sc = p.scenes[index];
       S.scene = { key: `${p.id}:${index}:${++serial}`, index, seed: (Math.random() * 2147483647) | 0, phase: 'talk', line: 0 };
-      S.where = { screen: 'scene', place: p.id };
+      S.where = { screen: 'scene', place: p.id, region: p.region };
       if (skipTalk || !(sc.talk || []).length) begin();
     }
     // The talking is over: set up the game, counted for one player or two.
@@ -118,6 +133,7 @@
       if (sc.play === 'find') Object.assign(sn, { found: [], need: sc.find.need });
       if (sc.play === 'memory') { const first = two ? (Math.random() < 0.5 ? 'ken' : 'kel') : null; Object.assign(sn, { deck: course.memory(sn.seed, sc), open: [], done: [], misses: 0, maxMiss: sc.memory.miss + (two ? 2 : 0), first, turn: first, hideAt: 0 }); }
       if (sc.play === 'collect') Object.assign(sn, { got: [], stung: [], need: Math.round(sc.collect.need * (two ? 1.5 : 1)), lives: two ? 4 : 3 });
+      if (sc.play === 'tower') Object.assign(sn, { floors: [96], crane: 96, need: Math.round(sc.tower.need * (two ? 1.3 : 1)), lives: two ? 4 : 3, n: 0, last: null, busyUntil: 0, endAt: 0, endPhase: null });
       if (sc.play === 'rescue') Object.assign(sn, { stage: 'throw', hits: 0, needHits: sc.rescue.hits * (two ? 2 : 1), lives: two ? 4 : 3, pull: 0, needPull: Math.round(sc.rescue.pull * (two ? 2 : 1)), pullAt: 0 });
       if (sc.play === 'salon') Object.assign(sn, { lives: two ? 4 : 3, need: Math.round(sc.salon.need * (two ? 1.6 : 1)), served: 0, coins: 0, cust: [], next: 0, tt: 0, workers: { ken: null, kel: null } });
       if (sc.play === 'echo') { Object.assign(sn, { lives: two ? 4 : 3, round: 0, rounds: sc.echo.rounds, n: 0, last: null }); teach(sc.echo.first, 1600); }
@@ -178,6 +194,7 @@
         return true;
       }
       if (sc.play === 'rescue' && sn.stage === 'pull' && now() > sn.pullAt + sc.rescue.seconds * 1000) { sn.phase = 'lost'; return true; }
+      if (sc.play === 'tower' && sn.endAt && now() >= sn.endAt) { sn.phase = sn.endPhase; return true; }   // once the last storey has landed (or fallen)
       return false;
     }
     function complete() {
@@ -187,8 +204,8 @@
       if (pr.scene >= p.scenes.length && !pr.done) {
         pr.done = true;
         for (const s of p.saves) if (!S.save.album.includes(s.id)) S.save.album.push(s.id);
-        S.where = { screen: 'rescued', place: p.id };
-      } else S.where = { screen: 'place', place: p.id };
+        S.where = { screen: 'rescued', place: p.id, region: p.region };
+      } else S.where = regionOf(p);
     }
 
     // Something that counts, reported by a device while a game is on.
@@ -241,6 +258,20 @@
         if (m.e === 'sting' && it.kind === 'jelly' && !sn.stung.includes(id + ':' + who)) { sn.stung.push(id + ':' + who); if (--sn.lives <= 0) sn.phase = 'lost'; }
         if (m.e === 'finish') sn.phase = 'lost';
       }
+      // The tower: Kendrick moves the crane, Kellyn lets each storey go. It lands if it is over the top of the house.
+      if (kind === 'tower') {
+        const two = !solo && both();
+        if (m.e === 'crane' && (!two || who === 'ken')) sn.crane = clamp(+m.x || 96, 24, 168);
+        if (m.e === 'drop' && (!two || who === 'kel') && now() >= sn.busyUntil && !sn.endAt) {
+          const t = (now() - sn.startAt) / 1000, hook = sn.crane + course.sway(t, sn.floors.length - 1), off = hook - sn.floors[sn.floors.length - 1];
+          const ok = Math.abs(off) <= sc.tower.slack;
+          sn.last = { n: ++sn.n, x: hook, ok, perfect: Math.abs(off) <= 2.5 };
+          if (ok) sn.floors.push(hook); else sn.lives--;
+          sn.busyUntil = now() + 1100;
+          if (sn.floors.length >= sn.need) { sn.endAt = now() + 1000; sn.endPhase = 'won'; }
+          else if (sn.lives <= 0) { sn.endAt = now() + 1000; sn.endPhase = 'lost'; }
+        }
+      }
       if (kind === 'rescue') {
         if (sn.stage === 'throw' && m.e === 'hit') { if (++sn.hits >= sn.needHits) { sn.stage = 'pull'; sn.pullAt = now() + 1800; } }
         if (sn.stage === 'throw' && m.e === 'miss') { if (--sn.lives <= 0) sn.phase = 'lost'; }
@@ -268,12 +299,19 @@
       if (m.type === 'fx') return emit(who === 'ken' ? 'kel' : 'ken', { ...m, type: 'fx', from: who });
       const sn = S.scene, sc = sn && place().scenes[sn.index];
       if (m.type === 'back') {
-        if (S.where.screen === 'scene') { S.scene = null; S.where = { screen: 'place', place: S.where.place }; }
-        else S.where = { screen: 'planet' };
-      } else if (m.type === 'home') S.where = { screen: 'planet' };
+        if (S.where.screen === 'scene' || S.where.screen === 'rescued') { S.scene = null; S.where = regionOf(place()); }
+        else if (S.where.screen === 'region') S.where = { screen: world.regions[S.where.region].up };
+      } else if (m.type === 'home') S.where = place() ? regionOf(place()) : { screen: 'map' };
+      else if (m.type === 'zoom') {                                                   // looking round the maps needs no partner
+        const to = String(m.to), region = world.regions && world.regions[to];
+        if (S.where.screen !== 'scene' && S.where.screen !== 'rescued' && SCREENS.includes(to) && (!region || places.some((p) => p.region === to && isOpen(p))))
+          S.where = region ? { screen: 'region', region: to } : { screen: to };
+      }
       else if (!ready()) { /* nothing below may happen until both are here */ }
-      else if (m.type === 'go') { const p = places.find((x) => x.id === m.place); if (p && isOpen(p) && S.where.screen !== 'scene') S.where = { screen: 'place', place: p.id }; }
-      else if (m.type === 'open' && S.where.screen === 'place') { const p = place(), pr = prog(p.id), i = m.index | 0; if (p.scenes[i] && (pr.done || i <= pr.scene)) start(i); }
+      else if (m.type === 'play' && S.where.screen === 'region') {
+        const p = places.find((x) => x.id === m.place), i = m.index | 0;
+        if (p && p.region === S.where.region && isOpen(p) && p.scenes[i] && (open || prog(p.id).done || i <= prog(p.id).scene)) { S.where = { screen: 'scene', place: p.id, region: p.region }; start(i); }
+      }
       else if (m.type === 'next' && sn && sn.phase === 'talk' && (m.line === undefined || m.line === sn.line)) { if (++sn.line >= sc.talk.length) begin(); }
       else if (m.type === 'done' && sn && sn.phase === 'stub') complete();
       else if (m.type === 'ev') event(who, m);
@@ -288,7 +326,7 @@
       join(who, save) { S.online[who] = true; merge(save); push(); },
       leave(who) {
         S.online[who] = false;
-        if (!solo && S.scene) { S.scene = null; S.where = { screen: 'place', place: S.where.place }; }      // a scene cannot go on with one of them gone
+        if (!solo && S.scene) { S.scene = null; S.where = regionOf(place()); }      // a scene cannot go on with one of them gone
         push();
       },
       act,
