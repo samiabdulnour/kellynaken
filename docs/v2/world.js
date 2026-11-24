@@ -116,7 +116,10 @@ window.WORLD = {
         { id: 'praha-salon', name: 'V salonu', at: [44, 262], label: 'right', bg: 'praha-salon', play: 'salon', cast: ['leila'],
           salon: {
             seconds: 180, need: 7, patience: 36, every: [11, 15],
-            stations: [{ k: 'wash', x: 30, y: 184 }, { k: 'cut', x: 70, y: 184 }, { k: 'dye', x: 110, y: 184 }, { k: 'dry', x: 150, y: 184 }, { k: 'pay', x: 120, y: 262 }],
+            // along the back wall: the basin, the picture's own two chairs at the mirrors (cutting, dyeing) and the dryer;
+            // `chair` means the picture already has it. The till stands in front. `side` is where the hairdresser stands.
+            stations: [{ k: 'wash', x: 18, y: 142, side: 20 }, { k: 'cut', x: 58, y: 142, chair: true, side: 20 }, { k: 'dye', x: 133, y: 142, chair: true, side: -20 },
+              { k: 'dry', x: 174, y: 142, side: -20 }, { k: 'pay', x: 120, y: 262, side: 18 }],
             work: { wash: 3, cut: 4, dye: 4, dry: 3, pay: 1.2 },
             orders: [['cut', 'pay'], ['wash', 'cut', 'dry', 'pay'], ['wash', 'dye', 'dry', 'pay'], ['wash', 'cut', 'dye', 'dry', 'pay'], ['wash', 'dry', 'pay']],
           },

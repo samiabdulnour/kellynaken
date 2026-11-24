@@ -989,12 +989,12 @@
       if (queued().length >= QUEUE.length) { beep(180); return say('Židle u dveří jsou plné. Odveď ho tam, kam chce.'); }
       beep(330, 260); Net.send({ type: 'ev', e: 'drop', c: c.id });
     } }]);
-    const spot = (i) => ({ x: ST[i].x + 13, y: ST[i].y + 22 });                                 // where a hairdresser stands to work there
+    const spot = (i) => ({ x: ST[i].x + (ST[i].side || 13), y: ST[i].y + 18 });                    // where a hairdresser stands to work there
     const leading = (w) => live.cust.find((c) => c.by === w);
     const queued = () => live.cust.filter((c) => c.at === -2).sort((a, b) => a.id - b.id);
     const body = (w) => (w === who ? s.me : s.mate);
     function where(c) {                                                                         // where a customer stands right now
-      if (c.at >= 0) return { x: ST[c.at].x + 4, y: ST[c.at].y + 4 };
+      if (c.at >= 0) return { x: ST[c.at].x, y: ST[c.at].y + 3 };                               // in the chair, at the basin, under the dryer
       if (c.by) { const b = body(c.by); return { x: b.x - 12, y: b.y - 2 }; }
       const [x, y] = QUEUE[clamp(queued().indexOf(c), 0, QUEUE.length - 1)]; return { x, y };
     }
@@ -1008,7 +1008,7 @@
     function walk(x, y, go) {
       const m = s.me;
       if (live.workers[who] !== null && live.workers[who] !== undefined) Net.send({ type: 'ev', e: 'at', st: -1 });   // leaving one's place
-      m.to = { x: clamp(x, 10, W - 10), y: clamp(y, 200, H - 4) }; m.go = go;
+      m.to = { x: clamp(x, 10, W - 10), y: clamp(y, 150, H - 4) }; m.go = go;
       Net.send({ type: 'fx', k: 'walk', x: m.to.x, y: m.to.y });
     }
     function arrive() {
@@ -1081,7 +1081,7 @@
           const c = live.cust.filter((q) => !q.by).map((q) => ({ q, p: where(q) })).find(({ p }) => Math.abs(p.x - x) < 9 && y > p.y - 34 && y < p.y + 2);
           if (c) { beep(520); view.tip.textContent = ''; return walk(c.p.x + 12, c.p.y + 2, { take: c.q.id }); }
         }
-        const i = ST.findIndex((st) => Math.abs(st.x - x) < 16 && y > st.y - 34 && y < st.y + 28);
+        const i = ST.findIndex((st) => Math.abs(st.x - x) < 18 && y > st.y - 48 && y < st.y + 28);
         if (i > -1) { beep(440); const p = spot(i); return walk(p.x, p.y, { st: i }); }
         walk(x, y, null);
       },
@@ -1104,20 +1104,22 @@
       draw() {
         K.background(sc.bg, 0, place.look);
         ST.forEach((st, i) => {                                                                   // the places to work, as mats on the floor
-          if (K.has('stations', st.k)) K.figure('stations', st.x + 8, st.y + 2, st.k, 0, false, 0.56);
-          else { rect(st.x - 13, st.y - 3, 26, 9, INK); rect(st.x - 12, st.y - 2, 24, 7, '#FFF8E7'); icon(st.k, st.x, st.y + 1); }
+          if (!st.chair) { if (K.has('stations', st.k)) K.figure('stations', st.x, st.y + 2, st.k, 0, st.k === 'dry', 0.64); else { rect(st.x - 13, st.y - 3, 26, 9, INK); rect(st.x - 12, st.y - 2, 24, 7, '#FFF8E7'); icon(st.k, st.x, st.y + 1); } }
+          if (st.k !== 'pay') { const py = 38; rect(st.x - 8, py - 7, 16, 14, INK); rect(st.x - 7, py - 6, 14, 12, '#FFF8E7'); icon(st.k, st.x, py - 1); }   // a little sign on the wall: what is done here
         });
         const things = [];                                                                        // everyone on the floor, drawn from the back to the front
         const worked = (c) => c.at >= 0 && ST[c.at].k === c.order[c.step];                     // being seen to: the work bar shows instead of what they want
         for (const c of live.cust) { const p = where(c); things.push([p.y, () => { customer(c, p.x, p.y); if (!worked(c)) bubble(c, p.x, p.y); }]); }
         if (sc.cast) things.push([286, () => K.figure(sc.cast[0], 178, 286, 'three', s.t, true)]);           // Mamka keeps an eye on things from the corner
         const busyAt = (w) => { const at = live.workers[w]; return at !== null && at !== undefined && live.cust.some((c) => c.at === at && ST[at].k === c.order[c.step]); };   // hands busy with the work
-        if (mateHere()) things.push([s.mate.y, () => K.hero(mate(), s.mate.x, s.mate.y, s.mate.to ? 'run' : busyAt(mate()) ? 'drum' : 'stand', s.mate.to ? s.t * 0.7 : s.t, s.mate.to ? s.mate.to.x < s.mate.x : false)]);
-        things.push([s.me.y, () => K.hero(who, s.me.x, s.me.y, s.lost ? 'dizzy' : s.me.to ? 'run' : busyAt(who) ? 'drum' : 'stand', s.me.to ? s.t * 0.7 : s.t, s.me.to ? s.me.to.x < s.me.x : false)]);
+        // at work: standing at the customer with the tool of the job in hand, going to and fro
+        const tool = (w, b) => { if (!busyAt(w)) return; const st = ST[live.workers[w]], d = st.x < b.x ? -1 : 1, tx = b.x + d * 10 + Math.round(Math.sin(s.t * 10) * 2), ty = b.y - 28 + Math.round(Math.cos(s.t * 10)); rect(tx - 7, ty - 7, 14, 13, INK); rect(tx - 6, ty - 6, 12, 11, '#FFF8E7'); icon(st.k, tx, ty - 1); };
+        if (mateHere()) things.push([s.mate.y, () => { K.hero(mate(), s.mate.x, s.mate.y, s.mate.to ? 'run' : 'stand', s.mate.to ? s.t * 0.7 : s.t, s.mate.to ? s.mate.to.x < s.mate.x : busyAt(mate()) && ST[live.workers[mate()]].x < s.mate.x); tool(mate(), s.mate); }]);
+        things.push([s.me.y, () => { K.hero(who, s.me.x, s.me.y, s.lost ? 'dizzy' : s.me.to ? 'run' : 'stand', s.me.to ? s.t * 0.7 : s.t, s.me.to ? s.me.to.x < s.me.x : busyAt(who) && ST[live.workers[who]].x < s.me.x); tool(who, s.me); }]);
         things.sort((a, b) => a[0] - b[0]).forEach(([, f]) => f());
         ST.forEach((st, i) => {                                                                   // how far the work has got, on top of everyone
           const c = live.cust.find((q) => q.at === i);
-          if (c && st.k === c.order[c.step]) { const f = clamp(c.work / cfg.work[st.k], 0, 1), bx = st.x + 4, by = st.y - 70; rect(bx - 13, by - 9, 26, 14, INK); rect(bx - 12, by - 8, 24, 12, '#FFF8E7'); icon(st.k, bx, by - 3); rect(bx - 12, by + 5, 24, 4, INK); rect(bx - 11, by + 6, Math.max(1, Math.round(22 * f)), 2, '#1FA463'); }
+          if (c && st.k === c.order[c.step]) { const f = clamp(c.work / cfg.work[st.k], 0, 1), bx = st.x, by = st.y - 72; rect(bx - 13, by - 9, 26, 14, INK); rect(bx - 12, by - 8, 24, 12, '#FFF8E7'); icon(st.k, bx, by - 3); rect(bx - 12, by + 5, 24, 4, INK); rect(bx - 11, by + 6, Math.max(1, Math.round(22 * f)), 2, '#1FA463'); }
         });
         s.pops = s.pops.filter((p) => s.t - p.at < 0.9);
         for (const p of s.pops) {
