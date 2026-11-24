@@ -91,6 +91,8 @@
   };
   const PAPER = { sky: '#F2E4BE', far: '#E2D3A2', far2: '#9BD16B', ground: '#F2E4BE', line: '#CBB57F' };
   const draft = (id) => { if (!K.hasBg(id)) add('<span class="draft">náhradní obrázek</span>'); };
+  // A map's place names stay hidden until the map itself is there, so they never float over the loading dots.
+  const holdPins = (bg) => { const hide = K.picture(bg) ? '' : 'hidden'; K.ui.querySelectorAll('.pin').forEach((el) => { if (el.style.visibility !== hide) el.style.visibility = hide; }); };
   // A character's face from the sheet, for the UI. mood: 0 calm, 1 laughing, 2 surprised, 3 smiling, 4 eyes closed.
   // f is how many screen pixels each drawn pixel takes.
   const face = (id, mood = 0, f = 2) => {
@@ -162,24 +164,12 @@
       at.push(i); rows.push(clamp(Math.floor((0.5 - Math.asin(-ny) / Math.PI) * TH), 0, TH - 1)); lons.push(Math.atan2(nx, nz));
       shades.push(light < 0.28 ? 0.62 : light < 0.55 ? 0.82 : 1);
     }
-    // Stand-in continents as [west, east, south, north, colour], until the real picture exists.
-    const LAND = '#7BBF6A', WOOD = '#5FA85A', SAND = '#E3CB7E', ICE = '#F4F1E8';
-    const LANDS = [[-125, -70, 28, 60, LAND], [-162, -125, 55, 70, LAND], [-105, -84, 14, 28, LAND], [-100, -75, 45, 60, WOOD], [-55, -22, 62, 80, ICE],
-      [-80, -45, -20, 9, WOOD], [-72, -55, -52, -20, LAND], [-9, 36, 38, 58, LAND], [6, 28, 58, 69, WOOD], [-16, 40, 5, 34, LAND], [-12, 32, 16, 30, SAND],
-      [12, 40, -33, 5, LAND], [36, 138, 26, 70, LAND], [60, 130, 50, 68, WOOD], [38, 56, 14, 30, SAND], [70, 88, 8, 26, LAND], [98, 120, 0, 26, WOOD],
-      [114, 153, -38, -13, LAND], [120, 142, -30, -20, SAND], [-180, 180, -90, -74, ICE], [-180, 180, 83, 90, ICE]];
     let skin = null, real = false, drawn = null;
     function makeSkin() {
       const c = document.createElement('canvas'); c.width = TW; c.height = TH;
       const g = c.getContext('2d'), img = K.picture(WORLD.planet.bg);
-      if (img) { g.drawImage(img, 0, 0, TW, TH); real = true; }
-      else {
-        const box = (w, e, s, n, col) => { g.fillStyle = col; g.fillRect(Math.round((w + 180) / 360 * TW), Math.round((90 - n) / 180 * TH), Math.round((e - w) / 360 * TW), Math.round((n - s) / 180 * TH)); };
-        box(-180, 180, -90, 90, '#2F8FC6');
-        const r = K.rng(7); g.fillStyle = '#58AEDC';
-        for (let i = 0; i < 90; i++) g.fillRect(Math.floor(r() * TW), 18 + Math.floor(r() * (TH - 36)), 5, 1);
-        for (const l of LANDS) box(...l);
-      }
+      if (!img) return;                                      // the world map is still on its way
+      g.drawImage(img, 0, 0, TW, TH); real = true;
       skin = g.getImageData(0, 0, TW, TH).data; drawn = null;
     }
     function paint(rot) {
@@ -212,7 +202,7 @@
         add('<button class="btn zoom">&lt; Česko</button>').addEventListener('click', toCzechia);
         const lead = pins.find((pin) => pinState(pin) === 'todo') || pins[0];
         aim = lonOf(lead); rot = aim - 1;                          // spin round to the next place to save
-        if (!skin || (!real && K.picture(WORLD.planet.bg))) makeSkin();
+        if (!real) makeSkin();
         draft(WORLD.planet.bg);
       },
       move(x, y, dx) { rot -= dx / R; aim = null; },
@@ -233,6 +223,7 @@
         if (!real && K.picture(WORLD.planet.bg)) makeSkin();
       },
       draw() {
+        if (!real) return K.background(WORLD.planet.bg);                // the world map is still on its way: only the loading dots
         rect(0, 0, W, H, '#1A1B36');
         for (const [x, y, ph] of stars) if (Math.sin(t * 1.5 + ph) > -0.6) rect(x, y, 1, 1, '#FFF8E7');
         if (drawn !== rot) paint(rot);
@@ -286,8 +277,8 @@
         }
         if (hit) pick(hit);
       },
-      update(dt) { t += dt; },
-      draw() { zoomIn(t, () => { K.background(M.bg, 0, PAPER); for (const pin of M.pins) flag(pin.at[0], pin.at[1], state(pin), t); }); },
+      update(dt) { t += dt; holdPins(M.bg); },
+      draw() { zoomIn(t, () => { K.background(M.bg, 0, PAPER); if (K.picture(M.bg)) for (const pin of M.pins) flag(pin.at[0], pin.at[1], state(pin), t); }); },
     };
   })();
 
@@ -329,8 +320,8 @@
         for (const pin of pins) { const d = Math.hypot(pin.at[0] - x, pin.at[1] - 8 - y); if (d < best) { best = d; hit = pin; } }
         if (hit) pick(hit);
       },
-      update(dt) { t += dt; },
-      draw() { zoomIn(t, () => { K.background(R.bg, 0, PAPER); for (const pin of pins) flag(pin.at[0], pin.at[1], state(pin), t); }); },
+      update(dt) { t += dt; holdPins(R.bg); },
+      draw() { zoomIn(t, () => { K.background(R.bg, 0, PAPER); if (K.picture(R.bg)) for (const pin of pins) flag(pin.at[0], pin.at[1], state(pin), t); }); },
     };
   };
 
@@ -390,9 +381,10 @@
         } else if (go) { go.remove(); go = null; }
       },
       draw() {
-        if (act) return act.draw();
-        const show = sn.phase === 'talk' && sc.talk[sn.line] && sc.talk[sn.line][3];
+        const show = !act && sn.phase === 'talk' && sc.talk[sn.line] && sc.talk[sn.line][3];
         if (show) return memory(show, t - lineAt, t);                         // a picture instead of the scene, for this line of the story
+        if (sc.bg && !K.picture(sc.bg)) return K.background(sc.bg);         // the level's picture is still on its way: only the loading dots
+        if (act) return act.draw();
         K.background(sc.bg, 0, place.look);
         const gy = (sc.ground || GROUND) - 10;                                // a little further back, clear of the speech box
         const rock = sc.play === 'rescue' && sc.rescue.land;
