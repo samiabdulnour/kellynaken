@@ -417,6 +417,8 @@
     for (let i = 0; i < 6; i++) { const a = 0.07 * (6 - i); rect(x + i, y + i, w - 2 * i, 1, `rgba(43,31,26,${a})`); rect(x + i, y + h - 1 - i, w - 2 * i, 1, `rgba(43,31,26,${a})`); rect(x + i, y + i, 1, h - 2 * i, `rgba(43,31,26,${a})`); rect(x + w - 1 - i, y + i, 1, h - 2 * i, `rgba(43,31,26,${a})`); }
   }
   function memory(kind, u, t) {
+    const wait = { ship: 'australia-sea', travellers: 'australia-beach' }[kind];
+    if (wait && !K.picture(wait)) return K.background(wait);           // its picture is still on its way: only the loading dots
     if (kind === 'ship') {                                              // the refugee ship crossing the ocean after the war
       K.background('australia-sea', u * 18, WORLD.places.find((p) => p.id === 'australia').look, true);
       const x = 18 + u * 9, y = 203 + Math.round(Math.sin(u * 2.2));
