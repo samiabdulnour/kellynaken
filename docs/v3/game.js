@@ -96,7 +96,7 @@
   const face = (id, mood = 0, f = 2) => {
     const sp = K.sprites[id]; if (!sp) return '';
     const c = sp.faces, u = f * (c.scale || 1) / 8;                                // drawn finer faces come with a scale
-    return `<span class="face" style="width:${c.w * u}em;height:${c.h * u}em;background-image:url(assets/sprites/${c.file});background-size:${c.w * c.n * u}em ${c.h * u}em;background-position:${-mood * c.w * u}em 0"></span>`;
+    return `<span class="face" style="width:${c.w * u}em;height:${c.h * u}em;background-image:url(${K.asset(`assets/sprites/${c.file}`)});background-size:${c.w * c.n * u}em ${c.h * u}em;background-position:${-mood * c.w * u}em 0"></span>`;
   };
 
   // ---- which screen is up: the room says where everyone is, and both devices follow ----
@@ -1542,7 +1542,7 @@
       const people = places.flatMap((p) => p.saves);
       add(`<div class="album">${people.map((s) => {
         const got = st().save.album.includes(s.id), sp = K.sprites[s.id], x = got && sp && sp.extra;
-        const pic = x ? `<img alt="" src="assets/sprites/${x.file}" style="width:${x.w / 8}em;height:${x.h / 8}em">` : '';
+        const pic = x ? `<img alt="" src="${K.asset(`assets/sprites/${x.file}`)}" style="width:${x.w / 8}em;height:${x.h / 8}em">` : '';
         const head = got ? face(s.id, 3) || `<span>${esc(s.name.charAt(0))}</span>` : '<span>?</span>';
         return `<div data-got="${got ? 1 : 0}">${head}${got ? esc(s.name) : '???'}${pic}</div>`;
       }).join('')}</div>`);

@@ -68,7 +68,9 @@ const K = (() => {
   // ---- art ----
   const have = window.ASSETS || { bg: [] }, sprites = window.SPRITES || {};
   const cache = {};
-  const image = (path) => { if (!cache[path]) { const i = new Image(); i.src = path; cache[path] = i; } return cache[path]; };
+  // Every file is asked for with the build's version, so a phone never mixes an old file with a new one after an update.
+  const asset = (path) => (window.BUILD ? `${path}?v=${window.BUILD}` : path);
+  const image = (path) => { if (!cache[path]) { const i = new Image(); i.src = asset(path); cache[path] = i; } return cache[path]; };
   const ready = (i) => i.complete && i.naturalWidth > 0;
   const hasBg = (id) => have.bg.includes(id);
   const picture = (id) => { if (!hasBg(id)) return null; const i = image(`assets/bg/${id}.png`); return ready(i) ? i : null; };   // a finished picture, once loaded
@@ -167,5 +169,5 @@ const K = (() => {
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
   const has = (sheet, pose) => !!(sprites[sheet] && sprites[sheet].poses && sprites[sheet].poses[pose]);
-  return { W, H, GROUND, INK, has, ctx, ui, clamp, hash, rng, rect, beep, drum, save, write, hasBg, picture, background, sprites, figure, hero: figure, prop, go, add, esc, get scene() { return scene; } };
+  return { W, H, GROUND, INK, has, ctx, ui, clamp, hash, rng, rect, beep, drum, asset, save, write, hasBg, picture, background, sprites, figure, hero: figure, prop, go, add, esc, get scene() { return scene; } };
 })();
