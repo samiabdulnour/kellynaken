@@ -1314,8 +1314,7 @@
         (sc.cast || []).forEach((id, i) => K.figure(id, 160 + i * 18, sy(GY + 4), 'three', s.t, true));
         if (mateHere()) K.hero(mate(), 42, sy(GY + 6), 'stand', s.t + 0.3);
         K.hero(who, 20, sy(GY + 6), s.lost ? 'dizzy' : 'stand', s.t);
-        // the crane: its mast on the right, the arm across the top, the trolley, the cable and the hook
-        rect(178, JIB, 8, H - JIB, '#B8860B'); for (let y = JIB + 2; y < H; y += 8) { rect(179, y, 6, 1, '#F2C94C'); rect(180 + (y / 8 % 2 ? 0 : 3), y + 2, 1, 4, '#F2C94C'); }
+        // the crane: only its arm across the top (the mast is out of the picture), the cabin, the trolley, the cable and the hook
         rect(4, JIB, 188, 5, '#B8860B'); rect(4, JIB + 1, 188, 1, '#F2C94C'); for (let x = 6; x < 190; x += 6) rect(x, JIB + 2, 1, 2, '#F2C94C');
         rect(172, JIB - 9, 18, 9, '#B8860B'); rect(174, JIB - 7, 7, 5, '#BFE3F2');                    // the cabin
         const c = Math.round(crane()), hx = hook(), hy = JIB + CABLE;
