@@ -152,7 +152,8 @@ window.WORLD = {
           collect: { seconds: 60, need: 8, stay: 3.6, every: [1.0, 1.7], jelly: 0.24, won: 'Na vzkazu stojí: POMOC! Jsme na skále za útesem.' },
           // The saga opens like a short film: the voyage, his photograph, and today's two travellers seen from behind.
           talk: [['', 'Po válce utekl praděda Václav z Československa. Na lodi s uprchlíky plul přes celý oceán až do Austrálie.', null, 'ship'],
-            ['', 'Deset let pak žil v Brisbane. Byl to velký chlap. A nějaký čas tu žil i váš druhý praděda, Georges.', null, 'photo'],
+            ['', 'Deset let pak žil v Brisbane. Byl to velký chlap a všude s ním chodil jeho malý pejsek Filip.', null, 'photo'],
+            ['', 'A nějaký čas tu žil i váš druhý praděda, Georges.', null, 'photo'],
             ['', 'Dnes se po stopách pradědy Václava vydali dva cestovatelé. Chtěli vidět místa, kde kdysi žil.', null, 'travellers'],
             ['', 'Jenže na pláži Bondi teď vyplavilo moře roztrhaný vzkaz v láhvi.'], ['hero', 'Posbíráme všechny kousky, než je vlny zase odnesou!']] },
         { id: 'australia-sea', name: 'Na vlně', at: [136, 230], label: 'right', bg: 'australia-sea', scroll: true, play: 'run', ground: 200, tile: 'repeat', pickup: 'boomerang',

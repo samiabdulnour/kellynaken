@@ -342,8 +342,8 @@
     function paint() {
       if (sn.phase === 'talk' && (was !== 'talk' || line !== sn.line)) {
         if (box) box.remove();
-        const [key, text, about] = sc.talk[sn.line], at = sn.line;                 // `about`: someone the line tells of, shown with it
-        lineAt = t;
+        const [key, text, about, show] = sc.talk[sn.line], at = sn.line;           // `about`: someone the line tells of, shown with it
+        if (!show || !sc.talk[sn.line - 1] || sc.talk[sn.line - 1][3] !== show) lineAt = t;   // the same picture over two lines stays as it is
         box = add(`<div class="say">${about ? face(about, 0) : key === 'hero' ? face(who, 0) : key ? face(key, 3) : ''}${key ? `<b>${esc(speaker(key))}</b>` : ''}<p>${esc(text)}</p><i>&gt;</i></div>`);
         box.addEventListener('click', () => { beep(440); Net.send({ type: 'next', line: at }); });        // either of them may tap; the line number stops a double tap skipping one
       }
@@ -401,7 +401,7 @@
       if (K.has('voyage', 'ship')) K.figure('voyage', x, y, 'ship', 0, false, 0.5);
       for (let i = 0; i < 2; i++) { const gx = ((u * 26 + i * 110) % 250) - 30; if (K.has('voyage', 'gull1')) K.figure('voyage', gx, 92 + i * 26 + Math.round(Math.sin(u * 3 + i) * 4), Math.floor(u * 4 + i) % 2 ? 'gull1' : 'gull2', 0, false, 0.32); }
       oldPhoto(0, 0, W, H);
-    } else if (kind === 'photo') {                                      // his photograph, with his little dog
+    } else if (kind === 'photo') {                                      // his photograph, with Filip, his little dog
       rect(0, 0, W, H, '#3A2F33');
       for (let y = 30; y < H; y += 14) rect(0, y, W, 1, 'rgba(255,248,231,.04)');
       const a = Math.min(1, u / 0.9), fx = 36, fy = 44, fw = 120, fh = 156;
