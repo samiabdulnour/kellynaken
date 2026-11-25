@@ -472,9 +472,9 @@
   // The buttons along the bottom, the same in every game: moving (◀ ▶, held down) under the left thumb, the main
   // thing to do under the right one, big and yellow. Tapping the picture still works as well.
   // A key is { id, label, side: 'left' | 'right', big, hidden, count, press(), release() }; 'left' and 'right' are arrows.
-  function pad(keys) {
+  function pad(keys, look) {
     const html = (k) => `<button class="key${k.big ? ' big' : ''}" data-k="${k.id}"${k.hidden ? ' hidden' : ''}>${k.id === 'left' || k.id === 'right' ? `<i class="arrow ${k.id}"></i>` : `<span>${esc(k.label)}</span>`}${k.count !== undefined ? '<b></b>' : ''}</button>`;
-    const el = add(`<div class="pad"><div>${keys.filter((k) => k.side === 'left').map(html).join('')}</div><div>${keys.filter((k) => k.side !== 'left').map(html).join('')}</div></div>`);
+    const el = add(`<div class="pad${look ? ' ' + look : ''}"><div>${keys.filter((k) => k.side === 'left').map(html).join('')}</div><div>${keys.filter((k) => k.side !== 'left').map(html).join('')}</div></div>`);
     const btn = (id) => el.querySelector(`[data-k="${id}"]`);
     for (const k of keys) {
       const b = btn(k.id);
@@ -486,6 +486,9 @@
       });
       for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) b.addEventListener(ev, off);
       b.addEventListener('contextmenu', (e) => e.preventDefault());
+      // iPhones: a finger held on a button must not bring up the magnifier, select text or zoom in. Cancelling the
+      // touch stops all of that; the pointer events the buttons work by still arrive.
+      b.addEventListener('touchstart', (e) => e.preventDefault(), { passive: false });
     }
     return {
       show(id, yes) { btn(id).hidden = !yes; },
@@ -537,7 +540,7 @@
       { id: 'right', side: 'left', press: () => { s.held.right = true; steer(); }, release: () => { s.held.right = false; steer(); } },
       { id: 'throw', label: 'Hoď', press: () => throwIt() },
       { id: 'jump', label: 'Skok', big: true, press: () => jump(), release: () => cut() },
-    ]);
+    ], 'walk');                                                                                  // big arrows: walking is most of the game here
     const out = (w) => !!(live.out && live.out[w]);
     const powered = () => !!sc.pickup && Net.now() < live.power;
     const beaten = (id) => live.beaten.includes(id);
@@ -556,8 +559,9 @@
       s.shots.push(shot); beep(who === 'ken' ? 330 : 660);
       Net.send({ type: 'fx', k: 'throw', x: Math.round(shot.x), y: Math.round(shot.y), f: m.face });
     }
-    // Kendrick's puck flies flat and fast; Kellyn's bunny goes up and comes down again.
-    const shoot = (w, x, y, face, real) => (w === 'ken' ? { w, x, y, vx: face * 230, vy: 0, g: 0, left: 0.75, real } : { w, x, y, vx: face * 150, vy: 140, g: 420, left: 1.1, real });
+    // Kendrick's puck slides fast along the ground: off the edge of a wall or a car it drops to the pavement and slides
+    // on, and against a wall it stops. Kellyn's bunny goes up a little and comes down again.
+    const shoot = (w, x, y, face, real) => (w === 'ken' ? { w, x, y: y - 25, vx: face * 230, vy: 0, g: 0, left: 0.8, slide: true, real } : { w, x, y: y - 12, vx: face * 150, vy: 110, g: 420, left: 1.1, real });
     // Where everyone is, and what touches what.
     const foesNow = () => L.foes.map((f) => L.at(f, s.t)).filter(Boolean).map((p, i) => p).filter((p) => !beaten(p.id));
     const kindOf = (id) => L.foes[parseInt(id, 10)].kind;
@@ -634,6 +638,11 @@
     function fly(dt) {
       s.shots = s.shots.filter((sh) => {
         sh.x += sh.vx * dt; sh.vy -= sh.g * dt; sh.y += sh.vy * dt; sh.left -= dt;
+        if (sh.slide) {                                                                            // the puck: on the ground, falling off edges
+          const floor = L.top(sh.x, 2);
+          if (floor > sh.y + 5) return false;                                                     // into a wall
+          if (sh.y > floor + 3) { sh.vy -= 700 * dt; sh.y = Math.max(floor + 3, sh.y + sh.vy * dt); } else { sh.y = floor + 3; sh.vy = 0; }
+        }
         if (sh.left <= 0 || sh.y < L.top(sh.x) - 2) return false;                               // spent, or into the ground or a wall
         if (!sh.real) return true;
         for (const p of foesNow()) {
@@ -669,7 +678,7 @@
         const found = cfg.gate === 'salon' ? `Sebrali jste ${n} mincí${clues ? ` a ${clues === 2 ? 'hřeben i sponku' : 'jednu stopu'}` : ''}.` : `Sebrali jste ${notes} not.`;
         view.end(won, won ? (cfg.gate === 'salon' ? 'Jste u kadeřnictví!' : 'Jste nahoře!') : 'Au!', won ? found : 'Došla vám srdíčka. Zkuste to ještě jednou.');
       },
-      down() { jump(); },
+      down() {},                                                                               // tapping the picture does nothing: only Skok jumps
       move() {},
       update(dt) {
         if (s.over) return;

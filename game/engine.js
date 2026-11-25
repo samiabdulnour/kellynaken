@@ -62,6 +62,8 @@ const K = (() => {
   const sound = () => (ac = ac || new (window.AudioContext || window.webkitAudioContext)());
   const wake = () => { try { if (sound().state !== 'running') ac.resume(); } catch (e) {} };
   ['pointerdown', 'pointerup', 'touchend', 'keydown'].forEach((e) => addEventListener(e, wake, true));
+  // No pinching or double-tapping the game bigger on iPhones (they ignore user-scalable=no in the page's viewport).
+  for (const e of ['gesturestart', 'gesturechange', 'dblclick']) document.addEventListener(e, (ev) => ev.preventDefault(), { passive: false });
   document.addEventListener('visibilitychange', () => { try { if (ac) (document.hidden ? ac.suspend() : ac.resume()); } catch (e) {} });
 
   // ---- music: a tune looping under a level (assets/music). A scene names its tune (see go()); the next scene with
