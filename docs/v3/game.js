@@ -518,6 +518,12 @@
   function Platform(sc, place, sn) {
     const cfg = sc.platform, who = me(), GY = sc.ground || GROUND, SPEED = 66, G = 640, JUMP = 250, STEP = 9, HALF = 7, TALL = 40;
     const L = Room.course.platform(sc), LEN = L.length;
+    // The things to climb are pictures (tools/sprites.py: P17 in the street, P18 on the hill), each fitted to its
+    // block's width and standing on whatever is under it; the stone terraces are tiled from the stone wall picture.
+    const PROP = { car1: 'street', car2: 'street', bench: 'street', bin: 'street', wall: 'street', boulder: 'hill', logs: 'hill' };
+    L.blocks.forEach((b, i) => { const c = b.x + b.w / 2; b.base = L.blocks.slice(0, i).reduce((m, o) => (c > o.x && c < o.x + o.w ? Math.max(m, o.h) : m), 0); });
+    const art = (sheet, pose) => K.has(sheet, pose) && K.sprites[sheet].sizes && K.sprites[sheet].sizes[pose];
+    const hillImg = new Image(); hillImg.src = K.asset(`assets/sprites/${(K.sprites.hill || {}).file || 'hill.png'}`);
     const SIZE = { pigeon: [9, 16], flyer: [9, 7], crow: [10, 7], cone: [6, 12], puddle: [9, 2] };   // half-width, and height (flyers: half-height round their middle)
     const CLUES = { comb: ['prague', 'comb'], clip: ['salonkit', 'clip'], note: ['strahov', 'note'] };
     const s = { t: 0, over: false, lost: false, me: { x: who === 'kel' && mateHere() ? 18 : 36, y: 0, vy: 0, face: 1, ground: true, inv: 0, hurt: -9, cool: 0, sent: 0, done: false },
@@ -616,6 +622,7 @@
         if (Math.abs(it.x - m.x) < 10 && it.h + 6 > m.y && it.h - 6 < m.y + TALL) {
           if (it.kind === 'pickup') { live.picked = true; Net.send({ type: 'ev', e: 'pick' }); beep(660, 880, 1100); continue; }
           live.got.push(it.id); Net.send({ type: 'ev', e: 'got', id: it.id }); beep(it.kind === 'coin' ? 990 : 660, it.kind === 'coin' ? 1320 : 990);
+          if (it.kind === 'heart') say(live.hp[who] < live.max ? 'Srdíčko navíc!' : 'Srdíčko! (Už máš všechna.)');
           s.pops.push({ x: it.x, y: it.h + 14, at: s.t, got: it.kind });
         }
       }
@@ -658,8 +665,8 @@
       },
       over(won) {
         s.over = true; s.lost = !won; paint();
-        const n = live.got.filter((id) => L.items[id].kind === 'coin').length, clues = live.got.filter((id) => L.items[id].kind !== 'coin').length;
-        const found = cfg.gate === 'salon' ? `Sebrali jste ${n} mincí${clues ? `, a ${clues === 2 ? 'hřeben i sponku' : clues === 1 ? 'jednu stopu' : ''}` : ''}.` : `Sebrali jste ${clues} not.`;
+        const count = (k) => live.got.filter((id) => k.includes(L.items[id].kind)).length, n = count(['coin']), clues = count(['comb', 'clip']), notes = count(['note']);
+        const found = cfg.gate === 'salon' ? `Sebrali jste ${n} mincí${clues ? ` a ${clues === 2 ? 'hřeben i sponku' : 'jednu stopu'}` : ''}.` : `Sebrali jste ${notes} not.`;
         view.end(won, won ? (cfg.gate === 'salon' ? 'Jste u kadeřnictví!' : 'Jste nahoře!') : 'Au!', won ? found : 'Došla vám srdíčka. Zkuste to ještě jednou.');
       },
       down() { jump(); },
@@ -689,14 +696,15 @@
       draw() {
         const tt = Math.max(0, s.t), cam = Math.round(s.cam), X = (x) => Math.round(x - cam), Y = (y) => Math.round(GY - y);
         K.background(sc.bg, cam * 0.6, place.look, sc.tile === 'repeat');
-        for (const f of L.foes) if (f.kind === 'cone') pine(X(f.x1 + 4), Y(L.top(f.x1)));         // the pine trees the cones drop from
-        for (const b of L.blocks) if (b.x + b.w > cam - 4 && b.x < cam + W + 4) block(b, X(b.x), Y(b.h));
+        for (const f of L.foes) if (f.kind === 'cone') pine(X(f.x1 + 4), Y(L.top(f.x1)));         // the spruces the cones drop from
+        for (const b of L.blocks) if (b.x + b.w > cam - 4 && b.x < cam + W + 4) block(b, X(b.x));
         gate(cfg.gate, X(L.goal + 12));
         for (const it of L.items) {
           if (it.kind === 'pickup' ? live.picked || !sc.pickup : live.got.includes(it.id)) continue;
           const x = X(it.x), y = Y(it.h) - Math.round(Math.sin(tt * 4 + it.id) * 2);
           if (x < -10 || x > W + 10) continue;
           if (it.kind === 'coin') coin(x, y, tt + it.id * 0.3);
+          else if (it.kind === 'heart') { const sz = art('street', 'heart'), k = 1 + Math.sin(tt * 6) * 0.08; if (sz) K.figure('street', x, y + 6, 'heart', 0, false, 12 / sz[1] * k); else { rect(x - 5, y - 4, 4, 4, '#CC2233'); rect(x + 1, y - 4, 4, 4, '#CC2233'); rect(x - 4, y, 8, 3, '#CC2233'); } }
           else if (it.kind === 'pickup') item(sc.pickup, x, y - 6, tt);
           else { const a = CLUES[it.kind]; if (a && K.has(a[0], a[1])) { const sp = K.sprites[a[0]]; K.figure(a[0], x, y + 6, a[1], 0, false, 16 / Math.max(sp.w, sp.h) * 1.2); } else coin(x, y, tt); }
         }
@@ -728,8 +736,26 @@
       },
     };
     function say(text) { view.tip.textContent = text; s.tipAt = s.t || 0.01; }
-    // Things to climb, drawn here: benches, bins, parked cars, walls; on the hill stone steps, rocks and logs.
-    function block(b, x, top) {
+    function block(b, x) {
+      const sheet = PROP[b.kind], size = sheet && art(sheet, b.kind);
+      if (size) return K.figure(sheet, x + b.w / 2, GY - b.base, b.kind, 0, b.kind.startsWith('car') && (b.x / 10 | 0) % 2 === 1, b.w / size[0]);   // some cars parked the other way round
+      if (b.kind === 'stones' && art('hill', 'stones') && hillImg.complete && hillImg.naturalWidth) return stones(b, x);
+      drawn({ ...b, kind: { car1: 'car', car2: 'car', stones: 'step', boulder: 'rock', logs: 'log' }[b.kind] || b.kind }, x, Math.round(GY - b.h));
+    }
+    // A stone terrace: the stone wall picture repeated along it, grass on top, more stone below.
+    function stones(b, x) {
+      const sp = K.sprites.hill, [ow, oh] = sp.sizes.stones, sx = Math.floor((sp.w - ow) / 2) + 8, sy = sp.h - oh, tw = ow - 16;
+      const top = Math.round(GY - b.h), bottom = Math.round(GY - b.base);
+      ctx.save(); ctx.beginPath(); ctx.rect(x, top, b.w, bottom - top); ctx.clip();
+      for (let tx = x; tx < x + b.w; tx += tw) {
+        const lip = b.h - b.base < 14 ? 4 : 0;                                                    // a low step: less grass, more stone
+        ctx.drawImage(hillImg, sx, sy + lip, tw, oh - lip, tx, top, tw, oh - lip);
+        for (let ty = top + oh - lip; ty < bottom; ty += oh - 6) ctx.drawImage(hillImg, sx, sy + 6, tw, oh - 6, tx, ty, tw, oh - 6);
+      }
+      ctx.restore();
+    }
+    // Stand-ins, drawn here, for when the pictures are missing: benches, bins, parked cars, walls, stone steps, rocks and logs.
+    function drawn(b, x, top) {
       const w = b.w, h = b.h, gy = GY;
       if (b.kind === 'bench') { rect(x, top, w, 4, '#6E4A2A'); rect(x, top, w, 1, '#A8743F'); rect(x + 2, top + 4, 3, h - 4, '#3A3A40'); rect(x + w - 5, top + 4, 3, h - 4, '#3A3A40'); rect(x + 1, top - 7, w - 2, 3, '#8A5A2B'); rect(x + 3, top - 4, 2, 4, '#3A3A40'); rect(x + w - 5, top - 4, 2, 4, '#3A3A40'); }
       else if (b.kind === 'bin') { rect(x, top + 2, w, h - 2, '#2F7D3A'); rect(x + 1, top + 3, w - 2, 2, '#3F9A45'); rect(x - 1, top, w + 2, 3, '#245C2C'); for (let i = x + 3; i < x + w - 2; i += 4) rect(i, top + 7, 1, h - 10, '#276B31'); rect(x + 2, gy - 2, 3, 2, INK); rect(x + w - 5, gy - 2, 3, 2, INK); }
@@ -748,6 +774,8 @@
     // The end: the salon's door with its sign, or the stadium's gate with a flag.
     function gate(kind, x) {
       if (x < -60 || x > W + 60) return;
+      if (kind === 'salon' && art('street', 'salon')) return K.figure('street', x + 22, GY, 'salon', 0, false, 1);   // its door is on the left
+      if (kind !== 'salon' && art('hill', 'gatel')) { K.figure('hill', x - 4, GY, 'gatel', 0, false, 1); K.figure('hill', x + 46, GY, 'gater', 0, false, 1); return; }
       if (kind === 'salon') {
         rect(x - 4, GY - 74, 46, 74, '#3A2F33'); rect(x, GY - 62, 18, 62, '#B9DDF0'); rect(x + 1, GY - 61, 16, 60, '#7FB4D6'); rect(x + 14, GY - 34, 2, 6, '#FFD43A');
         rect(x - 6, GY - 86, 50, 13, INK); rect(x - 5, GY - 85, 48, 11, '#F0448F');
@@ -772,11 +800,14 @@
     }
     function pine(x, foot) {
       if (x < -24 || x > W + 24) return;
+      if (art('hill', 'spruce')) return K.figure('hill', x, foot, 'spruce', 0, false, 0.8);
       rect(x - 2, foot - 14, 4, 14, '#6E4420');
       for (let i = 0; i < 4; i++) { const w = 22 - i * 5, y = foot - 18 - i * 11; rect(x - w / 2, y, w, 9, '#2F6B3A'); rect(x - w / 2 + 2, y, w - 6, 3, '#3F8A45'); }
       rect(x - 1, foot - 64, 2, 4, '#2F6B3A');
     }
     function coin(x, y, tt) {
+      const sz = art('street', 'coin');
+      if (sz) { ctx.save(); ctx.translate(x, 0); ctx.scale(Math.max(0.2, Math.abs(Math.cos(tt * 3))), 1); K.figure('street', 0, y + 6, 'coin', 0, false, 12 / sz[1]); ctx.restore(); return; }   // spinning
       const w = Math.max(1, Math.round(Math.abs(Math.cos(tt * 3)) * 6));
       rect(x - w, y - 6, w * 2, 12, '#B8862A'); rect(x - w + 1, y - 5, Math.max(1, w * 2 - 2), 10, '#FFD43A'); if (w > 3) rect(x - 1, y - 3, 2, 6, '#E6B340');
     }

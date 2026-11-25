@@ -288,7 +288,11 @@
         if (m.e === 'revive' && sn.two && sn.out[other] && !sn.out[who]) { sn.out[other] = false; sn.hp[other] = 2; }   // the partner jumped into the bubble
         const id = String(m.id).slice(0, 12);
         if (m.e === 'beat' && /^\d+(\.\d+)?$/.test(id) && !sn.beaten.includes(id)) sn.beaten.push(id);
-        if (m.e === 'got' && /^\d+$/.test(id) && !sn.got.includes(+id)) sn.got.push(+id);
+        if (m.e === 'got' && /^\d+$/.test(id) && !sn.got.includes(+id)) {
+          sn.got.push(+id);
+          const it = course.platform(sc).items[+id];
+          if (it && it.kind === 'heart' && !sn.out[who]) sn.hp[who] = Math.min(sn.max, sn.hp[who] + 1);   // a heart picked up: one back
+        }
         if (m.e === 'finish' && !sn.out[who]) {
           sn.fin[who] = true;                                                          // at the door; one still in a bubble comes along with the other
           if (team.every((w) => sn.fin[w] || sn.out[w])) sn.phase = 'won';

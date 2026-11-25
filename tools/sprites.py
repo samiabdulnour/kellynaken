@@ -388,6 +388,8 @@ OBJECT_ROWS = {                                  # code: (name in the game, what
     'P9': ('stations', ['wash', 'cut', 'dye', 'dry', 'pay']),
     'P10': ('customers', ['c0', 'c1', 'c2', 'c3', 'c4', 'c5', 'd0', 'd1', 'd2', 'd3', 'd4', 'd5']),
     'P16': ('parrot', ['parrot1', 'parrot2']),                                      # a rainbow lorikeet, the danger to duck under at sea
+    'P17': ('street', ['car1', 'car2', 'bench', 'bin', 'wall', 'salon', 'coin', 'heart']),   # the walk down the street: things to climb, the salon's door
+    'P18': ('hill', ['stones', 'boulder', 'logs', 'spruce', 'gatel', 'gater']),                # the walk up the hill: stone walls, a boulder, logs, the cones' spruce, the stadium gate
     'P11': ('beach', ['bottle', 'paper', 'shell', 'star', 'crab', 'jelly', 'buoy', 'raft']),
     'P12': ('salonkit', ['scissors', 'comb', 'brush', 'dryer', 'spray', 'dye', 'curlers', 'clip', 'mirror', 'shampoo']),
     'P13': ('dog', ['stand', 'trot1', 'trot2', 'sit', 'bark', 'sniff']),          # praděda Václav's Yorkshire terrier
@@ -460,15 +462,35 @@ def object_sheet(code):
         f[ys - ys.min(), xs - xs.min()] = small[ys, xs]
         frame = soften(Image.fromarray(f, 'RGBA')) if name == 'customers' else Image.fromarray(f, 'RGBA')
         frames.append(scale2x(frame) if name in OBJECT_FINER else frame)
+    if name in OBJECT_FIX: frames = OBJECT_FIX[name](frames, parts)
     cw, ch = max(f.width for f in frames), max(f.height for f in frames)
     out = Image.new('RGBA', (cw * len(frames), ch))
     for k, f in enumerate(frames): out.paste(f, (k * cw + (cw - f.width) // 2, ch - f.height))
     out.save(os.path.join(OUT, 'sprites', f'{name}.png'), optimize=True)
     print(name, 'from', code, '| drawn pixel', round(p, 2), '| cell', cw, 'x', ch, '|', [f.size for f in frames])
     poses = {part: [k] for k, part in enumerate(parts)}; poses.setdefault('stand', [0])      # drawn like a character, one pose per drawing
-    return name, {'file': f'{name}.png', 'w': cw, 'h': ch, 'scale': OBJECT_SCALE.get(name, 0.5), 'fps': 1, 'poses': poses}
+    sizes = {part: [f.width, f.height] for part, f in zip(parts, frames)}                  # each drawing's own size within its cell
+    return name, {'file': f'{name}.png', 'w': cw, 'h': ch, 'scale': OBJECT_SCALE.get(name, 0.5), 'fps': 1, 'poses': poses, 'sizes': sizes}
 
 
+def czech_flag(frames, parts):
+    """The stadium gate's flag came out white over red: give it the Czech flag's blue wedge at the pole."""
+    f = frames[parts.index('gater')]
+    a = np.asarray(f).copy()
+    top = a[: a.shape[0] // 3]
+    r, g, b, al = (top[..., i].astype(int) for i in range(4))
+    flag = (al > 0) & (((r > 150) & (g < 100)) | ((r > 200) & (g > 200) & (b > 200)))
+    ys, xs = np.nonzero(flag)
+    if not len(ys): return frames
+    y0, y1, x0, length = ys.min(), ys.max(), xs.min(), xs.max() - xs.min() + 1
+    mid, half = (y0 + y1) / 2, max(1, (y1 - y0) / 2)
+    for y, x in zip(ys, xs):
+        if x - x0 < length * 0.5 * (1 - abs(y - mid) / (half + 0.5)): a[y, x] = (31, 78, 156, 255)
+    frames[parts.index('gater')] = Image.fromarray(a, 'RGBA')
+    return frames
+
+
+OBJECT_FIX = {'hill': czech_flag}
 OBJECT_SCALE = {'dog': 0.3, 'customers': 0.25}
 # Sheets drawn on a coarser grid than the people, made twice as fine with Scale2x (which rounds off diagonal edges
 # rather than just making the pixels bigger), so they can stand as tall as the grown-ups without looking blocky.

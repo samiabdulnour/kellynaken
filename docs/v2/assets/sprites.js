@@ -1015,5 +1015,131 @@ window.SPRITES = {
       ]
     },
     "seat": 26
+  },
+  "street": {
+    "file": "street.png",
+    "w": 71,
+    "h": 61,
+    "scale": 0.5,
+    "fps": 1,
+    "poses": {
+      "car1": [
+        0
+      ],
+      "car2": [
+        1
+      ],
+      "bench": [
+        2
+      ],
+      "bin": [
+        3
+      ],
+      "wall": [
+        4
+      ],
+      "salon": [
+        5
+      ],
+      "coin": [
+        6
+      ],
+      "heart": [
+        7
+      ],
+      "stand": [
+        0
+      ]
+    },
+    "sizes": {
+      "car1": [
+        59,
+        30
+      ],
+      "car2": [
+        71,
+        30
+      ],
+      "bench": [
+        52,
+        36
+      ],
+      "bin": [
+        48,
+        47
+      ],
+      "wall": [
+        53,
+        30
+      ],
+      "salon": [
+        58,
+        61
+      ],
+      "coin": [
+        33,
+        34
+      ],
+      "heart": [
+        39,
+        35
+      ]
+    }
+  },
+  "hill": {
+    "file": "hill.png",
+    "w": 140,
+    "h": 80,
+    "scale": 0.5,
+    "fps": 1,
+    "poses": {
+      "stones": [
+        0
+      ],
+      "boulder": [
+        1
+      ],
+      "logs": [
+        2
+      ],
+      "spruce": [
+        3
+      ],
+      "gatel": [
+        4
+      ],
+      "gater": [
+        5
+      ],
+      "stand": [
+        0
+      ]
+    },
+    "sizes": {
+      "stones": [
+        140,
+        28
+      ],
+      "boulder": [
+        56,
+        46
+      ],
+      "logs": [
+        75,
+        45
+      ],
+      "spruce": [
+        47,
+        68
+      ],
+      "gatel": [
+        32,
+        54
+      ],
+      "gater": [
+        37,
+        80
+      ]
+    }
   }
 };
