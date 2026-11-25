@@ -98,7 +98,7 @@
   function create({ world, solo, now, emit, open }) {
     const places = world.places, GAMES = ['run', 'drums', 'shoot', 'echo', 'find', 'salon', 'memory', 'collect', 'rescue', 'tower'];
     const owner = (pad) => (pad < 2 ? 'ken' : 'kel');                                 // in the echo game each of them has two of the four drums
-    const S = { online: { ken: false, kel: false }, save: { places: {}, album: [] }, where: { screen: 'map' }, scene: null };
+    const S = { online: { ken: false, kel: false }, save: { places: {}, album: [], round: 0 }, where: { screen: 'map' }, scene: null };
     let serial = 0;
     const prog = (id) => (S.save.places[id] = S.save.places[id] || { scene: 0, done: false });
     const isOpen = (p) => { const i = places.indexOf(p); return !!open || i === 0 || (i > 0 && prog(places[i - 1].id).done); };
@@ -107,7 +107,7 @@
     const place = () => places.find((p) => p.id === S.where.place);
     const regionOf = (p) => ({ screen: 'region', region: p.region });                       // the map a place's levels are on
     const SCREENS = ['planet', 'map', ...Object.keys(world.regions || {})];
-    const push = () => emit('all', { type: 'state', now: now(), ready: ready(), solo: !!solo, online: S.online, save: S.save, where: S.where, scene: S.scene });
+    const push = () => record() || emit('all', { type: 'state', now: now(), ready: ready(), solo: !!solo, online: S.online, save: S.save, where: S.where, scene: S.scene });
 
     // Praha 5 used to be one place of four scenes (pexeso, street, padlocks, salon). It is now two on the map of
     // Czechia: Domov (padlocks, street) and Kadeřnictví (pexeso, salon). Carry what was played over.
@@ -117,9 +117,14 @@
       const n = old.done ? 4 : old.scene | 0;
       return { ...saved, domov: { scene: n >= 2 ? 2 : 0, done: n >= 2 }, kadernictvi: { scene: n >= 4 ? 2 : n >= 1 ? 1 : 0, done: n >= 4 } };
     }
-    // Two devices may each remember a different amount: keep whichever got further.
+    // Two devices may each remember a different amount: keep whichever got further. `round` counts new games: a
+    // device that was away when they started a new game still remembers the old one, and that is forgotten;
+    // a device that started one while this room was asleep brings the new game with it.
     function merge(save) {
       if (!save || typeof save !== 'object') return;
+      const round = Math.max(0, save.round | 0), ours = S.save.round | 0;
+      if (round < ours) return;
+      if (round > ours) S.save = { places: {}, album: [], round };
       const saved = upgrade(save.places);
       for (const p of places) {
         const theirs = saved && saved[p.id];
@@ -211,15 +216,23 @@
       if (sc.play === 'tower' && sn.endAt && now() >= sn.endAt) { sn.phase = sn.endPhase; return true; }   // once the last storey has landed (or fallen)
       return false;
     }
-    function complete() {
-      const p = place(), pr = prog(p.id), index = S.scene.index;
-      S.scene = null;
-      if (!pr.done && index >= pr.scene) pr.scene = index + 1;
+    // A level counts the moment it is won (not when they tap on), so closing the game on the card loses nothing.
+    function record() {
+      const sn = S.scene;
+      if (!sn || sn.saved || (sn.phase !== 'won' && sn.phase !== 'stub')) return;
+      const p = place(), pr = prog(p.id);
+      sn.saved = true;
+      if (!pr.done && sn.index >= pr.scene) pr.scene = sn.index + 1;
       if (pr.scene >= p.scenes.length && !pr.done) {
-        pr.done = true;
+        pr.done = true; sn.rescued = true;                                          // the last level of the place: they are saved
         for (const s of p.saves) if (!S.save.album.includes(s.id)) S.save.album.push(s.id);
-        S.where = { screen: 'rescued', place: p.id, region: p.region };
-      } else S.where = regionOf(p);
+      }
+    }
+    function complete() {
+      record();
+      const p = place(), rescued = S.scene.rescued;
+      S.scene = null;
+      S.where = rescued ? { screen: 'rescued', place: p.id, region: p.region } : regionOf(p);
     }
 
     // Something that counts, reported by a device while a game is on.
@@ -327,6 +340,10 @@
       else if (m.type === 'resume') {
         if (sn && sn.paused) { const d = now() - sn.paused; for (const k of ['startAt', 'busyUntil', 'hideAt', 'pullAt', 'power', 'showAt', 'listenAt', 'endAt', 'finAt']) if (sn[k]) sn[k] += d; sn.paused = 0; }
       }
+      // A save code typed in (see game.js): how far they had got, added to what is here.
+      else if (m.type === 'load' && m.places && typeof m.places === 'object') merge({ places: m.places, round: S.save.round });
+      // A new game: everything played is forgotten, on both phones.
+      else if (m.type === 'restart' && S.where.screen !== 'scene') { S.save = { places: {}, album: [], round: (S.save.round | 0) + 1 }; S.scene = null; S.where = { screen: 'map' }; }
       else if (m.type === 'back') {
         if (S.where.screen === 'scene' || S.where.screen === 'rescued') { S.scene = null; S.where = regionOf(place()); }
         else if (S.where.screen === 'region') S.where = { screen: world.regions[S.where.region].up };

@@ -20,7 +20,7 @@
     function take(m) {
       if (m.type === 'state') {
         off = off === null ? m.now - Date.now() : Math.max(off, m.now - Date.now());   // the room's clock, as near as the fastest message shows
-        state = m; save.places = m.save.places; save.album = m.save.album; write();     // each device remembers too, in case the server forgets
+        state = m; save.places = m.save.places; save.album = m.save.album; save.round = m.save.round | 0; write();     // each device remembers too, in case the server forgets
         hear.state(m);
       } else if (m.type === 'fx') hear.fx(m);
       else if (m.type === 'taken') { leave(); hear.taken(); }
@@ -29,14 +29,14 @@
     // The stream to the server. If it breaks (a tunnel, a sleeping server) it is opened afresh, bringing along what this
     // device remembers, so a server that has just woken up with an empty memory is told how far they had got.
     function listen() {
-      const mine = { places: save.places, album: save.album };
+      const mine = { places: save.places, album: save.album, round: save.round | 0 };
       es = new EventSource(`${base}/v2/api/stream?who=${who}&id=${save.id}&save=${encodeURIComponent(JSON.stringify(mine))}`);
       es.onmessage = (e) => { let m = null; try { m = JSON.parse(e.data); } catch (err) {} if (m) take(m); };
       es.onerror = () => { if (!es) return; es.close(); es = null; if (who) again = setTimeout(listen, 1500); };
     }
     function join(w) {
       leave(); who = w;
-      const mine = { places: save.places, album: save.album };
+      const mine = { places: save.places, album: save.album, round: save.round | 0 };
       if (solo) {
         const r = Room.create({ world: WORLD, solo: true, open: INSPECT, now: () => Date.now(), emit: (to, m) => { if (to === 'all' || to === who) { const copy = JSON.parse(JSON.stringify(m)); setTimeout(() => { if (room === r) take(copy); }, 0); } } });
         room = r; clearInterval(ticker); ticker = setInterval(() => { if (room === r) r.tick(); }, 250);
@@ -115,6 +115,17 @@
     waiting.hidden = s.ready;
     waiting.textContent = `Čekám na ${heroName(mate())}. Hraje se ve dvou, každý na svém telefonu.`;
   }
+  // The bar along the top of the globe and the map of Czechia: the album, saving, and who is playing.
+  function menu(name) {
+    const bar = add(`<div class="bar"><span>${esc(name)}</span><span><button data-go="album">Album</button><button data-go="save">Uložit</button><button data-go="title">${esc(heroName())}</button></span></div>`);
+    bar.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-go]'); if (!b) return;
+      beep(520);
+      if (b.dataset.go === 'title') return toTitle();
+      away = true; go(b.dataset.go === 'album' ? Album : Saves);
+    });
+  }
+  const backToMap = () => { away = false; shown = null; route(); };
   function toTitle(note) { Net.leave(); shown = null; away = false; waiting.hidden = true; save.who = null; write(); Title.note = note || ''; go(Title); }
   Net.hear.state = route;
   Net.hear.fx = (m) => { if (K.scene && K.scene.fx) K.scene.fx(m); };
@@ -196,8 +207,7 @@
       get rot() { return rot; }, set rot(v) { rot = v; aim = null; },
       where(i) { return spot(pins[i], rot); },
       enter() {
-        const bar = add(`<div class="bar"><span>Svět</span><span><button data-go="album">Album</button><button data-go="title">${esc(heroName())}</button></span></div>`);
-        bar.addEventListener('click', (e) => { const b = e.target.closest('[data-go]'); if (!b) return; if (b.dataset.go === 'album') { away = true; go(Album); } else toTitle(); });
+        menu('Svět');
         add(`<p class="tip up">${TIP}</p>`);
         add('<button class="btn zoom">&lt; Česko</button>').addEventListener('click', toCzechia);
         const lead = pins.find((pin) => pinState(pin) === 'todo') || pins[0];
@@ -259,8 +269,7 @@
       where(id) { const pin = M.pins.find((q) => (q.region || q.later) === id); return { x: pin.at[0], y: pin.at[1] }; },
       enter() {
         t = 0;
-        const bar = add(`<div class="bar"><span>${esc(M.name)}</span><span><button data-go="album">Album</button><button data-go="title">${esc(heroName())}</button></span></div>`);
-        bar.addEventListener('click', (e) => { const b = e.target.closest('[data-go]'); if (!b) return; if (b.dataset.go === 'album') { away = true; go(Album); } else toTitle(); });
+        menu(M.name);
         for (const pin of M.pins) {
           const name = pin.region ? WORLD.regions[pin.region].name : laterOf(pin).name;
           add(`<button class="pin ${pin.label || 'below'} ${state(pin)}" data-id="${pin.region || pin.later}" style="${pinAt(pin.at)}">${esc(name)}</button>`).addEventListener('click', () => pick(pin));
@@ -454,7 +463,7 @@
       hud, tip,
       end(won, title, text) {
         tip.remove(); quit.remove(); K.ui.querySelectorAll('.pad, .card.pause').forEach((p) => p.remove());
-        const card = add(`<div class="card"><h2>${esc(title)}</h2><p>${esc(text)}</p><div class="two"><button class="btn" data-a="${won ? 'cont' : 'retry'}">${won ? 'Dál' : 'Znovu'}</button>${won ? '' : '<button class="btn" data-a="map">Mapa</button>'}</div></div>`);
+        const card = add(`<div class="card"><h2>${esc(title)}</h2><p>${esc(text)}</p>${won ? '<p class="saved">✓ Uloženo</p>' : ''}<div class="two"><button class="btn" data-a="${won ? 'cont' : 'retry'}">${won ? 'Dál' : 'Znovu'}</button>${won ? '' : '<button class="btn" data-a="map">Mapa</button>'}</div></div>`);
         card.addEventListener('click', (e) => { const b = e.target.closest('[data-a]'); if (!b) return; beep(520, 660); Net.send({ type: b.dataset.a === 'map' ? 'back' : b.dataset.a }); });
         beep(...(won ? [520, 660, 780, 1040] : [220, 160]));
       },
@@ -1533,6 +1542,66 @@
   };
 
   // ---- the album: everyone rescued so far ----
+  // ---- saving. The game saves by itself: the room counts a level the moment it is won, and every phone keeps a
+  // copy. The save code carries it to another phone or browser: how many levels are done (they are played in
+  // order), as the word of the last one won and four digits that check it, e.g. KOALA-4721. Nothing is kept on the
+  // server for it, so it works even after the server has forgotten everything.
+  const LEVELS = places.flatMap((p) => p.scenes);
+  const levelsDone = () => {
+    let n = 0;
+    for (const p of places) { const pr = progress(p); if (pr.done) { n += p.scenes.length; continue; } n += Math.min(pr.scene | 0, p.scenes.length); break; }
+    return n;
+  };
+  const digits = (n) => String((n * 1543 + 2718) % 10000).padStart(4, '0');
+  const codeOf = (n) => `${n ? LEVELS[n - 1].code || 'MISE' : 'START'}-${digits(n)}`;
+  const fromCode = (text) => {
+    const d = (String(text).match(/\d/g) || []).join('');
+    for (let n = 0; d.length === 4 && n <= LEVELS.length; n++) if (digits(n) === d) return n;
+    return null;
+  };
+  const progressFor = (n) => Object.fromEntries(places.map((p) => { const k = Math.min(p.scenes.length, n); n -= k; return [p.id, { scene: k, done: k === p.scenes.length }]; }));
+  const Saves = {
+    enter() {
+      const bar = add('<div class="bar"><button data-back>&lt; Zpět</button><span>Uložení</span></div>');
+      bar.querySelector('[data-back]').addEventListener('click', () => { beep(440); backToMap(); });
+      const box = add(`<div class="saves">
+        <p>Hra se ukládá sama po každé vyhrané úrovni.</p>
+        <p class="code"></p>
+        <p class="small">To je váš kód. Vyfoťte si ho nebo opište. Na jiném telefonu ho zadáte a hrajete dál.</p>
+        <form><input name="code" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="24" placeholder="Zadej kód" aria-label="Kód"><button class="btn">Načíst</button></form>
+        <p class="note" aria-live="polite"></p>
+        <button class="btn red" data-new>Nová hra</button>
+      </div>`);
+      const code = box.querySelector('.code'), note = box.querySelector('.note');
+      const show = () => { code.textContent = codeOf(levelsDone()); };
+      show();
+      box.querySelector('form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const field = box.querySelector('input'), n = fromCode(field.value), had = levelsDone();
+        if (n === null) { beep(180); note.textContent = 'Tenhle kód neznám. Zkontrolujte čtyři čísla.'; return; }
+        if (n <= had) { beep(180); note.textContent = 'Tady už jste stejně daleko, nebo dál.'; return; }
+        beep(520, 660, 780); field.value = '';
+        Net.send({ type: 'load', places: progressFor(n) });
+        note.textContent = `Načteno! ${n < LEVELS.length ? `Pokračujete: ${LEVELS[n].name}.` : 'Všechno je hotové.'}`;
+        setTimeout(show, 600);
+      });
+      box.querySelector('[data-new]').addEventListener('click', () => {
+        beep(330);
+        const ask = add(`<div class="card"><h2>Nová hra?</h2><p>Všechno odehrané se smaže, i na druhém telefonu. Kód si nejdřív vyfoťte, kdybyste se chtěli vrátit.</p>
+          <div class="two"><button class="btn red" data-a="yes">Smazat</button><button class="btn" data-a="no">Ne</button></div></div>`);
+        ask.addEventListener('click', (e) => {
+          const b = e.target.closest('[data-a]'); if (!b) return;
+          ask.remove();
+          if (b.dataset.a === 'no') return beep(440);
+          beep(660, 520, 330);
+          Net.send({ type: 'restart' });
+          setTimeout(backToMap, 500);
+        });
+      });
+    },
+    draw() { rect(0, 0, W, H, '#3A2F33'); },
+  };
+
   const Album = {
     enter() {
       const bar = add('<div class="bar"><button data-back>&lt; Zpět</button><span>Album</span></div>');

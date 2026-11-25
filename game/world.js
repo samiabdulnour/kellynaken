@@ -92,11 +92,11 @@ window.WORLD = {
       saves: [],
       look: { sky: '#8FD3F4', far: '#F2C078', far2: '#E7A6B5', ground: '#A39B96', line: '#7A6F6A' },
       scenes: [
-        { id: 'praha-home', name: 'Doma', at: [22, 234], label: 'below', bg: 'praha-home', play: 'shoot',
+        { id: 'praha-home', name: 'Doma', at: [22, 234], label: 'below', bg: 'praha-home', play: 'shoot', code: 'ZAMEK',
           shoot: { need: 16, every: 1.5, stay: 3.4, sway: 2, target: 'zámek',                 // padlocks on the lamp, the three portraits, the shelves and baskets, the sofa, the TV and its cabinet
             spots: [[96, 30], [60, 76], [94, 76], [128, 76], [9, 46], [8, 112], [70, 138], [126, 142], [176, 110], [168, 42], [180, 74], [178, 162]] },
           talk: [['', 'Doma je divné ticho. Někdo tu chybí…'], ['', 'A někdo vás zamkl! Na dveřích, na skříních, všude visí zámky.'], ['hero', 'Ty zámky sestřelím!']] },
-        { id: 'praha-street', name: 'Ulice', at: [52, 250], label: 'right', bg: 'praha-street', scroll: true, play: 'run', music: 'street',
+        { id: 'praha-street', name: 'Ulice', at: [52, 250], label: 'right', bg: 'praha-street', scroll: true, play: 'run', music: 'street', code: 'HOLUB',
           run: { seconds: 40, low: 'holub', high: '', art: { low: ['prague', 'pigeon'], alt: ['prague', 'puddle'] } },
           talk: [['', 'Venku na chodníku leží hřeben a kousek dál sponka do vlasů. Stopa vede ulicí!'], ['', 'Přeskoč holuby i louže.']] },
       ],
@@ -108,12 +108,12 @@ window.WORLD = {
       saves: [{ id: 'leila', name: 'Mamka' }],           // Leila on the character sheet; in the game she is Mamka
       look: { sky: '#8FD3F4', far: '#F2C078', far2: '#E7A6B5', ground: '#A39B96', line: '#7A6F6A' },
       scenes: [
-        { id: 'praha-door', name: 'Před salonem', at: [62, 284], label: 'right', bg: 'praha-door', play: 'memory',
+        { id: 'praha-door', name: 'Před salonem', at: [62, 284], label: 'right', bg: 'praha-door', play: 'memory', code: 'KLIC',
           memory: { pairs: 8, miss: 10, key: true, won: 'A pod poslední dvojicí byl klíč. Dveře jsou odemčené!',
             faces: [['salonkit', 'scissors'], ['salonkit', 'comb'], ['salonkit', 'brush'], ['salonkit', 'dryer'], ['salonkit', 'spray'], ['salonkit', 'dye'], ['salonkit', 'curlers'], ['salonkit', 'mirror']] },
           talk: [['', 'Kadeřnictví je zamčené. Na dveřích visí cedulka: Klíč dostane, kdo najde všechny dvojice.'], ['', 'Na lavičce před dveřmi leží kartičky. Samé kadeřnické věci.'], ['hero', 'Pexeso! Jeden otočí první kartičku, druhý k ní hledá dvojici.']] },
         // From here on she is found: the salon is full and she cannot get away until every customer is done.
-        { id: 'praha-salon', name: 'V salonu', at: [44, 262], label: 'right', bg: 'praha-salon', play: 'salon', cast: ['leila'],
+        { id: 'praha-salon', name: 'V salonu', at: [44, 262], label: 'right', bg: 'praha-salon', play: 'salon', code: 'NUZKY', cast: ['leila'],
           salon: {
             seconds: 180, need: 7, patience: 36, every: [11, 15],
             // along the back wall: the basin, the picture's own two chairs at the mirrors (cutting, dyeing) and the dryer;
@@ -132,18 +132,18 @@ window.WORLD = {
       saves: [{ id: 'alan', name: 'Alan' }],
       look: { sky: '#BFE3F2', far: '#A9A6A0', far2: '#8A9A72', ground: '#7FAE66', line: '#5C8650' },
       scenes: [
-        { id: 'strahov-hill', name: 'Do kopce', at: [40, 196], label: 'right', bg: 'strahov-hill', scroll: true, play: 'run', music: 'street', pickup: 'drumstick',
+        { id: 'strahov-hill', name: 'Do kopce', at: [40, 196], label: 'right', bg: 'strahov-hill', scroll: true, play: 'run', music: 'street', code: 'SISKA', pickup: 'drumstick',
           run: { seconds: 36, low: 'šiška', high: 'vrána', art: { low: ['strahov', 'cone'], high: ['strahov', 'crow'] } },
           talk: [['', 'Z kopce nad městem někdo volá o pomoc.'], ['', 'Nahoru se musí pěšky. Šišku přeskoč, pod vránou zůstaň dole.'], ['', 'Uvidíš-li paličku, vyskoč pro ni!']] },
-        { id: 'strahov-gate', name: 'Brána stadionu', at: [62, 149], label: 'below', bg: 'strahov-gate', play: 'shoot',
+        { id: 'strahov-gate', name: 'Brána stadionu', at: [62, 149], label: 'below', bg: 'strahov-gate', play: 'shoot', code: 'BRANA',
           shoot: { need: 16, every: 1.3, stay: 3.2, sway: 3, target: 'zámek',                 // padlocks on the gates under the stands, the stair railing and the rail above
             spots: [[52, 186], [70, 186], [88, 186], [106, 186], [124, 186], [140, 186], [164, 160], [180, 150], [120, 150], [96, 152]] },
           talk: [['', 'Velký strahovský stadion. Všechny vchody jsou zavřené a na mřížích visí zámky.']] },
         // From here on he is found: he shows the rhythm, and at the concert he plays along.
-        { id: 'strahov-drums', name: 'Zkušebna', at: [18, 136], label: 'below', bg: 'strahov-drums', play: 'echo', cast: ['alan'],
+        { id: 'strahov-drums', name: 'Zkušebna', at: [18, 136], label: 'below', bg: 'strahov-drums', play: 'echo', code: 'BUBEN', cast: ['alan'],
           echo: { rounds: 6, first: 2, beat: 0.6 },
           talk: [['', 'Pod tribunou je zkušebna. A v ní někdo bubnuje!'], ['alan', 'Večer hraju na stadionu a kapela nikde. Zahrajete to se mnou?'], ['alan', 'Nejdřív zkouška. Já zahraju, vy to po mně zopakujete.']] },
-        { id: 'strahov-concert', name: 'Koncert', at: [42, 125], label: 'right', bg: 'strahov-concert', play: 'drums', pickup: 'drumstick', cast: ['alan'],
+        { id: 'strahov-concert', name: 'Koncert', at: [42, 125], label: 'right', bg: 'strahov-concert', play: 'drums', code: 'PODIUM', pickup: 'drumstick', cast: ['alan'],
           drums: { bpm: 104, beats: 96, pass: 0.62, busy: 0.35 }, say: { won: ['Stadion šílí!', 'Takový koncert tu dlouho nebyl.'] },
           talk: [['', 'Stadion je plný. Světla, pódium a vy tři.'], ['alan', 'Trefujte noty, až budou na čáře. Raz, dva, tři, čtyři!']] },
       ],
@@ -154,7 +154,7 @@ window.WORLD = {
       saves: [{ id: 'sami', name: 'Sami' }, { id: 'zofia', name: 'Žofia' }],
       look: { sky: '#FFE2B0', far: '#D9622B', far2: '#C98A4B', ground: '#F5D7A1', line: '#D9A441' },
       scenes: [
-        { id: 'australia-beach', name: 'Pláž Bondi', at: [120, 244], label: 'below', bg: 'australia-beach', play: 'collect', ground: 226,
+        { id: 'australia-beach', name: 'Pláž Bondi', at: [120, 244], label: 'below', bg: 'australia-beach', play: 'collect', code: 'LAHEV', ground: 226,
           collect: { seconds: 55, need: 15, stay: 3.6, every: [1.0, 1.7], jelly: 0.24, won: 'Na vzkazu stojí: POMOC! Jsme na skále za útesem.' },
           // The saga opens like a short film: the voyage, his photograph, and today's two travellers seen from behind.
           talk: [['', 'Po válce utekl praděda Václav z Československa. Na lodi s uprchlíky plul přes celý oceán až do Austrálie.', null, 'ship'],
@@ -163,23 +163,23 @@ window.WORLD = {
             ['', 'A nějaký čas tu žil i váš druhý praděda, Georges.', null, 'photo'],
             ['', 'Dnes se po stopách pradědy Václava vydali dva cestovatelé. Chtěli vidět místa, kde kdysi žil.', null, 'travellers'],
             ['', 'Jenže na pláži Bondi teď vyplavilo moře roztrhaný vzkaz v láhvi.'], ['hero', 'Posbíráme všechny kousky, než je vlny zase odnesou!']] },
-        { id: 'australia-sea', name: 'Na vlně', at: [136, 230], label: 'right', bg: 'australia-sea', scroll: true, play: 'run', ground: 200, tile: 'repeat', pickup: 'boomerang',
+        { id: 'australia-sea', name: 'Na vlně', at: [136, 230], label: 'right', bg: 'australia-sea', scroll: true, play: 'run', code: 'SURF', ground: 200, tile: 'repeat', pickup: 'boomerang',
           run: { seconds: 40, low: 'žralok', high: 'papoušek', board: true, art: { low: ['aussie', 'fin', 'fin2'], high: ['parrot', 'parrot1', 'parrot2'] } },
           talk: [['', 'Za útesem se zvedají pořádné vlny. Vy to zvládnete na prkně!'], ['', 'Na prkno! Žraloka přeskoč, pod papouškem zůstaň dole.']] },
         // Koalas sit still, small, in the forks and on the trunks of the bush picture (S15). A hiding place is [x, y, pose]:
         // where its feet are on the picture, and whether it hugs the trunk (branch), looks round it (side) or peeks over leaves (peek).
-        { id: 'australia-outback', name: 'Buš', at: [151, 102], label: 'left', bg: 'australia-bush', play: 'find', ground: 284,
+        { id: 'australia-outback', name: 'Buš', at: [151, 102], label: 'left', bg: 'australia-bush', play: 'find', code: 'KOALA', ground: 284,
           find: { seconds: 100, need: 10, hidden: true, size: 0.28, show: 0.45, every: [6, 10],                 // a wide bush, four and a half screens
             spots: [[78, 130, 'branch'], [36, 94, 'peek'], [132, 80, 'peek'], [205, 140, 'branch'], [262, 88, 'side'], [190, 52, 'peek'], [152, 170, 'side'],
               [314, 160, 'side'], [352, 140, 'branch'], [402, 62, 'peek'], [418, 160, 'side'], [505, 160, 'side'], [472, 76, 'peek'], [560, 86, 'peek'],
               [640, 150, 'branch'], [606, 40, 'peek'], [706, 160, 'branch'], [766, 112, 'peek'], [820, 150, 'branch'], [792, 60, 'peek'], [742, 176, 'side']] },
           talk: [['', 'Cesta vede buší. Ve stromech se něco hýbe…'], ['hero', 'Koaly! Najdeme je všechny.']] },
         // From here on they are found: stranded on the rock, waving.
-        { id: 'australia-reef', name: 'Žraločí útes', at: [147, 63], label: 'left', bg: 'australia-reef', play: 'rescue', ground: 246, cast: ['sami', 'zofia'],
+        { id: 'australia-reef', name: 'Žraločí útes', at: [147, 63], label: 'left', bg: 'australia-reef', play: 'rescue', code: 'ZRALOK', ground: 246, cast: ['sami', 'zofia'],
           rescue: { hits: 3, pull: 45, seconds: 14, land: { x: 92, y: 140, w: 18 }, green: [0.18, 0.44], jetty: 206 },
           talk: [['', 'Támhle někdo mává! Na skále uprostřed moře, a kolem krouží žralok.'], ['hero', 'Hodíme jim záchranné kruhy!']] },
         // After the rescue: Sami is an architect, and his house in Sydney is waiting to be built.
-        { id: 'australia-sydney', name: 'Sydney', at: [98, 228], label: 'left', bg: 'australia-sydney', play: 'tower', cast: ['sami', 'zofia'],
+        { id: 'australia-sydney', name: 'Sydney', at: [98, 228], label: 'left', bg: 'australia-sydney', play: 'tower', code: 'JERAB', cast: ['sami', 'zofia'],
           tower: { need: 15, slack: 15, stack: 16 },   // `stack`: where the storeys wait on the ground, to be picked up one by one                // 14 storeys on the lobby; the higher, the harder (room.js: course.sway, course.slack)
           talk: [['sami', 'Díky, že jste nás zachránili! Víte, že jsem architekt?'], ['sami', 'Navrhl jsem v Sydney nový dům. Jenže stavba se zasekla a sám ho nepostavím.'],
             ['zofia', 'Kendrick bude řídit jeřáb a Kellyn bude pouštět patra. Spolu to zvládnete!'], ['hero', 'Jdeme stavět!']] },
