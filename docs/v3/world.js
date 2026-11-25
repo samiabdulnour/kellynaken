@@ -119,7 +119,7 @@ window.WORLD = {
             // along the back wall: the basin, the picture's own two chairs at the mirrors (cutting, dyeing) and the dryer;
             // `chair` means the picture already has it. The till stands in front. `side` is where the hairdresser stands.
             stations: [{ k: 'wash', x: 18, y: 142, side: 20 }, { k: 'cut', x: 58, y: 142, chair: true, side: 20 }, { k: 'dye', x: 133, y: 142, chair: true, side: -20 },
-              { k: 'dry', x: 174, y: 142, side: -20 }, { k: 'pay', x: 120, y: 262, side: 18 }],
+              { k: 'dry', x: 174, y: 142, side: -36 }, { k: 'pay', x: 120, y: 262, side: 18 }],
             work: { wash: 3, cut: 4, dye: 4, dry: 3, pay: 1.2 },
             orders: [['cut', 'pay'], ['wash', 'cut', 'dry', 'pay'], ['wash', 'dye', 'dry', 'pay'], ['wash', 'cut', 'dye', 'dry', 'pay'], ['wash', 'dry', 'pay']],
           },

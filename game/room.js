@@ -193,6 +193,10 @@
             if (c.work >= cfg.work[st.k]) {
               c.work = 0; c.step++; c.pat = Math.min(c.max, c.pat + 8);
               if (c.step >= c.order.length) { c.gone = 'happy'; sn.served++; sn.coins += 50 + c.order.length * 30; }
+              else {                                                                    // done here: whoever did it takes them by the hand, on to the next thing
+                const w = ['ken', 'kel'].find((q) => sn.workers[q] === c.at && !sn.cust.some((o) => o.by === q));
+                if (w) { c.by = w; c.at = AWAY; sn.workers[w] = null; }
+              }
             }
           }
         }

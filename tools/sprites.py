@@ -699,6 +699,8 @@ def main():
         if got: info[got[0]] = got[1]
     import storeys                                    # Sami's tower in Sydney: drawn in code, so every storey stacks exactly
     info['storeys'] = storeys.sheet(os.path.join(OUT, 'sprites'))
+    import seated                                     # the salon's customers sitting down, made from their standing sheet
+    if 'customers' in info: info['seated'] = seated.sheet(os.path.join(OUT, 'sprites'))
     with open(os.path.join(OUT, 'sprites.js'), 'w') as f:
         f.write('// Written by tools/sprites.py: the characters cut from the character sheet.\n')
         f.write('window.SPRITES = ' + json.dumps(info, indent=2) + ';\n')
