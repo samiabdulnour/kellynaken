@@ -10,7 +10,8 @@
 //   zoom {to}           go to another map: 'planet', 'map' (Czechia) or a region ('praha', 'australia')
 //   play {place, index} start a level from its pin on a region's map
 //   next                the next line of the story               done             leave a scene that has no game yet
-//   ev {e, ...}         something that counts: hurt, hit, miss, pick, finish, pad, find, flip, grab, sting, pull, crane, drop (a storey, or a salon customer let go)
+//   ev {e, ...}         something that counts: hurt, hit, miss, pick, finish, pad, find, flip, grab, sting, pull, crane, drop (a storey, or a salon customer let go),
+//                       beat (an enemy), got (a coin or a clue), revive (a partner out of their bubble)
 //   fx {...}            something only to show on the other device (a jump, a shot, a drum tap)
 //   cont / retry        after a scene is won / lost              home             back to the map after a rescue
 //   back                up one level: from a level to its map, from a region's map to the map around it
@@ -31,6 +32,32 @@
         obs.push({ at, high, alt });
       }
       return { obs, pickAt };
+    },
+    // A walk along a street (or up a hill): what stands in the way, who walks and flies about, and what lies there
+    // to collect. Laid out by hand in world.js, so the level gets harder towards its end; nothing here is random.
+    // Enemies move by the clock, so both phones see them in the same place without telling each other.
+    platform(sc) {
+      const cfg = sc.platform;
+      const blocks = cfg.blocks.map(([x, w, h, kind]) => ({ x, w, h, kind }));
+      const top = (x, half) => blocks.reduce((m, b) => (x + (half || 0) > b.x && x - (half || 0) < b.x + b.w ? Math.max(m, b.h) : m), 0);   // what you stand on, there
+      const foes = cfg.foes.map(([kind, x0, x1, h, speed, every], id) => ({ id, kind, x0, x1: x1 === undefined ? x0 : x1, h: h || 0, speed: speed || 0, every: every || 0 }));
+      const items = cfg.items.map(([kind, x, h], id) => ({ id, kind, x, h }));
+      // Where an enemy is at time t: walkers and flyers go to and fro; a rolling cone comes down again and again, each
+      // one an enemy of its own (id "foe.round"); a puddle stays put.
+      function at(f, t) {
+        if (f.kind === 'puddle') return { id: String(f.id), x: f.x0, y: 0, dir: 0 };
+        if (f.kind === 'cone') {                                                       // drops out of a pine tree, then rolls downhill
+          const DROP = 0.6, n = Math.floor(t / f.every), u = t - n * f.every;
+          if (t < 0 || f.x1 <= f.x0) return null;
+          if (u < DROP) return { id: f.id + '.' + n, x: f.x1, y: top(f.x1, 3) + 40 * (1 - u / DROP), dir: -1, spin: 0, falling: true };
+          const x = f.x1 - (u - DROP) * f.speed;
+          return x < f.x0 ? null : { id: f.id + '.' + n, x, y: top(x, 3), dir: -1, spin: (u - DROP) * f.speed / 5 };
+        }
+        const len = Math.max(1, f.x1 - f.x0), d = ((Math.max(0, t) * f.speed + (f.id * 37) % len) % (2 * len)), out = d < len;
+        const x = f.x0 + (out ? d : 2 * len - d);
+        return { id: String(f.id), x, y: f.h + (f.kind === 'flyer' || f.kind === 'crow' ? Math.sin(t * 1.6 + f.id) * 12 : 0), dir: out ? 1 : -1 };   // flyers swoop low and up again
+      }
+      return { blocks, foes, items, top, at, length: cfg.length, goal: cfg.goal };
     },
     drums(seed, sc) {
       const cfg = sc.drums, beat = 60 / cfg.bpm, r = rng(seed), notes = [];
@@ -96,9 +123,9 @@
 
   // `open`: every level may be played in any order (the version for trying levels out).
   function create({ world, solo, now, emit, open }) {
-    const places = world.places, GAMES = ['run', 'drums', 'shoot', 'echo', 'find', 'salon', 'memory', 'collect', 'rescue', 'tower'];
+    const places = world.places, GAMES = ['run', 'platform', 'drums', 'shoot', 'echo', 'find', 'salon', 'memory', 'collect', 'rescue', 'tower'];
     const owner = (pad) => (pad < 2 ? 'ken' : 'kel');                                 // in the echo game each of them has two of the four drums
-    const S = { online: { ken: false, kel: false }, save: { places: {}, album: [] }, where: { screen: 'map' }, scene: null };
+    const S = { online: { ken: false, kel: false }, save: { places: {}, album: [], round: 0 }, where: { screen: 'map' }, scene: null };
     let serial = 0;
     const prog = (id) => (S.save.places[id] = S.save.places[id] || { scene: 0, done: false });
     const isOpen = (p) => { const i = places.indexOf(p); return !!open || i === 0 || (i > 0 && prog(places[i - 1].id).done); };
@@ -107,7 +134,7 @@
     const place = () => places.find((p) => p.id === S.where.place);
     const regionOf = (p) => ({ screen: 'region', region: p.region });                       // the map a place's levels are on
     const SCREENS = ['planet', 'map', ...Object.keys(world.regions || {})];
-    const push = () => emit('all', { type: 'state', now: now(), ready: ready(), solo: !!solo, online: S.online, save: S.save, where: S.where, scene: S.scene });
+    const push = () => record() || emit('all', { type: 'state', now: now(), ready: ready(), solo: !!solo, online: S.online, save: S.save, where: S.where, scene: S.scene });
 
     // Praha 5 used to be one place of four scenes (pexeso, street, padlocks, salon). It is now two on the map of
     // Czechia: Domov (padlocks, street) and Kadeřnictví (pexeso, salon). Carry what was played over.
@@ -117,9 +144,14 @@
       const n = old.done ? 4 : old.scene | 0;
       return { ...saved, domov: { scene: n >= 2 ? 2 : 0, done: n >= 2 }, kadernictvi: { scene: n >= 4 ? 2 : n >= 1 ? 1 : 0, done: n >= 4 } };
     }
-    // Two devices may each remember a different amount: keep whichever got further.
+    // Two devices may each remember a different amount: keep whichever got further. `round` counts new games: a
+    // device that was away when they started a new game still remembers the old one, and that is forgotten;
+    // a device that started one while this room was asleep brings the new game with it.
     function merge(save) {
       if (!save || typeof save !== 'object') return;
+      const round = Math.max(0, save.round | 0), ours = S.save.round | 0;
+      if (round < ours) return;
+      if (round > ours) S.save = { places: {}, album: [], round };
       const saved = upgrade(save.places);
       for (const p of places) {
         const theirs = saved && saved[p.id];
@@ -143,6 +175,7 @@
       if (!GAMES.includes(sc.play)) { sn.phase = 'stub'; return; }
       Object.assign(sn, { phase: 'play', startAt: now() + 1600, fin: {}, picked: false, power: 0 });
       if (sc.play === 'run') sn.lives = two ? 5 : 3;
+      if (sc.play === 'platform') Object.assign(sn, { two, hp: { ken: 3, kel: 3 }, max: 3, out: {}, beaten: [], got: [] });   // hearts of one's own; out of them, a bubble
       if (sc.play === 'shoot') Object.assign(sn, { lives: two ? 4 : 3, hits: 0, need: Math.round(sc.shoot.need * (two ? 1.6 : 1)), every: sc.shoot.every / (two ? 1.4 : 1), hit: [], missed: [], item: null });
       if (sc.play === 'find') Object.assign(sn, { found: [], need: sc.find.need });
       if (sc.play === 'memory') { const first = two ? (Math.random() < 0.5 ? 'ken' : 'kel') : null; Object.assign(sn, { deck: course.memory(sn.seed, sc), open: [], done: [], misses: 0, maxMiss: sc.memory.miss + (two ? 2 : 0), first, turn: first, hideAt: 0 }); }
@@ -188,6 +221,10 @@
             if (c.work >= cfg.work[st.k]) {
               c.work = 0; c.step++; c.pat = Math.min(c.max, c.pat + 8);
               if (c.step >= c.order.length) { c.gone = 'happy'; sn.served++; sn.coins += 50 + c.order.length * 30; }
+              else {                                                                    // done here: whoever did it takes them by the hand, on to the next thing
+                const w = ['ken', 'kel'].find((q) => sn.workers[q] === c.at && !sn.cust.some((o) => o.by === q));
+                if (w) { c.by = w; c.at = AWAY; sn.workers[w] = null; }
+              }
             }
           }
         }
@@ -211,15 +248,23 @@
       if (sc.play === 'tower' && sn.endAt && now() >= sn.endAt) { sn.phase = sn.endPhase; return true; }   // once the last storey has landed (or fallen)
       return false;
     }
-    function complete() {
-      const p = place(), pr = prog(p.id), index = S.scene.index;
-      S.scene = null;
-      if (!pr.done && index >= pr.scene) pr.scene = index + 1;
+    // A level counts the moment it is won (not when they tap on), so closing the game on the card loses nothing.
+    function record() {
+      const sn = S.scene;
+      if (!sn || sn.saved || (sn.phase !== 'won' && sn.phase !== 'stub')) return;
+      const p = place(), pr = prog(p.id);
+      sn.saved = true;
+      if (!pr.done && sn.index >= pr.scene) pr.scene = sn.index + 1;
       if (pr.scene >= p.scenes.length && !pr.done) {
-        pr.done = true;
+        pr.done = true; sn.rescued = true;                                          // the last level of the place: they are saved
         for (const s of p.saves) if (!S.save.album.includes(s.id)) S.save.album.push(s.id);
-        S.where = { screen: 'rescued', place: p.id, region: p.region };
-      } else S.where = regionOf(p);
+      }
+    }
+    function complete() {
+      record();
+      const p = place(), rescued = S.scene.rescued;
+      S.scene = null;
+      S.where = rescued ? { screen: 'rescued', place: p.id, region: p.region } : regionOf(p);
     }
 
     // Something that counts, reported by a device while a game is on.
@@ -233,6 +278,25 @@
       if (kind === 'run') {
         if (m.e === 'hurt' && --sn.lives <= 0) sn.phase = 'lost';
         if (m.e === 'finish' && sn.lives > 0) sn.phase = 'won';
+      }
+      if (kind === 'platform') {
+        const team = sn.two ? ['ken', 'kel'] : [who], other = who === 'ken' ? 'kel' : 'ken';
+        if (m.e === 'hurt' && !sn.out[who] && !sn.fin[who] && --sn.hp[who] <= 0) {
+          sn.out[who] = true;                                                          // out of hearts: floating in a bubble
+          if (team.every((w) => sn.out[w])) sn.phase = 'lost';                         // nobody left walking
+        }
+        if (m.e === 'revive' && sn.two && sn.out[other] && !sn.out[who]) { sn.out[other] = false; sn.hp[other] = 2; }   // the partner jumped into the bubble
+        const id = String(m.id).slice(0, 12);
+        if (m.e === 'beat' && /^\d+(\.\d+)?$/.test(id) && !sn.beaten.includes(id)) sn.beaten.push(id);
+        if (m.e === 'got' && /^\d+$/.test(id) && !sn.got.includes(+id)) {
+          sn.got.push(+id);
+          const it = course.platform(sc).items[+id];
+          if (it && it.kind === 'heart' && !sn.out[who]) sn.hp[who] = Math.min(sn.max, sn.hp[who] + 1);   // a heart picked up: one back
+        }
+        if (m.e === 'finish' && !sn.out[who]) {
+          sn.fin[who] = true;                                                          // at the door; one still in a bubble comes along with the other
+          if (team.every((w) => sn.fin[w] || sn.out[w])) sn.phase = 'won';
+        }
       }
       if (kind === 'shoot') {
         const id = m.id | 0, fresh = !sn.hit.includes(id) && !sn.missed.includes(id);
@@ -327,6 +391,10 @@
       else if (m.type === 'resume') {
         if (sn && sn.paused) { const d = now() - sn.paused; for (const k of ['startAt', 'busyUntil', 'hideAt', 'pullAt', 'power', 'showAt', 'listenAt', 'endAt', 'finAt']) if (sn[k]) sn[k] += d; sn.paused = 0; }
       }
+      // A save code typed in (see game.js): how far they had got, added to what is here.
+      else if (m.type === 'load' && m.places && typeof m.places === 'object') merge({ places: m.places, round: S.save.round });
+      // A new game: everything played is forgotten, on both phones.
+      else if (m.type === 'restart' && S.where.screen !== 'scene') { S.save = { places: {}, album: [], round: (S.save.round | 0) + 1 }; S.scene = null; S.where = { screen: 'map' }; }
       else if (m.type === 'back') {
         if (S.where.screen === 'scene' || S.where.screen === 'rescued') { S.scene = null; S.where = regionOf(place()); }
         else if (S.where.screen === 'region') S.where = { screen: world.regions[S.where.region].up };
