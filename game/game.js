@@ -1524,8 +1524,10 @@
   }
 
   // Pexeso: pairs of cards face down on the table. With two playing, one turns the first card over and the other
-  // turns the second, looking for its pair; then they swap. A pair stays up; otherwise both turn back over.
-  // Too many wrong guesses and the game is lost.
+  // turns the second, looking for its pair; then they swap. Whoever waits may tap a card to point at it on the
+  // partner's phone ("Tady!"), so they talk and help. A pair stays up and is named; otherwise both turn back over.
+  // A tapped card turns at once on the phone that tapped it, and the pair is judged there at once; the room's answer
+  // (and the other phone) follows. Too many wrong guesses and the game is lost, but the pairs found stay for another go.
   // A golden key, drawn pixel by pixel as finely as the characters: a round bow with a hole, the shaft, two teeth.
   const KEY = (() => {
     const w = 72, h = 30, c = document.createElement('canvas'); c.width = w; c.height = h;
@@ -1544,79 +1546,216 @@
     return c;
   })();
 
+  // A hand pointing down, for a partner's "Tady!": X outline, S skin, C a cuff in the colour of whoever points.
+  const HAND = ['....XXXXXXXX..', '....XCCCCCCX..', '...XSSSSSSSX..', '...XSSSSSSSSX.', '..XSSSSSSSSSX.', '..XSSSSSSSSSSX', '.XSSSSSSSSSSSX',
+    'XSSSXSSSSSSSSX', 'XSSXXSSSSSSSSX', '.XX.XSSXSSXSSX', '....XSSXSSXXX.', '....XSSXXX....', '....XSSX......', '....XSSX......', '....XSSX......', '.....XX.......'];
   function Memory(sc, place, sn) {
     const cfg = sc.memory, who = me(), COLS = 4, CW = 40, CH = 50, GAP = 6, X0 = Math.round((W - (COLS * CW + (COLS - 1) * GAP)) / 2), Y0 = 36;
-    const s = { t: 0, over: false, lost: false, seenMiss: 0, shake: 0, keyAt: null, endIn: 0 };
+    const FLIP = 0.26;                                                                 // seconds a card takes to turn over
+    const s = { t: 0, over: false, lost: false, keyAt: null, endIn: 0, pend: [], bits: [], later: [], seen: new Set(), hint: null, hintAt: -9, note: '', noteTill: 0, could: false, wave: -9, tipWas: null, hudWas: null, deal: clock(sn) < -0.6 };
     let live = sn;
-    const view = stage('<span class="count"></span><span class="turn"></span>', '');
-    const finish = (won) => view.end(won, won ? 'Všechny dvojice!' : 'Došly pokusy.', won ? (cfg.won || 'Výborná paměť!') : 'Zkuste to ještě jednou.');
+    const card = sn.deck.map((f, i) => ({ up: sn.done.includes(i) || sn.open.includes(i), at: -9, pop: -9, bad: -9, wob: -9 }));
+    for (const i of sn.done) s.seen.add('p' + sn.deck[i]);                            // pairs found before (a go after a lost one): no fuss over them again
+    for (let k = 1; k <= sn.misses; k++) s.seen.add('m' + k);
+    const view = stage('<span class="count"></span><span class="chyby"></span>', '');
+    const two = () => !!live.turn;
+    const finish = (won) => view.end(won, won ? 'Všechny dvojice!' : 'Moc chyb!', won ? (cfg.won || 'Výborná paměť!') : live.done.length ? `Nalezené dvojice ${two() ? 'vám' : 'ti'} zůstanou.` : `${two() ? 'Zkuste' : 'Zkus'} to ještě jednou.`);
     const spot = (i) => ({ x: X0 + (i % COLS) * (CW + GAP), y: Y0 + Math.floor(i / COLS) * (CH + GAP) });
+    const cardAt = (x, y) => live.deck.findIndex((f, i) => { const p = spot(i); return x >= p.x && x < p.x + CW && y >= p.y && y < p.y + CH; });
     const mine = () => !live.turn || live.turn === who;
-    const paint = () => {
-      view.hud.firstElementChild.textContent = `Dvojice ${live.done.length / 2}/${live.deck.length / 2} · Pokusy ${Math.max(0, live.maxMiss - live.misses)}`;
-      view.hud.lastElementChild.innerHTML = live.turn ? `${face(live.turn, 3, 1)}<span>${mine() ? 'Otáčíš ty' : 'Otáčí ' + esc(heroName(live.turn))}</span>` : '';
-      if (s.over) return;
-      const second = live.open.length === 1;
-      view.tip.textContent = !live.turn ? 'Otoč dvě kartičky. Najdi dvojici.'
-        : mine() ? (second ? 'Teď ty! Otoč druhou kartičku a najdi k ní dvojici.' : 'Otoč první kartičku.')
-        : (second ? `${heroName(live.turn)} hledá dvojici. Dívej se a pamatuj si.` : `${heroName(live.turn)} otočí první kartičku, ty pak druhou.`);
-    };
-    paint();
+    const started = () => clock(live) >= 0;
+    // The cards up on this phone: those the room has up, and those just tapped here that it has not answered yet.
+    const opened = () => [...live.open, ...s.pend.map((p) => p.i).filter((i) => !live.open.includes(i) && !live.done.includes(i))];
+    const isUp = (i) => live.done.includes(i) || opened().includes(i);
+    const canAct = () => !s.over && started() && mine() && opened().length < 2;
+    const say = (html, secs) => { s.note = html; s.noteTill = s.t + (secs || 2.2); };
+    if (sn.done.length) say('Dvojice zůstaly!', 3);
+
+    // A pair: both cards pop up with a sparkle, and the thing on them is named. A wrong pair: both shake.
+    function burst(i) {
+      const p = spot(i);
+      for (let k = 0; k < 14; k++) { const a = k / 14 * Math.PI * 2 + Math.random() * 0.4, v = 60 + Math.random() * 50; s.bits.push({ x: p.x + CW / 2, y: p.y + CH / 2, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 50, t: s.t, life: 0.5 + Math.random() * 0.3, c: k % 3 ? '#FFD43A' : '#FFF8E7' }); }
+    }
+    // Judged the moment the second card is tapped, on the phone that turned it; the other phone when the room says so.
+    // `seen` keeps either from making the fuss twice. It shows once the card has finished turning, so it is seen first.
+    function judge(a, b, misses) {
+      const then = (fn) => s.later.push({ at: s.t + FLIP, fn });
+      if (live.deck[a] === live.deck[b]) {
+        const k = 'p' + live.deck[a]; if (s.seen.has(k)) return; s.seen.add(k);
+        const name = cfg.faces[live.deck[a]][2];
+        card[a].hold = card[b].hold = true;                                          // not green until it is seen to be a pair
+        then(() => { card[a].pop = card[b].pop = s.t; card[a].hold = card[b].hold = false; burst(a); burst(b); beep(660, 880, 1100); if (name) cheer(name + '!'); });
+      } else {
+        const k = 'm' + misses; if (s.seen.has(k)) return; s.seen.add(k);
+        then(() => { card[a].bad = card[b].bad = s.t; beep(200, 160); if (live.maxMiss - misses === 1) say('Pozor, poslední šance!'); });
+      }
+    }
+    // A partner's "Tady!": a hand taps on the card, with the word over it, on both phones; the line below says who.
+    function hintOn(i, from, note) {
+      hintOff();
+      const p = spot(i);
+      s.hint = { i, at: s.t, from, note, el: add(`<p class="tady" style="${pinAt([p.x + CW / 2, p.y])}">Tady!</p>`) };
+      say(note, 3.5);
+    }
+    function hintOff() { if (s.hint) { s.hint.el.remove(); if (s.note === s.hint.note) s.noteTill = 0; } s.hint = null; }
+    // Pairs found as a number; the wrong pairs as boxes filling up with red crosses, the empty ones what is left.
+    function hud() {
+      const key = `${live.done.length}/${live.misses}/${live.maxMiss}`; if (key === s.hudWas) return;
+      const fresh = s.hudWas !== null && live.misses > +s.hudWas.split('/')[1]; s.hudWas = key;
+      view.hud.querySelector('.count').innerHTML = `<i class="dvojice"></i>${live.done.length / 2}/${live.deck.length / 2}`;
+      const el = view.hud.querySelector('.chyby');
+      el.classList.toggle('warn', live.maxMiss - live.misses <= 2);
+      el.innerHTML = '<span>Chyby</span>' + Array.from({ length: live.maxMiss }, (_, k) => `<i class="${k < live.misses ? 'x' : ''}${fresh && k === live.misses - 1 ? ' new' : ''}"></i>`).join('');
+    }
+    // What to do now, in a few words: whose turn it is (with their face), and what the cards on the table ask for.
+    function tip() {
+      let html = '';
+      if (s.over) html = '';
+      else if (s.t < s.noteTill) html = s.note;
+      else {
+        const open = opened(), name = two() ? esc(heroName(live.turn)) : '';
+        if (open.length === 2) html = live.deck[open[0]] !== live.deck[open[1]] ? 'Zapamatuj si je!' : s.tipWas;
+        else if (!two()) html = open.length ? 'Najdi k ní dvojici!' : 'Otoč kartičku.';
+        else if (mine()) html = face(who, 3, 1) + (open.length ? 'Najdi k ní dvojici!' : 'Tvůj tah! Otoč kartičku.');
+        else html = face(live.turn, 3, 1) + (open.length ? `${name} hledá. Ukaž ${live.turn === 'kel' ? 'jí' : 'mu'}, kde je!` : `Otáčí ${name}, pak ty.`);
+      }
+      if (html !== s.tipWas) { s.tipWas = html; view.tip.innerHTML = html; }
+    }
+    hud(); tip();
+
+    const outline = (x, y, w, h, c, k) => { rect(x, y, w, k, c); rect(x, y + h - k, w, k, c); rect(x, y, k, h, c); rect(x + w - k, y, k, h, c); };
+    function drawCard(i, f) {
+      const c = card[i], p = spot(i), open = opened();
+      let cx = p.x + CW / 2, cy = p.y + CH / 2, k = 1, lift = 0;
+      if (s.deal) {                                                                  // dealt out from the bench as the game starts
+        const d = (s.t - 0.15 - i * 0.05) / 0.4; if (d <= 0) return;
+        if (d < 1) { const e = 1 + 1.8 * (d - 1) ** 3 + 0.8 * (d - 1) ** 2; cx = W / 2 + (cx - W / 2) * e; cy = H + 30 + (cy - H - 30) * e; }   // a little past its place, and back
+      }
+      // turning over: it narrows to an edge and widens again with the other side up, lifted a little on the way
+      const v = clamp((s.t - c.at) / FLIP, 0, 1), up = v < 0.5 ? !c.up : c.up, kx = Math.max(0.08, Math.abs(Math.cos(v * Math.PI)));
+      lift += Math.sin(v * Math.PI) * 4;
+      const q = (s.t - c.pop) / 0.45; if (q >= 0 && q < 1) { k = 1 + 0.18 * Math.sin(q * Math.PI) * (1 - q * 0.6); lift += Math.sin(q * Math.PI) * 3; }   // a pair: up it jumps
+      const b = (s.t - c.bad) / 0.55; if (b >= 0 && b < 1) cx += Math.sin(b * 40) * 3 * (1 - b);              // wrong: a shake that dies away
+      const w = (s.t - c.wob) / 0.3; if (w >= 0 && w < 1) cx += Math.sin(w * 32) * 2 * (1 - w);              // not now: a little wobble
+      const r = (s.t - s.wave - i * 0.035) / 0.25; if (r > 0 && r < 1 && !c.up) lift += Math.sin(r * Math.PI) * 3;   // your turn: a ripple across the cards
+      cx = Math.round(cx); cy = Math.round(cy);
+      const hw = Math.round(CW * kx * k / 2), hh = Math.round(CH * k / 2), y = cy - Math.round(lift);
+      rect(cx - hw, cy - hh + 2, hw * 2, hh * 2, 'rgba(43,31,26,.5)');                // its shadow stays on the table
+      const done = live.done.includes(i) && !c.hold, bad = open.length === 2 && open.includes(i) && live.deck[open[0]] !== live.deck[open[1]], pulse = Math.sin(s.t * 7) > 0;
+      if (v >= 1 && !done) {                                                         // what to look at: the card whose pair is wanted, the cards to tap
+        if (open.length === 1 && open[0] === i && canAct()) outline(cx - hw - 2, y - hh - 2, hw * 2 + 4, hh * 2 + 4, pulse ? '#FFD43A' : '#FFF1A8', 2);
+        else if (!c.up && canAct()) outline(cx - hw - 1, y - hh - 1, hw * 2 + 2, hh * 2 + 2, `rgba(255,212,58,${(0.3 + 0.25 * Math.sin(s.t * 4)).toFixed(2)})`, 1);
+        if (s.hint && s.hint.i === i) outline(cx - hw - 2, y - hh - 2, hw * 2 + 4, hh * 2 + 4, pulse ? '#FFD43A' : '#FFF8E7', 2);
+      }
+      ctx.save(); ctx.translate(cx, y); ctx.scale(kx * k, k);
+      if (!up) {                                                                     // the back: a pattern of diamonds
+        rect(-20, -25, CW, CH, '#7A4A22'); rect(-19, -24, CW - 2, CH - 2, '#CC2233'); rect(-17, -22, CW - 6, CH - 6, '#E8505E');
+        for (let j = 0; j < 4; j++) for (let n = 0; n < 3; n++) rect(-13 + n * 10, -18 + j * 10 + (n % 2) * 5, 4, 4, '#FFD9A8');
+      } else {                                                                       // the face: green round a pair found, red round a wrong one
+        const edge = bad ? '#CC2233' : done ? '#1FA463' : '#B98850', thick = bad || done ? 2 : 1;
+        rect(-20, -25, CW, CH, edge); rect(-20 + thick, -25 + thick, CW - 2 * thick, CH - 2 * thick, '#FFF8E7');
+        const [sheet, pose] = cfg.faces[f], sp = K.sprites[sheet];
+        if (sp) K.figure(sheet, 0, 18, pose, 0, false, Math.min(34 / sp.w, 38 / sp.h));
+        if (done) { rect(12, -23, 7, 6, '#1FA463'); for (const [a, d] of [[1, 2], [2, 3], [3, 2], [4, 1], [5, 0]]) rect(13 + a - 1, -22 + d, 1, 2, '#FFF8E7'); }   // a tick in the corner
+      }
+      ctx.restore();
+    }
+    // The hint: a hand tapping on the card, the finger on its middle.
+    function drawHand() {
+      const p = spot(s.hint.i), u = s.t - s.hint.at, tap = Math.round(Math.abs(Math.sin(u * 5)) * 4), cuff = (WORLD.heroes[s.hint.from] || {}).shirt || '#FFD43A';
+      const x0 = p.x + CW / 2 - 5, y0 = p.y + CH / 2 - 15;
+      HAND.forEach((row, j) => { for (let i = 0; i < row.length; i++) if (row[i] !== '.') rect(x0 + i + 1, y0 + j + 2, 1, 1, 'rgba(43,31,26,.45)'); });   // its shadow on the card stays put
+      HAND.forEach((row, j) => { for (let i = 0; i < row.length; i++) if (row[i] !== '.') rect(x0 + i, y0 + j - tap, 1, 1, row[i] === 'X' ? INK : row[i] === 'C' ? cuff : '#F6D2B0'); });
+    }
+    // The cards are cleared away and a golden key rises from under the last pair, turning, with a sparkle, and flies to the door.
+    function drawKey(u) {
+      const DOOR = [100, 114], v = clamp((u - 0.9) / 0.5, 0, 1), from = s.keyFrom || { x: W / 2, y: 150 };   // where the salon's door is on the picture
+      if (v >= 1) {                                                                        // unlocked: the door glows
+        const w = clamp((u - 1.4) / 0.6, 0, 1);
+        for (let i = 0; i < 10; i++) { const a = i / 10 * Math.PI * 2, r = 6 + w * 30; rect(Math.round(DOOR[0] + Math.cos(a) * r), Math.round(DOOR[1] + Math.sin(a) * r), 3, 3, i % 2 ? '#FFF1A8' : '#FFD43A'); }
+        return;
+      }
+      const e = Math.min(1, u / 0.8), out = 1 - (1 - e) ** 3, y0 = Math.round(from.y + (64 - from.y) * out + (e >= 1 ? Math.sin(u * 3) * 2 : 0)), x0 = from.x + (W / 2 - from.x) * out, turn = Math.cos(u * 5);
+      const y = Math.round(y0 + (DOOR[1] - y0) * v), cx = Math.round(x0 + (DOOR[0] - x0) * v), size = (0.5 + 0.5 * out) * (1 - 0.6 * v);
+      for (let i = 0; i < 8; i++) {                                                     // sparkles round it
+        const a = i / 8 * Math.PI * 2 + u * 1.5, r = 22 + Math.sin(u * 4 + i) * 4;
+        if (Math.sin(u * 9 + i * 2) > -0.2) rect(Math.round(cx + Math.cos(a) * r * size), Math.round(y + Math.sin(a) * r * 0.8 * size), 2, 2, i % 2 ? '#FFF1A8' : '#FFD43A');
+      }
+      ctx.save(); ctx.translate(cx, y); ctx.scale(Math.max(0.12, Math.abs(turn)) * size, size);
+      ctx.drawImage(KEY, -KEY.width / 4, -KEY.height / 4, KEY.width / 2, KEY.height / 2);    // each of its pixels half a game pixel, as fine as the people
+      ctx.restore();
+    }
+
     return {
-      s, kind: 'memory', peek: () => ({ deck: live.deck, open: live.open, done: live.done, mine: mine(), spot }),
-      sync(n) { if (n.misses > s.seenMiss) { s.seenMiss = n.misses; s.shake = 0.4; beep(200, 160); } else if (n.done.length > live.done.length) beep(660, 880); live = n; paint(); },
+      s, kind: 'memory', peek: () => ({ deck: live.deck, open: opened(), done: live.done, mine: canAct(), turn: live.turn, hint: s.hint && s.hint.i, spot }),
+      sync(n) {
+        s.pend = s.pend.filter((p) => !n.open.includes(p.i) && !n.done.includes(p.i));    // answered
+        const was = live; live = n;
+        for (const i of n.done) if (!was.done.includes(i)) judge(i, n.done.find((j) => j !== i && n.deck[j] === n.deck[i]), n.misses);   // turned on the other phone
+        if (n.misses > was.misses && n.open.length === 2) judge(n.open[0], n.open[1], n.misses);
+        hud();
+      },
       over(won) {
-        s.over = true; s.lost = !won; paint();
-        if (won && cfg.key) { s.keyAt = s.t; s.endIn = 2.1; view.tip.textContent = ''; beep(660, 880, 1100, 1320); }     // the key comes out, flies to the door and unlocks it; then the card
-        else finish(won);
+        s.over = true; s.lost = !won; hintOff(); tip();
+        if (won && cfg.key) {                                                         // the last pair has its moment; then the key comes out, flies to the door and unlocks it; then the card
+          const p = spot(live.done[live.done.length - 1]); s.keyFrom = { x: p.x + CW / 2, y: p.y + CH / 2 };
+          s.keyAt = s.t + 0.8; s.endIn = 2.9;
+        } else finish(won);
       },
       down(x, y) {
-        if (s.over || !mine() || live.open.length === 2) return;
-        for (let i = 0; i < live.deck.length; i++) {
-          const p = spot(i);
-          if (x >= p.x && x < p.x + CW && y >= p.y && y < p.y + CH) {
-            if (live.done.includes(i) || live.open.includes(i)) return;
-            beep(520); return Net.send({ type: 'ev', e: 'flip', i });
-          }
+        const i = cardAt(x, y); if (s.over || i < 0) return;
+        const c = card[i];
+        if (!started()) { c.wob = s.t; return; }                                       // still being dealt
+        if (!mine()) {                                                                 // the partner's turn: point at a card for them
+          if (isUp(i) || s.t - s.hintAt < 0.5) { c.wob = s.t; beep(180); return; }
+          s.hintAt = s.t; beep(880, 1175); Net.send({ type: 'fx', k: 'hint', i });
+          return hintOn(i, who, `${esc(heroName(mate()))} to uvidí.`);
         }
+        const open = opened();
+        if (isUp(i) || open.length >= 2) { c.wob = s.t; beep(180); return; }          // up already, or two are up: wait
+        s.pend.push({ i, at: s.t });                                                   // it turns now, before the room hears of it
+        beep(open.length ? 660 : 520);
+        Net.send({ type: 'ev', e: 'flip', i });
+        if (open.length === 1) judge(open[0], i, live.misses + 1);
+        hintOff();
       },
-      update(dt) { s.t += dt; if (s.shake > 0) s.shake -= dt; if (s.keyAt !== null && !s.clicked && s.t - s.keyAt > 1.4) { s.clicked = true; beep(300, 600, 900); } if (s.endIn > 0 && (s.endIn -= dt) <= 0) finish(true); },
+      fx(m) {
+        if (m.k !== 'hint' || s.over || !WORLD.heroes[m.from]) return;
+        const i = m.i | 0; if (i < 0 || i >= live.deck.length || isUp(i)) return;
+        hintOn(i, m.from, face(m.from, 3, 1) + `${esc(heroName(m.from))} radí: tady!`); beep(1320, 990);
+      },
+      update(dt) {
+        s.t += dt;
+        card.forEach((c, i) => { const u = isUp(i); if (u !== c.up) { c.up = u; c.at = s.t; } });
+        const late = s.pend.filter((p) => s.t - p.at > 2.5);                          // the room never took it: it turns back
+        if (late.length) { s.pend = s.pend.filter((p) => !late.includes(p)); for (const p of late) card[p.i].wob = s.t; }
+        const due = s.later.filter((l) => s.t >= l.at); if (due.length) { s.later = s.later.filter((l) => !due.includes(l)); due.forEach((l) => l.fn()); }
+        for (const b of s.bits) { b.x += b.vx * dt; b.y += b.vy * dt; b.vy += 240 * dt; }
+        s.bits = s.bits.filter((b) => s.t - b.t < b.life);
+        if (s.hint && (s.t - s.hint.at > 3.5 || isUp(s.hint.i))) hintOff();
+        const can = canAct();                                                          // your turn now: the cards ripple, and with two, a chime
+        if (can && !s.could) { s.wave = s.t; if (two() && clock(live) > 0.5) beep(660, 990); }
+        s.could = can;
+        tip();
+        if (s.keyAt !== null && !s.rang && s.t >= s.keyAt) { s.rang = true; beep(660, 880, 1100, 1320); }
+        if (s.keyAt !== null && !s.clicked && s.t - s.keyAt > 1.4) { s.clicked = true; beep(300, 600, 900); }
+        if (s.endIn > 0 && (s.endIn -= dt) <= 0) finish(true);
+      },
       draw() {
         K.background(sc.bg, 0, place.look);
-        rect(0, 22, W, H - 22, 'rgba(43,31,26,.55)');
-        if (s.keyAt !== null) return this.drawKey(s.t - s.keyAt);
-        live.deck.forEach((f, i) => {
-          const p = spot(i), up = live.done.includes(i) || live.open.includes(i), wrong = live.open.length === 2 && live.open.includes(i) && s.shake > 0;
-          const x = p.x + (wrong ? Math.round(Math.sin(s.t * 60) * 2) : 0), y = p.y;
-          rect(x, y + 2, CW, CH, 'rgba(43,31,26,.5)');                                         // a little shadow
-          if (!up) {                                                                          // the back: a pattern of diamonds
-            rect(x, y, CW, CH, '#7A4A22'); rect(x + 1, y + 1, CW - 2, CH - 2, '#CC2233'); rect(x + 3, y + 3, CW - 6, CH - 6, '#E8505E');
-            for (let j = 0; j < 4; j++) for (let k = 0; k < 3; k++) rect(x + 7 + k * 10, y + 7 + j * 10 + (k % 2) * 5, 4, 4, '#FFD9A8');
-            return;
-          }
-          const done = live.done.includes(i);
-          rect(x, y, CW, CH, done ? '#1FA463' : '#B98850'); rect(x + 1, y + 1, CW - 2, CH - 2, '#FFF8E7');
-          const [sheet, pose] = cfg.faces[f], sp = K.sprites[sheet];
-          if (sp) K.figure(sheet, x + CW / 2, y + CH - 7, pose, 0, false, Math.min(34 / sp.w, 38 / sp.h));
-        });
-      },
-      // The cards are cleared away and a golden key rises from under the last pair, turning, with a sparkle.
-      drawKey(u) {
-        const DOOR = [100, 114], v = clamp((u - 0.9) / 0.5, 0, 1);                           // where the salon's door is on the picture
-        if (v >= 1) {                                                                        // unlocked: the door glows
-          const w = clamp((u - 1.4) / 0.6, 0, 1);
-          for (let i = 0; i < 10; i++) { const a = i / 10 * Math.PI * 2, r = 6 + w * 30; rect(Math.round(DOOR[0] + Math.cos(a) * r), Math.round(DOOR[1] + Math.sin(a) * r), 3, 3, i % 2 ? '#FFF1A8' : '#FFD43A'); }
-          return;
+        const u = s.keyAt === null ? -1 : s.t - s.keyAt, fade = clamp(u / 0.3, 0, 1);  // the key: the cards clear away
+        rect(0, 22, W, H - 22, `rgba(43,31,26,${(0.55 * (1 - fade * 0.5)).toFixed(2)})`);
+        if (fade < 1) {
+          ctx.save(); ctx.globalAlpha = 1 - fade;
+          live.deck.forEach((f, i) => drawCard(i, f));
+          if (s.hint) drawHand();
+          ctx.restore();
         }
-        const e = Math.min(1, u / 0.8), y0 = Math.round(150 - 86 * (1 - (1 - e) ** 3) + (e >= 1 ? Math.sin(u * 3) * 2 : 0)), turn = Math.cos(u * 5);
-        const y = Math.round(y0 + (DOOR[1] - y0) * v), cx = Math.round(W / 2 + (DOOR[0] - W / 2) * v), size = 1 - 0.6 * v;
-        for (let i = 0; i < 8; i++) {                                                     // sparkles round it
-          const a = i / 8 * Math.PI * 2 + u * 1.5, r = 22 + Math.sin(u * 4 + i) * 4;
-          if (Math.sin(u * 9 + i * 2) > -0.2) rect(Math.round(cx + Math.cos(a) * r * size), Math.round(y + Math.sin(a) * r * 0.8 * size), 2, 2, i % 2 ? '#FFF1A8' : '#FFD43A');
+        for (const b of s.bits) {                                                      // sparkles: little squares, every third a cross
+          const x = Math.round(b.x), y = Math.round(b.y);
+          if (b.c === '#FFF8E7') { rect(x - 1, y, 3, 1, b.c); rect(x, y - 1, 1, 3, b.c); } else rect(x, y, 2, 2, b.c);
         }
-        ctx.save(); ctx.translate(cx, y); ctx.scale(Math.max(0.12, Math.abs(turn)) * size, size);
-        ctx.drawImage(KEY, -KEY.width / 4, -KEY.height / 4, KEY.width / 2, KEY.height / 2);    // each of its pixels half a game pixel, as fine as the people
-        ctx.restore();
+        if (u >= 0) drawKey(u);
       },
     };
   }

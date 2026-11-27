@@ -25,7 +25,8 @@
 //   find    koalas peek out of the trees: tap them while they show; drag to look around a wide picture
 //   salon   customers want washing, cutting, dyeing, drying and paying: lead them from place to place and work there
 //   memory  pexeso: one turns the first card over, the other turns the second looking for its pair; then they swap.
-//           With `key`, a key comes out from under the last pair: it opens the door to the next scene
+//           Whoever waits can point at a card on the partner's phone. `faces` are [sheet, pose, name said on a pair].
+//           A lost game keeps the pairs found. With `key`, a key comes out from under the last pair: it opens the door to the next scene
 //   collect run along the beach picking up what the waves wash in, and keep away from the jellyfish
 //   rescue  throw lifebuoys to the people on the rock, then pull them across before the shark gets there
 //   tower   build a house storey by storey: drive the crane to the stack, pick a storey up, bring it over the house and
@@ -131,7 +132,7 @@ window.WORLD = {
       scenes: [
         { id: 'praha-door', name: 'Před salonem', at: [62, 284], label: 'right', bg: 'praha-door', play: 'memory', code: 'KLIC',
           memory: { pairs: 8, miss: 10, key: true, won: 'A pod poslední dvojicí byl klíč. Dveře jsou odemčené!',
-            faces: [['salonkit', 'scissors'], ['salonkit', 'comb'], ['salonkit', 'brush'], ['salonkit', 'dryer'], ['salonkit', 'spray'], ['salonkit', 'dye'], ['salonkit', 'curlers'], ['salonkit', 'mirror']] },
+            faces: [['salonkit', 'scissors', 'Nůžky'], ['salonkit', 'comb', 'Hřeben'], ['salonkit', 'brush', 'Kartáč'], ['salonkit', 'dryer', 'Fén'], ['salonkit', 'spray', 'Lak na vlasy'], ['salonkit', 'dye', 'Barva'], ['salonkit', 'curlers', 'Natáčky'], ['salonkit', 'mirror', 'Zrcátko']] },
           talk: [['', 'Kadeřnictví je zamčené. Na dveřích visí cedulka: Klíč dostane, kdo najde všechny dvojice.'], ['', 'Na lavičce před dveřmi leží kartičky. Samé kadeřnické věci.'], ['hero', 'Pexeso! Jeden otočí první kartičku, druhý k ní hledá dvojici.']] },
         // From here on she is found: the salon is full and she cannot get away until every customer is done.
         { id: 'praha-salon', name: 'V salonu', at: [44, 262], label: 'right', bg: 'praha-salon', play: 'salon', code: 'NUZKY', cast: ['leila'],

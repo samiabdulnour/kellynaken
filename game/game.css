@@ -147,3 +147,20 @@ button{font:inherit;color:inherit}
   text-shadow:.08em .08em 0 var(--ink);animation:rise .8s steps(5) forwards}
 .card .stars{font-size:2em;line-height:1;color:var(--yellow);letter-spacing:.1em;text-shadow:.06em .06em 0 var(--ink);margin:-.2em 0 -.1em}
 .pin .st{display:block;font-size:.85em;line-height:1;color:#B8862A;letter-spacing:.05em}
+/* Pexeso: the pairs found, and the wrong guesses as boxes filling with red crosses (the empty ones are what is left,
+   blinking when only two are). A partner's "Tady!" over a card. Praise floats over the cards without catching taps. */
+.dvojice{position:relative;display:inline-block;width:.6em;height:.8em;margin:0 .6em 0 .1em;vertical-align:-.05em;background:var(--paper);border:.125em solid var(--green)}
+.dvojice::after{content:'';position:absolute;left:.2em;top:-.35em;width:.6em;height:.8em;background:var(--paper);border:.125em solid var(--green)}
+.chyby{display:flex;align-items:center;gap:.125em;color:var(--paper)}
+.chyby span{margin-right:.35em}
+.chyby i{display:block;width:.75em;height:.75em;border:.125em solid var(--ink-soft)}
+.chyby i.x{border:0;background:#FF5A5F;clip-path:polygon(0 18%,18% 0,50% 32%,82% 0,100% 18%,68% 50%,100% 82%,82% 100%,50% 68%,18% 100%,0 82%,32% 50%)}
+.chyby i.new{animation:chyba .4s steps(4)}
+@keyframes chyba{from{transform:scale(2.4)}}
+.chyby.warn i:not(.x){animation:chyby .5s steps(2,jump-none) infinite}
+@keyframes chyby{50%{border-color:var(--yellow)}}
+.tip .face{vertical-align:middle;margin:-.3em .35em -.1em 0}
+#ui > .tady{position:absolute;margin:0;transform:translate(-50%,-100%);pointer-events:none;font-size:.9em;font-weight:700;line-height:1.15;padding:0 .3em;
+  color:var(--ink);background:var(--yellow);border:.17em solid var(--ink);animation:tady .45s steps(2,jump-none) infinite alternate}
+@keyframes tady{to{margin-top:-.3em}}
+#ui > .praise,#ui > .plus{pointer-events:none}
