@@ -2088,7 +2088,10 @@
     const cfg = sc.tower, who = me(), GY = 236, SH = 25, JIB = 30, CABLE = 26, SW = 40, HANG = 10;   // HANG: rope from the hook to the storey
     const two = () => mateHere(), steers = () => !two() || who === 'ken', drops = () => !two() || who === 'kel';
     const POSES = ['floor', 'plants', 'lights'];
-    const STACK = cfg.stack || 24, LIFT = 1, LEAD = 0.15, LATE = 0.35, CALM = 0.4, G = 900, EVERY = cfg.check || 5;   // LEAD: how far ahead the green button looks
+    const STACK = cfg.stack || 24, LIFT = 1, LEAD = 0.15, LATE = 0.5, CALM = 0.4, G = 900, EVERY = cfg.check || 5;   // LEAD: how far ahead the green button looks; LATE: how long after it a press still counts (a young finger is slow)
+    // The pile stands on a platform always this high on the screen: on the ground at first; once the camera rises with
+    // the house, a hoist carries it up beside the house, so the pile and the hook fetching from it stay in sight.
+    const PILE = GY + 2, pileY = (k) => PILE - k * SH * 0.8;
     const s = { t: 0, over: false, lost: false, crane: sn.crane, cv: 0, mateCrane: sn.crane, cx: sn.crane, px: sn.crane, v: 0, amp: CALM, lag: 0, lagV: 0,
       sent: 0, told: 0, fxAt: 0, cam: 0, fall: null, seen: sn.last ? sn.last.n : 0, target: null, lifts: sn.lifts, liftAt: -9, grabbed: true, pend: null,
       bits: [], bump: -9, knock: -9, shake: -9, openAt: -9, flagAt: -9, flagK: 0, litLast: -9, litX: 0, said: '', saidUntil: 0, saidIn: '', state: '', stateAt: 0, painted: '' };
@@ -2116,7 +2119,8 @@
     const shown = () => { let k = live.floors.length; if (s.fall && s.fall.ok) k = s.fall.landed ? Math.max(k, s.fall.i + 1) : Math.min(k, s.fall.i); return k; };
     const flags = () => Array.from({ length: Math.ceil((live.need - 1) / EVERY) - 1 }, (_, k) => (k + 1) * EVERY);
     const paint = () => {
-      const k = shown() - 1, f = s.fall, lives = live.lives + (f && !f.ok && !f.passed && f.sure ? 1 : 0), key = `${lives}/${k}/${live.need}`;   // a heart goes when the storey falls past
+      // a heart goes when the storey falls past, and one given back comes when the storey lands
+      const k = shown() - 1, f = s.fall, lives = live.lives + (f && !f.ok && !f.passed && f.sure ? 1 : 0) - (f && f.back && !f.landed ? 1 : 0), key = `${lives}/${k}/${live.need}`;
       if (key === s.painted) return; s.painted = key;
       hearts(view.hud.children[0], lives, live.maxLives || sn.lives);
       view.hud.children[1].textContent = `${k} / ${live.need - 1}`;                // storeys built on top of the lobby
@@ -2125,7 +2129,7 @@
     };
     const again = (el, cls) => { el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); };
     // A short tip, for a few seconds (`say`), or the one for what is to be done now (see update).
-    const say = (text, secs = 3, state) => { s.said = text; s.saidUntil = s.t + secs; s.saidIn = state || ''; view.tip.textContent = text; };   // `state`: gone once that is sorted out
+    const say = (text, secs = 3, state) => { s.said = text; s.saidAt = s.t; s.saidUntil = s.t + secs; s.saidIn = state || ''; view.tip.textContent = text; };   // `state`: gone once that is sorted out
     const TIPS = {
       solo: { fetch: 'Jeď pro další patro.', pick: 'Zvedni patro!', bring: 'Vez patro nad dům.', aim: 'Když tlačítko svítí zeleně, pusť!' },
       drive: { fetch: 'Jeď pro další patro.', pick: () => `${mateName()} zvedá patro.`, bring: 'Vez patro nad dům.', aim: 'Zastav, ať se to nehoupe.' },
@@ -2136,14 +2140,15 @@
     // The hook cannot do that now: the button shakes, a low beep, and (when there is one) why.
     function no(text) {
       beep(180);
-      const b = K.ui.querySelector('.key[data-k="drop"]'); if (b) again(b, 'no');
+      const b = K.ui.querySelector('.key[data-k="drop"]');
+      if (b) { again(b, 'no'); clearTimeout(s.noT); s.noT = setTimeout(() => b.classList.remove('no'), 400); }   // shaken once, it can turn green again
       if (text) say(text, 2.5, s.state);
     }
     paint();
-    if (live.from) { say('Stavíte dál od vlajky!', 3); s.flagAt = 0; s.flagK = live.from; }
+    if (live.from) { say('Stavíte dál od vlajky!', 3); s.flagAt = clock(live); s.flagK = live.from; }   // the flag pops up now, in the countdown
     // The arrows for whoever drives the crane, the big button for whoever works the hook (alone: both).
     const hold = (to) => ({ press: () => { if (!s.over) s.target = to; }, release: () => { s.target = null; } });
-    const keys = pad([...(steers() ? [{ id: 'left', side: 'left', ...hold(12) }, { id: 'right', side: 'left', ...hold(168) }] : []), ...(drops() ? [{ id: 'drop', label: 'Zvedni', big: true, press: () => hookIt() }] : [])]);
+    const keys = pad([...(steers() ? [{ id: 'left', side: 'left', ...hold(12) }, { id: 'right', side: 'left', ...hold(168) }] : []), ...(drops() ? [{ id: 'drop', label: 'Zvedni', big: true, press: () => hookIt() }] : [])], 'tower');
     function hookIt() {
       if (s.over) return;
       if (s.t < 0 || busy() || done()) return no();                                // still counting down, the hook on its way, or all done
@@ -2275,7 +2280,8 @@
           }
           // what to do now, as a tip: right away while they learn (the first two storeys), later only when it takes long
           const state = busy() || done() ? 'busy' : !holding() ? (overStack() ? 'pick' : 'fetch') : overHouse() ? 'aim' : 'bring';
-          if (state !== s.state) { s.state = state; s.stateAt = s.t; if (s.saidIn && s.saidIn !== state) s.saidUntil = 0; }
+          if (state !== s.state) { s.state = state; s.stateAt = s.t; }
+          if (s.saidIn && s.saidIn !== state && s.t - s.saidAt > 1.2) s.saidUntil = 0;     // sorted out: gone, but not before it can be read
           let tip = '';
           if (s.t < s.saidUntil) tip = s.said;
           else if (state !== 'busy' && s.t > 0.5) {
@@ -2296,7 +2302,7 @@
         // the lift: the hook reaches the pile (a clunk), then it comes up with a storey that starts to swing
         if (!s.grabbed && s.t - s.liftAt >= LIFT * 0.4) {
           s.grabbed = true; beep(140); s.amp = Math.max(s.amp, 0.65);
-          dust(STACK, GY + 2 - Math.max(0, Math.min(3, live.need - live.floors.length) - 1) * SH * 0.8 - SH * 0.8, 4, ['#E9E2D6', '#CFC6B8']);
+          dust(STACK, pileY(Math.max(0, Math.min(3, live.need - live.floors.length) - 1)) - SH * 0.8 - Math.round(s.cam), 4, ['#E9E2D6', '#CFC6B8']);
         }
         for (const b of s.bits) { b.x += b.vx * dt; b.y += b.vy * dt; b.vy += 90 * dt; }
         s.bits = s.bits.filter((b) => s.t - b.at < b.life);
@@ -2329,15 +2335,21 @@
         // a flag every few storeys: where a lost game goes on from (it pops up when it is reached)
         for (const k of flags()) {
           if (k >= xs.length || (f && f.ok && f.i === k && !f.landed)) continue;
-          const grow = k === s.flagK && s.t - s.flagAt < 0.3 ? (s.t - s.flagAt) / 0.3 : 1;
+          const grow = k === s.flagK ? clamp((s.t - s.flagAt) / 0.3, 0, 1) : 1;
           const px = Math.round(xs[k]) + SW / 2 - 2, py = sy(GY - k * SH) - SH + dip, h = Math.round(14 * easeOut(grow));
           rect(px, py - h + 4, 1, h, '#5A4A40');
           if (h > 8) { const wave = Math.floor(s.t * 4) % 2; rect(px + 1, py - h + 4, 6, 4, '#CC2233'); rect(px + 1, py - h + 5, 6 - wave, 1, '#E8505E'); rect(px + 7 - wave, py - h + 4 + wave, 1, 4 - 2 * wave, '#CC2233'); }
         }
-        // the pile of storeys waiting on the ground, as many as are still to come (up to three)
+        // the pile of storeys waiting, as many as are still to come (up to three), on its platform; under a raised one the
+        // hoist's mast, down to the ground (or out of the picture)
         const left = live.need - live.floors.length - (holding() ? 1 : 0) - (f && f.ok && !f.sure && f.i >= live.floors.length ? 1 : 0);
-        const lifting = s.t - s.liftAt < LIFT, pileN = Math.min(3, left + (lifting && !s.grabbed ? 1 : 0));
-        for (let k = 0; k < pileN; k++) if (K.has('storeys', 'floor')) K.figure('storeys', STACK, sy(GY + 2 - k * SH * 0.8), POSES[(live.floors.length + k + 1) % 3], 0, false, 0.4);
+        const lifting = s.t - s.liftAt < LIFT, pileN = Math.min(3, left + (lifting && !s.grabbed ? 1 : 0)), ground = Math.min(H, sy(GY + 2));
+        if (ground > PILE + 2) {
+          rect(STACK - 12, PILE + 2, 1, ground - PILE - 2, '#B8860B'); rect(STACK + 11, PILE + 2, 1, ground - PILE - 2, '#B8860B');
+          for (let y = PILE + 6; y < ground; y += 6) rect(STACK - 11, y, 22, 1, '#F2C94C');
+        }
+        rect(STACK - 15, PILE - 1, 30, 3, INK); rect(STACK - 14, PILE - 1, 28, 1, '#F2C94C');
+        for (let k = 0; k < pileN; k++) if (K.has('storeys', 'floor')) K.figure('storeys', STACK, pileY(k), POSES[(live.floors.length + k + 1) % 3], 0, false, 0.4);
         (sc.cast || []).forEach((id, i) => K.figure(id, 150 + i * 24, sy(GY + 4), 'three', s.t, true));
         if (mateHere()) K.hero(mate(), 66, sy(GY + 6), 'stand', s.t + 0.3);
         K.hero(who, 50, sy(GY + 6), s.lost ? 'dizzy' : 'stand', s.t);
@@ -2363,7 +2375,7 @@
         }
         // fetching: the hook goes down to the pile (eased), takes a storey and brings it up; the storey starts to swing
         const base = JIB + CABLE, u = lifting ? (s.t - s.liftAt) / LIFT : -1;
-        const pileTop = sy(GY + 2 - Math.max(0, Math.min(3, left + 1) - 1) * SH * 0.8) - SH * 0.8 - HANG;
+        const pileTop = pileY(Math.max(0, Math.min(3, left + 1) - 1)) - SH * 0.8 - HANG;
         let hx = c + s.lag * 0.5, hy = base, load = false, size = 0.5;
         if (lifting) {
           if (u < 0.4) hy = base + (pileTop - base) * easeInOut(u / 0.4);
@@ -2393,7 +2405,7 @@
           for (let y = hy + HANG + SH + 3; y < ty - 3; y += 5) rect(hx, y, 1, 3, g ? 'rgba(124,224,124,.9)' : 'rgba(255,248,231,.35)');
           rect(hx - 2, ty - 3, 5, 1, g ? '#7CE07C' : 'rgba(255,248,231,.6)');
         }
-        if (!held && !lifting && !s.over && !busy() && !done()) for (let y = JIB + 10; y < sy(GY) - SH; y += 7) rect(STACK, y, 1, 3, 'rgba(255,212,58,.55)');   // where to fetch the next one
+        if (!held && !lifting && !s.over && !busy() && !done()) for (let y = JIB + 10; y < pileY(Math.max(0, pileN - 1)) - SH; y += 7) rect(STACK, y, 1, 3, 'rgba(255,212,58,.55)');   // where to fetch the next one
         // a storey on its way down: onto the house, or past it and off the screen
         if (f && (!f.landed || !f.ok)) {
           const i = f.i, land = GY - i * SH, yy = f.from + 0.5 * G * ft * ft;

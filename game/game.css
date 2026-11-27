@@ -184,6 +184,8 @@ button{font:inherit;color:inherit}
 .tip.low{inset:auto 0 1em}
 :root:not(.roomy) #ui:has(.pad) .tip.low{inset:auto 0 7.5em}
 .key.no{animation:shake .35s steps(4)}
+.pad.tower .key.ready:not(.no){animation:lit .5s steps(2,jump-none) infinite}      /* "pusť na zelenou": it stays green, only pulsing lighter */
+@keyframes lit{50%{background:#B4F2B4}}
 .lives.gain{animation:pop .35s ease-out}
 .meter.flags{position:relative}
 .meter.flags b{position:absolute;top:-.25em;width:.25em;height:1.25em;margin-left:-.125em;background:var(--paper)}

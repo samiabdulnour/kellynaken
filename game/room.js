@@ -494,10 +494,9 @@
       else if (m.type === 'done' && sn && sn.phase === 'stub') complete();
       else if (m.type === 'ev') event(who, m);
       else if (m.type === 'cont' && sn && sn.phase === 'won') complete();
-      else if (m.type === 'retry' && sn && sn.phase === 'lost') {
-        start(sn.index, true);
-        if (sn.check) Object.assign(S.scene, { floors: sn.floors.slice(0, sn.check + 1), check: sn.check, from: sn.check });   // the tower: on from its last flag
-      }
+      else if (m.type === 'retry' && sn && sn.phase === 'lost') start(sn.index, true);
+      // the tower, lost and started again: on from its last flag
+      if (m.type === 'retry' && S.scene !== sn && sc && sc.play === 'tower' && sn.check) Object.assign(S.scene, { floors: sn.floors.slice(0, sn.check + 1), check: sn.check, from: sn.check });
       push();
     }
 
