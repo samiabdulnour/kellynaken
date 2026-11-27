@@ -293,7 +293,7 @@ const K = (() => {
     x = Math.round(x); footY = Math.round(footY);
     if (!sp) return standIn(id, x, footY, pose, t, flip);
     const img = image(`assets/sprites/${sp.file}`); if (!ready(img)) return;
-    const frames = sp.poses[pose] || sp.poses.stand, f = frames[Math.floor(t * (sp.fps || 7)) % frames.length], k = size || sp.scale || 1;
+    const frames = sp.poses[pose] || sp.poses.stand, n = frames.length, f = frames[((Math.floor((t || 0) * (sp.fps || 7)) % n) + n) % n], k = size || sp.scale || 1;   // a time below zero (a countdown) still has a frame
     ctx.save(); ctx.translate(x, footY); if (flip) ctx.scale(-1, 1);
     ctx.drawImage(img, f * sp.w, 0, sp.w, sp.h, -Math.floor(sp.w / 2) * k, -sp.h * k, sp.w * k, sp.h * k);
     ctx.restore();
