@@ -9,8 +9,8 @@
   color-scheme:dark;
 }
 /* The font is Pixelify Sans with C, c and Z drawn again so they cannot be read as O, o and 2 (tools/font.py), under its own name. */
-@font-face{font-family:'Kellyn Pixel';src:url(assets/fonts/KellynPixel-Regular.woff2?v=8875dec9ba) format('woff2');font-weight:400;font-style:normal;font-display:swap}
-@font-face{font-family:'Kellyn Pixel';src:url(assets/fonts/KellynPixel-Bold.woff2?v=8875dec9ba) format('woff2');font-weight:700;font-style:normal;font-display:swap}
+@font-face{font-family:'Kellyn Pixel';src:url(assets/fonts/KellynPixel-Regular.woff2?v=3fbddf57f6) format('woff2');font-weight:400;font-style:normal;font-display:swap}
+@font-face{font-family:'Kellyn Pixel';src:url(assets/fonts/KellynPixel-Bold.woff2?v=3fbddf57f6) format('woff2');font-weight:700;font-style:normal;font-display:swap}
 *{box-sizing:border-box}
 html,body{height:100%;margin:0}
 body{background:var(--ink);color:var(--paper);display:grid;place-items:center;overflow:hidden;
@@ -214,6 +214,10 @@ button{font:inherit;color:inherit}
 #ui > .tady{position:absolute;margin:0;transform:translate(-50%,-100%);pointer-events:none;font-size:.9em;font-weight:700;line-height:1.15;padding:0 .3em;
   color:var(--ink);background:var(--yellow);border:.17em solid var(--ink);animation:tady .45s steps(2,jump-none) infinite alternate}
 @keyframes tady{to{margin-top:-.3em}}
+/* The pexeso: the two of them stand at the bench under the cards, so the tip fits in between them (two lines if need
+   be); alone, the hero stands in the middle and the tip to the left of them. */
+#ui > .tip.mem{max-width:12.5em}
+#ui > .tip.mem.alone{inset:auto auto 1em .5em;margin:0;max-width:9.5em}
 /* The concert: four dots filling up with the clicks of the count-in (numbers would follow "2, 1, Start!" with another
    1); on each drum, with two, the face of whose drum it is; the tip just under the bar, clear of the board on the stage
    roof; three stars by the meter that light up as they are earned. */
