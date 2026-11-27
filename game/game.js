@@ -619,7 +619,7 @@
       m.cool = 0.45;
       const shot = shoot(who, m.x + m.face * 8, m.y + 28, m.face, true);
       s.shots.push(shot); beep(who === 'ken' ? 330 : 660);
-      Net.send({ type: 'fx', k: 'throw', x: Math.round(shot.x), y: Math.round(shot.y), f: m.face });
+      Net.send({ type: 'fx', k: 'throw', x: Math.round(shot.x), y: Math.round(m.y + 28), f: m.face });   // the hand, as shoot() takes it (it lifts the throw from there)
     }
     // Kendrick's puck slides fast along the ground: off the edge of a wall or a car it drops to the pavement and slides
     // on, and against a wall it stops. Kellyn's bunny goes up a little and comes down again.
