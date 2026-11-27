@@ -20,8 +20,9 @@
 // `ground` is how far down the picture feet stand, when it is not the usual 232 (the sea, the jetty).
 // A scrolling picture is repeated with every other copy mirrored; `tile: 'repeat'` repeats it as it is.
 //   run     a side-scrolling dash on surfboards, a little faster all the time: jump the fins, stay down under the parrots
-//   drums   notes fall down three lanes in time with the beat: tap each drum as its note reaches the line; with two,
-//           Kendrick has the left two drums and Kellyn the right one
+//   drums   the concert: the band plays a song (`song`), its notes fall down three lanes: tap each as it reaches the line
+//           and it sounds. Alan plays the drums; with two, Kendrick plays the guitar on the left two lanes and Kellyn
+//           the bass on the right one; alone, your own instrument on all three, and the other's part plays itself
 //   echo    a rhythm is played on four drums and has to be played back, one stroke longer each round; each of them has two of the drums
 //   find    koalas peek out of the trees: tap them while they show; drag to look around a wide picture
 //   salon   customers want washing, cutting, dyeing, drying and paying: lead them from place to place and work there
@@ -41,8 +42,9 @@
 // `pickup` puts one of the `items` into a scene, to grab like a power-up: jump into it in a dash, hit it in a shot,
 // catch it on the line in the drums. Each item belongs to one saga: the drumstick to Strahov (the drumming),
 // the boomerang to Australia. The drumstick is for hitting: in a dash the hero whacks whatever comes at them for a few
-// seconds, and in the drums every hit counts twice. The boomerang is for throwing: in a dash it gives three throws
-// that fly ahead, knock out the next thing in the way (for both of them) and come back.
+// seconds; at the concert it flies to Alan, who plays a fill with it, and for a while every hit counts twice.
+// The boomerang is for throwing: in a dash it gives three throws that fly ahead, knock out the next thing in the way
+// (for both of them) and come back.
 // Texts are drafts. The story of who or what is behind it all is still open.
 window.WORLD = {
   title: 'Kellyn a Ken',
@@ -53,7 +55,7 @@ window.WORLD = {
     kel: { name: 'Kellyn', shirt: '#BFE8D0', legs: '#F6C1D0', badge: '#F08BA0', hair: '#9A6535', tie: '#F3A6C0' },
   },
   items: {
-    drumstick: { name: 'Palička', art: ['strahov', 'sticks'], use: 'hit', dash: 'Palička! Chvíli praštíš do všeho, co ti stojí v cestě.', shot: 'Palička! Každá rána je dvojitá.', drums: 'Každá trefa dvakrát!' },
+    drumstick: { name: 'Palička', art: ['strahov', 'sticks'], use: 'hit', dash: 'Palička! Chvíli praštíš do všeho, co ti stojí v cestě.', shot: 'Palička! Každá rána je dvojitá.', drums: 'Alan má paličku! Každá trefa dvakrát.' },
     boomerang: { name: 'Bumerang', art: ['aussie', 'boomerang'], use: 'throw', dash: 'Bumerang! Klepni na Hoď.', shot: 'Bumerang! Každá rána se vrací.' },
   },
   // Czechia, close up: Prague under the glass (tapping anywhere on the glass opens it), and Ostrov.
@@ -184,9 +186,57 @@ window.WORLD = {
           // 2 strokes, then one more each round up to 7; a drum lights up as a hint after `hint` seconds of waiting
           echo: { rounds: 6, first: 2, beat: 0.62, hint: { first: 1, ken: 3, kel: 2 } },
           talk: [['', 'Pod tribunou je zkušebna. A v ní někdo bubnuje!'], ['alan', 'Večer hraju na stadionu a kapela nikde. Zahrajete to se mnou?'], ['alan', 'Nejdřív zkouška. Já zahraju, vy to po mně zopakujete. A pokaždé přidám jeden úder.']] },
+        // The band plays a song of its own: Alan the drums, Kendrick the guitar, Kellyn the bass.
         { id: 'strahov-concert', name: 'Koncert', at: [42, 125], label: 'right', bg: 'strahov-concert', play: 'drums', code: 'PODIUM', pickup: 'drumstick', cast: ['alan'],
-          drums: { bpm: 104, beats: 96, pass: 0.6, busy: 0.35 }, say: { won: ['Stadion šílí!', 'Takový koncert tu dlouho nebyl.'] },
-          talk: [['', 'Stadion je plný. Světla, pódium a vy tři.'], ['alan', 'Trefujte noty, až budou na čáře. Raz, dva, tři, čtyři!']] },
+          drums: { pass: 0.6, passKel: 0.55, song: {                // the share of the notes that wins; Kellyn alone a little less
+            // "Hrajeme spolu!" in C major. The hook is Kendrick's rising "la la do, ti ti re, do do mi" over F G C G:
+            // heard slowly in the intro, plainly in the first chorus, with quick answers in the second and once more
+            // at the end. Kellyn's easy bass (played when they are two) is only the root of each chord: once a bar,
+            // then twice, then every beat. Her full bass (played alone) adds fifths, octaves and walks into each chord.
+            title: 'Hrajeme spolu!', bpm: 104, beats: 96,
+            // [beat, what the section is, what is cheered as it comes]
+            sections: [[0, 'Intro'], [16, 'Sloka'], [32, 'Refrén', 'Refrén!'], [48, 'Sloka 2', 'Teď víc not!'], [64, 'Refrén 2', 'Refrén!'], [80, 'Ještě jednou!', 'Ještě jednou!'], [88, 'Finále', 'Finále!']],
+            big: 80,                                      // from the last chorus on, a note on a bar's first beat sends the kids up in the air
+            // Lead sheets, bar by bar: a note and its octave, and its length in beats when it is not one.
+            guitar: 'A4:2 C5:2 | B4:2 D5:2 | C5:2 E5:2 | D5:2 G4:2 |' +
+              'E4 G4 C5 G4 | A4 G4 E4:2 | F4 A4 C5 A4 | B4 A4 G4:2 |' +
+              'A4 A4 C5:2 | B4 B4 D5:2 | C5 C5 E5:2 | D5:2 B4 G4 |' +
+              'E4 G4 C5:.5 D5:.5 C5:.5 G4:.5 | A4 G4 E4 D4:.5 E4:.5 | F4 A4 C5:.5 D5:.5 C5:.5 A4:.5 | B4 A4 G4:1.5 G4:.5 |' +
+              'A4 A4 C5 D5:.5 C5:.5 | B4 B4 D5 E5:.5 D5:.5 | C5 C5 E5 G5 | E5:1.5 D5:.5 C5 B4:.5 G4:.5 |' +
+              'A4 A4 C5 D5:.5 C5:.5 | B4 B4 D5 E5:.5 D5:.5 | C5:.5 D5:.5 E5:.5 F5:.5 G5 E5:.5 C5:.5 | D5:.5 E5:.5 D5:.5 B4:.5 G4:.5 A4:.5 B4:.5 D5:.5 |' +
+              'C5:4 |',
+            bass: 'F2:2 C3:2 | G2:2 D3:2 | C3:2 G2:2 | G2:2 B2:2 |' +
+              'C3:2 G2 C3 | A2:2 E2 G2 | F2:2 C3 A2 | G2 G2 D2 E2 |' +
+              'F2 F2 C3 F2 | G2 G2 D3 B2 | C3 C3 G2 A2 | G2 G2 D2 B1 |' +
+              'C2 C3 G2:.5 G2:.5 C3 | A1 A2 E2 G2 | F1 F2 C2:.5 C2:.5 F2 | G1 G2 D2 E2 |' +
+              'F2 F2:.5 F2:.5 C3 F2 | G2 G2:.5 G2:.5 D3 G2:.5 B2:.5 | C3 C3:.5 C3:.5 G2 C3:.5 B2:.5 | A2 A2:.5 A2:.5 E2 G2 |' +
+              'F2 F2:.5 F2:.5 C3 F2 | G2 G2:.5 G2:.5 D2 G1:.5 B1:.5 | C2:.5 C2:.5 E2:.5 E2:.5 G2:.5 G2:.5 C3:.5 C3:.5 | G2:.5 G2:.5 F2:.5 F2:.5 D2:.5 D2:.5 B1:.5 B1:.5 |' +
+              'C2:4 |',
+            easy: 'F2:4 | G2:4 | C3:4 | G2:4 |' +
+              'C3:2 C3:2 | A2:2 A2:2 | F2:2 F2:2 | G2:2 G2:2 |' +
+              'F2:2 F2:2 | G2:2 G2:2 | C3:2 C3:2 | G2:2 G2:2 |' +
+              'C3 C3 C3 C3 | A2 A2 A2 A2 | F2 F2 F2 F2 | G2 G2 G2 G2 |' +
+              'F2 F2 F2 F2 | G2 G2 G2 G2 | C3 C3 C3 C3 | A2 A2 A2 A2 |' +
+              'F2 F2 F2 F2 | G2 G2 G2 G2 | C3 C3 C3 C3 | G2 G2 G2 G2 |' +
+              'C2:4 |',
+            // Alan's kit, bar by bar: where in the bar (beats) and what is hit there: k kick, s snare, h hi-hat, t tom, c crash.
+            drums: '0:khc 1:h 2:sh 3:h | 0:kh 1:h 2:sh 3:h 3.5:k |' +
+              '0:kh 1:h 2:sh 3:h | 0:kh 1:h 2:s 3:t 3.5:t |' +
+              '0:khc .5:h 1:sh 1.5:h 2:kh 2.5:h 3:sh 3.5:h | 0:kh .5:h 1:sh 1.5:h 2:kh 2.5:h 3:sh 3.5:h |' +
+              '0:kh .5:h 1:sh 1.5:h 2:kh 2.5:h 3:sh 3.5:h | 0:kh .5:h 1:sh 1.5:h 2:kh 2.5:h 3:t 3.5:t |' +
+              '0:khc .5:h 1:sh 1.5:h 2:kh 2.5:kh 3:sh 3.5:h | 0:kh .5:h 1:sh 1.5:h 2:kh 2.5:kh 3:sh 3.5:h |' +
+              '0:khc .5:h 1:sh 1.5:h 2:kh 2.5:kh 3:sh 3.5:h | 0:kh .5:h 1:sh 1.5:h 2:kh 2.5:kh 3:s 3.5:t 3.75:t |' +
+              '0:khc .5:h 1:sh 1.5:kh 2:kh 2.5:h 3:sh 3.5:h | 0:kh .5:h 1:sh 1.5:kh 2:kh 2.5:h 3:sh 3.5:h |' +
+              '0:kh .5:h 1:sh 1.5:kh 2:kh 2.5:h 3:sh 3.5:h | 0:kh .5:h 1:sh 1.5:kh 2:kh 2.5:h 3:s 3.25:s 3.5:t 3.75:t |' +
+              '0:khc .5:h 1:sh 1.5:kh 2:kh 2.5:kh 3:sh 3.5:h | 0:kh .5:h 1:sh 1.5:kh 2:kh 2.5:kh 3:sh 3.5:h |' +
+              '0:khc .5:h 1:sh 1.5:kh 2:kh 2.5:kh 3:sh 3.5:h | 0:kh .5:h 1:sh 1.5:kh 2:kh 2.5:kh 3:t 3.25:t 3.5:t 3.75:t |' +
+              '0:khc .5:h 1:sh 1.5:kh 2:kh 2.5:kh 3:sh 3.5:h | 0:kh .5:h 1:sh 1.5:kh 2:kh 2.5:kh 3:s 3.5:t 3.75:t |' +
+              '0:kc .5:s 1:s 1.5:s 2:ks 2.5:s 3:s 3.5:s | 0:kt .5:t 1:t 1.5:t 2:kt 2.5:t 3:s 3.25:s 3.5:s 3.75:s |' +
+              '0:kc |',
+          } },
+          say: { won: ['Stadion zpívá s vámi!', 'Takový koncert tu dlouho nebyl.'] },
+          talk: [['', 'Stadion je plný. Světla, pódium a vy tři.'], ['alan', 'Bubny nechte mně. Kendricku, ty vezmi kytaru. Kellyn, ty basu!'],
+            ['alan', 'Naše písnička se jmenuje Hrajeme spolu. Hrajte noty, až dojedou na čáru. Raz, dva, tři, čtyři!']] },
       ],
       done: [['alan', 'To byl koncert! Díky, parťáci.']],
     },

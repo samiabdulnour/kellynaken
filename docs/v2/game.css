@@ -9,8 +9,8 @@
   color-scheme:dark;
 }
 /* The font is Pixelify Sans with C, c and Z drawn again so they cannot be read as O, o and 2 (tools/font.py), under its own name. */
-@font-face{font-family:'Kellyn Pixel';src:url(assets/fonts/KellynPixel-Regular.woff2?v=323a68e0b7) format('woff2');font-weight:400;font-style:normal;font-display:swap}
-@font-face{font-family:'Kellyn Pixel';src:url(assets/fonts/KellynPixel-Bold.woff2?v=323a68e0b7) format('woff2');font-weight:700;font-style:normal;font-display:swap}
+@font-face{font-family:'Kellyn Pixel';src:url(assets/fonts/KellynPixel-Regular.woff2?v=8875dec9ba) format('woff2');font-weight:400;font-style:normal;font-display:swap}
+@font-face{font-family:'Kellyn Pixel';src:url(assets/fonts/KellynPixel-Bold.woff2?v=8875dec9ba) format('woff2');font-weight:700;font-style:normal;font-display:swap}
 *{box-sizing:border-box}
 html,body{height:100%;margin:0}
 body{background:var(--ink);color:var(--paper);display:grid;place-items:center;overflow:hidden;
@@ -80,6 +80,7 @@ button{font:inherit;color:inherit}
 .shout{position:absolute;right:.25em;top:25em;margin:0;background:var(--paper);color:var(--red);border:.25em solid var(--ink);padding:.2em .5em;font-weight:700;pointer-events:none}
 .shout[hidden]{display:none}
 .card.top{inset:1.5em 1em auto}
+.card.low{inset:auto 1em 1.5em}                                   /* the concert: under the stage, so the band is seen celebrating */
 /* The buttons along the bottom of a game: arrows on the left, the main button on the right, in every game alike. */
 #ui > .pad{position:absolute;inset:auto .6em .9em;display:flex;justify-content:space-between;align-items:flex-end;pointer-events:none}
 .pad > div{display:flex;gap:.5em}
