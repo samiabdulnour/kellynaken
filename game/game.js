@@ -4064,7 +4064,7 @@
     // The pile stands on a platform always this high on the screen: on the ground at first; once the camera rises with
     // the house, a hoist carries it up beside the house, so the pile and the hook fetching from it stay in sight.
     const PILE = GY + 2, pileY = (k) => PILE - k * SH * 0.8;
-    const DECK = 95, KX = 50, LX = 72;                                              // the deck's far end; where Kendrick and Kellyn stand on it
+    const DECK = 95, KX = 50, LX = 78;                                              // the deck's far end; where Kendrick and Kellyn stand on it
     const s = { t: 0, over: false, lost: false, crane: sn.crane, cv: 0, mateCrane: sn.crane, cx: sn.crane, px: sn.crane, v: 0, amp: CALM, lag: 0, lagV: 0,
       sent: 0, told: 0, fxAt: 0, cam: 0, fall: null, seen: sn.last ? sn.last.n : 0, target: null, lifts: sn.lifts, liftAt: -9, grabbed: true, pend: null,
       bits: [], bump: -9, knock: -9, shake: -9, openAt: -9, flagAt: -9, flagK: 0, litLast: -9, litX: 0, said: '', saidUntil: 0, saidIn: '', state: '', stateAt: 0, painted: '',
@@ -4122,6 +4122,7 @@
       const b = K.ui.querySelector('.key[data-k="drop"]');
       if (b) { again(b, 'no'); clearTimeout(s.noT); s.noT = setTimeout(() => b.classList.remove('no'), 400); }   // shaken once, it can turn green again
       if (text) say(text, 2.5, s.state);
+      if (!text && s.t - s.pressAt < 0.4) return;                                  // a second tap on a slam still going: the slam plays on
       s.noAt = s.t; s.noPoint = !!point;
       if (two()) Net.send({ type: 'fx', k: 'no', p: point ? 1 : 0 });
     }
@@ -4209,12 +4210,13 @@
     // moment, white and down when it is slammed).
     const fine = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(x / 2, y / 2, w / 2, h / 2); };
     function remote(x, y, face, push, big, hit) {
-      const X = Math.round(x * 2), Y = Math.round(y * 2), w = big ? 18 : 14, l = X - w / 2, sx = big ? X - face * 5 : X, ax = face < 0 ? l + 1 : l + w - 2;
+      const X = Math.round(x * 2), Y = Math.round(y * 2), w = big ? 18 : 14, l = X - w / 2, sx = big ? X - face * 6 : X, ax = face < 0 ? l + 1 : l + w - 2;
       fine(l, Y - 4, w, 10, INK); fine(l + 1, Y - 3, w - 2, 8, '#FFD43A'); fine(l + 1, Y - 3, w - 2, 1, '#FFF1A8'); fine(l + 1, Y + 4, w - 2, 1, '#D9A520');
       fine(X - 3, Y, 2, 2, '#CC2233'); fine(X + 1, Y, 2, 2, '#3E7BD6');
       fine(ax, Y - 12, 1, 8, '#B8C0CC'); fine(ax - 1, Y - 14, 3, 3, Math.floor(s.t * (push ? 10 : 3)) % 2 ? '#7CE07C' : '#FFFFFF');   // light on Kendrick's black shirt
-      fine(sx - 1 + push, Y - 7, 2, 3, '#B8C0CC'); fine(sx - 2 + 2 * push, Y - 10, 4, 4, INK); fine(sx - 1 + 2 * push, Y - 10, 2, 3, '#CC2233'); fine(sx - 1 + 2 * push, Y - 10, 1, 1, '#FF8A8A');
-      if (big) { const bx = X + face * 2, d = hit ? 1 : 0; fine(bx - 4, Y - 8 + d, 8, 4 - d, INK); fine(bx - 3, Y - 8 + d, 6, 3 - d, hit ? '#FFFFFF' : s.lit ? '#7CE07C' : '#FF6B5A'); fine(bx - 2, Y - 8 + d, 2, 1, hit ? '#FFFFFF' : s.lit ? '#CFF5C8' : '#FFB0A6'); }
+      for (let k = 0; k < 3; k++) fine(sx - 1 + k * push, Y - 5 - k, 2, 1, '#B8C0CC');   // the stick, tilted the way it drives
+      fine(sx - 2 + 3 * push, Y - 10, 4, 4, INK); fine(sx - 1 + 3 * push, Y - 10, 2, 3, '#CC2233'); fine(sx - 1 + 3 * push, Y - 10, 1, 1, '#FF8A8A');
+      if (big) { const bx = X + face * 3, d = hit ? 1 : 0; fine(bx - 4, Y - 8 + d, 8, 4 - d, INK); fine(bx - 3, Y - 8 + d, 6, 3 - d, hit ? '#FFFFFF' : s.lit ? '#7CE07C' : '#FF6B5A'); fine(bx - 2, Y - 8 + d, 2, 1, hit ? '#FFFFFF' : s.lit ? '#CFF5C8' : '#FFB0A6'); }
     }
     // Kellyn's button on a post in front of her: a grey post, a mushroom cap at her fist, yellow (green when it is the
     // moment); slammed, it goes down a pixel and flashes white.
@@ -4230,7 +4232,8 @@
     // they rest, breathing, turned to the hook.
     function kid(w, hx) {
       const x = two() && w === 'kel' ? LX : KX, op = !two() || w === 'ken', hk = !two() || w === 'kel';
-      if (hx < x - 4) s.face[w] = true; else if (hx > x + 4) s.face[w] = false;
+      const held = hk && s.t - s.pressAt < 0.4 && s.noAt < s.pressAt;                    // in a slam: turned as it began (alone, the drive may end in it)
+      if (!held) { if (hx < x - 4) s.face[w] = true; else if (hx > x + 4) s.face[w] = false; }
       // (the breath on a clock that is never below 0: in the countdown a two-frame pose would have no frame to show)
       let pose = 'stand', f = K.loop((s.t % 60) + 60 + (w === 'kel' ? 0.3 : 0), 1.5), dx = 0, dy = 0, lean = 0, squash = false, push = 0, hit = false, down = false;
       const u = s.t - s.pressAt, n = s.t - s.noAt, m = s.t - s.shake, joy = s.t - s.joyAt, hop = s.t - s.hopAt, clunk = s.t - s.clunkAt;
@@ -4241,20 +4244,20 @@
         if (m < 0.65) dx = Math.floor(m * 50) % 2 ? 1 : -1;
         if (op) {
           const p = s.t - s.pointAt, d = s.t - Math.max(s.driveAt, s.pointAt + 0.2), r = s.t - s.relAt, driving = s.driving && !s.over;
-          if (driving || r < 0.12) s.face[w] = s.dir < 0;                                    // facing the way it goes
-          if (p < 0.2) { pose = 'point'; f = K.frame(0); s.face[w] = s.pointX < x; }
-          else if (driving) lean = d < 0.08 ? -0.04 : d < 0.16 ? -0.04 + ((d - 0.08) / 0.08) * 0.1 : 0.06;   // a pixel back, then two into it (at the chest)
+          if ((driving || r < 0.12) && !held) s.face[w] = s.dir < 0;                         // facing the way it goes
+          if (p < 0.2) { pose = 'point'; f = K.frame(0); if (!held) s.face[w] = s.pointX < x; }
+          else if (driving) lean = d < 0.08 ? -0.04 : d < 0.16 ? -0.04 + ((d - 0.08) / 0.08) * 0.12 : 0.08;   // a pixel back, then into it (2 at the chest, 4 at the head)
           else if (r < 0.12) lean = -0.03;                                                  // the load swings past: he sways back a pixel
           if (driving) push = s.dir;
           if (s.t - s.knock < 0.08) dy += 1;
         }
         if (hk) {
           if (n < u) {
-            if (n < 0.3) dx += Math.floor(n * 50) % 2 ? 1 : -1;
+            if (n < 0.3) dx += Math.floor(n / 0.075) % 2 ? 1 : -1;                         // in step with the button's shake
             else if (n < 0.7 && s.noPoint) { pose = 'point'; f = K.frame(1); s.face[w] = (two() ? KX : holding() ? top() : STACK) < x; }
           } else if (u < 0.4) {
             if (two()) s.face[w] = false;                                                   // facing her button
-            if (u < 0.06) { pose = 'tap'; f = K.frame(0); squash = true; }
+            if (u < 0.06) { if (op) pose = 'stand'; else { pose = 'tap'; f = K.frame(0); } squash = true; }   // (alone: still holding the remote)
             else if (u < 0.26) { pose = 'tap'; f = K.frame(1); down = true; hit = u < 0.16; }
             else if (u < 0.32) dy -= 1;
           }
@@ -4335,8 +4338,12 @@
           if (s.pend && s.t - s.pend.at > 1.5) s.pend = null;                        // the room never took it: go by what it says
           // Kendrick at the remote drives while an arrow is held or the crane heads for a finger; on the other phone,
           // while the partner's crane is seen moving (the last pixel or so it rolls in by itself, not driven)
-          const rolling = s.target === null || (Math.abs(clamp(s.target, 12, 168) - s.crane) < 1.5 && Math.abs(s.cv) < 8);
-          const go = steers() ? s.arrow || (rolling ? 0 : Math.sign(s.target - s.crane) || s.dir) : Math.abs(s.v) > (s.driving ? 5 : 8) ? Math.sign(s.v) : 0;
+          // (rolled a pixel past the finger counts as there: he does not turn round for the crane settling back; a slow
+          // drag drives too, the crane a little behind the finger and going its way)
+          const err = s.target === null ? 0 : clamp(s.target, 12, 168) - s.crane;
+          const rolling = s.target === null || (s.driving ? err * s.dir <= 0 || (Math.abs(err) < 1.5 && Math.abs(s.cv) < 5)
+            : Math.abs(err) < 4 && !(Math.abs(err) >= 2 && err * s.cv > 0 && Math.abs(s.cv) > 8));
+          const go = steers() ? s.arrow || (rolling ? 0 : Math.sign(err) || s.dir) : Math.abs(s.v) > (s.driving ? 5 : 8) ? Math.sign(s.v) : 0;
           if (go && !s.driving) { s.driving = true; s.driveAt = s.t; }
           if (!go && s.driving) { s.driving = false; s.relAt = s.t; }
           if (go) s.dir = go;
@@ -4434,7 +4441,7 @@
           K.figure(id, 150 + i * 24, gy + dy, pose, s.t, true);
         });
         const hookX = holding() ? hook() : crane();                                              // they turn to look at it
-        (two() ? ['ken', 'kel'] : [who]).map((w) => kid(w, hookX)).forEach((hands) => hands && hands());
+        (two() ? ['kel', 'ken'] : [who]).map((w) => kid(w, hookX)).forEach((hands) => hands && hands());   // he is in front: his arm pointing her way stays seen
         const wnd = wind();
         if (Math.abs(wnd) > 1) for (let k = 0; k < 7; k++) {                                      // the wind, as streaks blowing across the sky
           const dir = Math.sign(Math.cos(s.t * 0.35 + 1)) || 1, sp = 40 + Math.abs(wnd) * 6, y = 44 + ((k * 37) % 150);
