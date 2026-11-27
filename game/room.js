@@ -98,9 +98,10 @@
       return { notes, beat, start, end, half: start + half * beat, fill: start + fill * beat,
         pick: sc.pickup ? { lane: two ? 2 : 1, at: start + (Math.floor(n * 0.3) + 0.5) * beat } : null };
     },
-    // Koalas in the trees: which of the scene's hiding places are used, and when each one peeks out.
-    find(seed, sc) {
-      const cfg = sc.find, r = rng(seed), spots = cfg.spots.map((at, i) => ({ at, i, k: r() })).sort((a, b) => a.k - b.k).slice(0, cfg.need);
+    // Koalas in the trees: which of the scene's hiding places are used (as many as are to be found), and when each
+    // one peeks out.
+    find(seed, sc, need) {
+      const cfg = sc.find, r = rng(seed), spots = cfg.spots.map((at, i) => ({ at, i, k: r() })).sort((a, b) => a.k - b.k).slice(0, need || cfg.need);
       return { koalas: spots.map((sp, id) => ({ id, x: sp.at[0], y: sp.at[1], pose: sp.at[2] || 'side', first: 1.5 + r() * cfg.every[1], period: cfg.every[0] + r() * (cfg.every[1] - cfg.every[0]) })) };
     },
     // Who comes into the salon and when: what each wants done, in order, and how they look.
@@ -238,7 +239,7 @@
       if (sc.play === 'run') Object.assign(sn, { two, hp: { ken: 3, kel: 3 }, max: 3, out: {}, outAt: {}, ride: {}, passed: {}, ko: [], healed: {}, hurts: 0, outs: 0 });
       if (sc.play === 'platform') Object.assign(sn, { two, hp: { ken: 3, kel: 3 }, max: 3, out: {}, beaten: [], got: [] });   // hearts of one's own; out of them, a bubble
       if (sc.play === 'shoot') Object.assign(sn, { lives: two ? 4 : 3, hits: 0, need: Math.round(sc.shoot.need * (two ? 1.6 : 1)), every: sc.shoot.every / (two ? 1.4 : 1), two, hit: [], missed: [], item: null, gold: null, go: null });
-      if (sc.play === 'find') Object.assign(sn, { found: [], need: sc.find.need });
+      if (sc.play === 'find') { const n = (two && sc.find.needTwo) || sc.find.need; Object.assign(sn, { found: [], need: n, koalas: n, two, lastFind: { ken: 0, kel: 0 } }); }   // two have more koalas to find
       if (sc.play === 'memory') { const first = two ? (Math.random() < 0.5 ? 'ken' : 'kel') : null; Object.assign(sn, { deck: course.memory(sn.seed, sc), open: [], done: [], misses: 0, maxMiss: sc.memory.miss + (two ? 2 : 0), first, turn: first, hideAt: 0 }); }
       if (sc.play === 'collect') {                                                       // `have`: pieces of the message so far; the big bottle holds `bigPart` of them
         const need = Math.round(sc.collect.need * (two ? 1.5 : 1));
@@ -443,7 +444,14 @@
       }
       if (kind === 'find') {
         const id = m.id | 0;
-        if (m.e === 'find' && id >= 0 && id < sn.need && !sn.found.includes(id)) { sn.found.push(id); if (sn.found.length >= sn.need) sn.phase = 'won'; }
+        if (m.e === 'find' && id >= 0 && id < (sn.koalas || sn.need) && !sn.found.includes(id)) {
+          // With two, a find while the other one has found nothing for 25 s makes the goal a koala smaller, down to what
+          // one alone needs: one who is stuck or has wandered off is never the only reason they lose.
+          const t = now() - sn.startAt, other = who === 'ken' ? 'kel' : 'ken';
+          if (sn.two && sn.lastFind && sn.need > sc.find.need && t - sn.lastFind[other] > 25000) sn.need--;
+          if (sn.lastFind) sn.lastFind[who] = t;
+          sn.found.push(id); if (sn.found.length >= sn.need) sn.phase = 'won';
+        }
         if (m.e === 'finish') sn.phase = 'lost';                                        // time ran out before they were all found
       }
       if (kind === 'salon') {

@@ -2358,51 +2358,192 @@
   }
 
   // Finding: koalas hide in the trees. With `hidden` they sit still, small, in the forks and on the trunks, and only
-  // twitch now and then as a hint; without it they peek out for a moment and duck back. Tap one to find it.
-  // The picture may be wider than the screen: drag to look around. Both look in the same forest, so it pays to
-  // search different trees. All of them have to be found before the time runs out.
+  // twitch now and then as a hint; without it they peek out for a moment and duck back. Tap one to find it: it hops
+  // out and waves. A tap on nothing only puffs a few leaves, no harm done.
+  // The picture is wider than the screen: walk with the arrows, or drag, to look around. Both look in the same forest,
+  // Kellyn from its left end and Kendrick (with two) from its right, so each starts on trees of their own; the bar
+  // along the bottom shows where each of them is. Whoever has found nothing for a while gets help: leaves rustle by
+  // the nearest koala, or an arrow at the edge of the screen (and the arrow button) points the way to it. Help comes
+  // sooner when the time runs short and for the last two. All of them have to be found before the time runs out; with
+  // two, the goal comes down a koala at a time while one of them finds nothing (room.js), but never below one alone's.
   function Find(sc, place, sn) {
-    const cfg = sc.find, who = me(), GY = sc.ground || GROUND;
-    const { koalas } = Room.course.find(sn.seed, sc);
-    const s = { t: 0, over: false, lost: false, off: 0, got: new Set(), sent: 0, miss: null, when: {}, pan: 0, pend: null,
-      walk: { last: 0, at: -9, dir: 1 }, mate: { off: 0, at: -9, dir: 1 }, told: 0 };
-    let live = sn;
-    const view = stage('<span class="count"></span><span class="meter time"><i></i></span>', cfg.hidden ? 'Koaly se schovávají ve stromech. Choď šipkami a klepni na koalu.' : 'Koaly vykukují ze stromů. Klepni na ně, než se schovají.');
-    pad([{ id: 'left', side: 'left', press: () => { s.pan = -1; }, release: () => { s.pan = 0; } }, { id: 'right', side: 'left', press: () => { s.pan = 1; }, release: () => { s.pan = 0; } }]);
-    view.tip.classList.add('up');                                                       // the kid walks along the bottom
+    const cfg = sc.find, who = me(), placed = sn.koalas || sn.need, two = placed > cfg.need, PATH = 274, SPEED = 80, HELP = 12;
+    const COLOUR = { ken: '#CC2233', kel: '#F0448F' }, LEAF = ['#5E8C3A', '#9BC45A', '#D4E89A'];
+    const { koalas } = Room.course.find(sn.seed, sc, placed);                                // the goal may get smaller (room.js), the koalas stay
+    const s = { t: 0, over: false, lost: false, off: 0, v: 0, placed: false, got: new Set(), sent: 0, when: {}, by: {}, again: {}, pan: 0, pend: null,
+      walk: { last: 0, at: -9, dir: 1 }, mate: { off: 0, at: -9, dir: 1, yay: -9 }, told: 0, bits: [], calm: 0, hint: null, hintAt: 0, near: null,
+      tipTill: 4, misses: [], nag: -9, poof: null, edge: null, bumped: false, yay: -9, n: sn.found.length, need: sn.need, endAt: 0, hello: null };
+    for (const id of sn.found) s.when[id] = -9;                                           // found before this phone came in: no fuss
+    let live = sn, shown = '';
+    const view = stage('<span class="count"><i class="koala"></i><b></b></span><span class="meter time"><i></i></span>', 'Klepni na každou koalu!');
+    const count = view.hud.firstElementChild, time = view.hud.lastElementChild;
+    count.firstElementChild.style.backgroundImage = `url(${K.asset(`assets/sprites/${(K.sprites.koalas || {}).file || 'koalas.png'}`)})`;   // what is counted: a koala
+    view.tip.classList.add('up', 'bush');                                                  // low, over the bushes: never over the trees the koalas sit in
+    const walkKey = (id, dir) => ({ id, side: 'left', press: () => { s.pan = dir; s.bumped = false; }, release: () => { if (s.pan === dir) s.pan = 0; } });
+    const keys = pad([walkKey('left', -1), walkKey('right', 1)]);
     const pic = () => K.picture(sc.bg), width = () => (pic() ? pic().naturalWidth : W), most = () => Math.max(0, width() - W);
+    const start = (w) => (two && w === 'ken' ? most() : 0);                                // with two, Kendrick starts at the far end
     const found = (k) => s.got.has(k.id) || live.found.includes(k.id);
-    const out = (k) => { const u = s.t - k.first; return u >= 0 && u % k.period < cfg.show; };                 // peeking right now
+    const out = (k) => { const u = s.t - k.first; return u >= 0 && u % k.period < cfg.show; };                 // peeking (or twitching) right now
     const soon = (k) => { const u = s.t - k.first + 0.6; return u >= 0 && u % k.period < 0.6; };               // leaves rustle just before
-    const paint = () => { view.hud.firstElementChild.textContent = `${live.found.length} / ${live.need}`; view.hud.lastElementChild.firstElementChild.style.width = clamp(1 - s.t / cfg.seconds, 0, 1) * 100 + '%'; };
+    const nudge = (k) => s.hint === k && (s.t - s.hintAt) % 1.6 < 0.3;                      // the one the help points at twitches more often
+    const hello = (k) => s.hello === k && s.t >= 0 && s.t < 3 && !found(k);               // one in view waves hello at the start
+    const total = () => new Set([...live.found, ...s.got]).size;                           // one's own finds count at once, before the room has heard
+    const where = (k) => ({ x: Math.round(k.x - s.off), y: Math.round(cfg.hidden ? k.y - 9 : k.y) });   // the middle of a koala on the screen
+    const say = (text, secs) => { view.tip.textContent = text; s.tipTill = s.t + (secs || 3); };
+    const paint = () => {
+      const n = total(), text = `${n} / ${live.need}`, moved = n > s.n || live.need < s.need;
+      if (moved) { count.classList.remove('bump'); void count.offsetWidth; count.classList.add('bump'); }   // the count jumps when it goes up (or the goal comes down)
+      if (moved && n === live.need - 1 && !s.over) say('Poslední koala!', 4);              // low, in the tip: the trees stay in view
+      s.n = n; s.need = live.need;
+      if (text !== shown) { shown = text; count.lastElementChild.textContent = text; }
+      time.firstElementChild.style.width = clamp(1 - s.t / cfg.seconds, 0, 1) * 100 + '%';
+      time.classList.toggle('late', !s.over && s.t > 0 && cfg.seconds - s.t < 15);         // the last seconds: the bar blinks red
+    };
     paint();
     function koala(x, y, happy) {                          // a stand-in koala: round grey head, big ears
       rect(x - 9, y - 9, 6, 6, INK); rect(x + 3, y - 9, 6, 6, INK); rect(x - 8, y - 8, 4, 4, '#B9B4AE'); rect(x + 4, y - 8, 4, 4, '#B9B4AE');
       rect(x - 6, y - 6, 12, 11, INK); rect(x - 5, y - 5, 10, 9, '#A39E98'); rect(x - 1, y - 2, 2, 3, INK);
       rect(x - 4, y - 3, 2, happy ? 1 : 2, INK); rect(x + 2, y - 3, 2, happy ? 1 : 2, INK);
     }
+    // Leaves and stars flying about, kept in forest coordinates so they stay put while the view moves.
+    const fly = (x, y, vx, vy, life, c, leaf) => s.bits.push({ x: x + s.off, y, vx, vy, at: s.t, life, c, leaf });
+    const puff = (x, y) => {                                                               // a tap on leaves: a ring where it landed, and leaves fly up
+      s.poof = { x: x + s.off, y, at: s.t };
+      for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + (i - 4.5) * 0.4; fly(x, y, Math.cos(a) * (34 + (i % 3) * 10), Math.sin(a) * (46 + (i % 2) * 16), 1.1, LEAF[1 + (i % 2)], true); }
+    };
+    function find(k) {
+      s.got.add(k.id); s.when[k.id] = s.t; s.by[k.id] = who; s.calm = s.t; s.yay = s.t;
+      if (s.hint === k) s.hint = null;
+      beep(660, 880, 1320);
+      const p = where(k); plus('+1', clamp(p.x, 10, W - 10), p.y - 10);
+      for (let i = 0; i < 4; i++) fly(p.x, p.y, (i - 1.5) * 18, -50 - (i % 2) * 20, 0.9, i % 2 ? '#FFD43A' : '#FFF8E7');   // a few stars fall after the burst
+      if (s.tipTill) { s.tipTill = 0; view.tip.textContent = ''; }                          // the advice did its job
+      Net.send({ type: 'ev', e: 'find', id: k.id });
+      paint();
+    }
+    // A koala that has been found: a crouch, a hop out with a wave (eased up and down, a little bigger at first), a
+    // squash on landing, then it sits there happy with a tick over it. Tapped again it waves again; at a win all wave.
+    function cheerful(k, x, y) {
+      const since = (m) => s.t - (m[k.id] === undefined ? -9 : m[k.id]), u = Math.min(since(s.when), since(s.again)), z = cfg.size * 1.1;
+      if (!K.sprites.koalas) return koala(x, y - 6 - (u < 1.5 ? Math.round(Math.abs(Math.sin(s.t * 5)) * 2) : 0), true);
+      if (u < 0.08) return K.figure('koalas', x, y + 1, 'happy', 0, false, z * 0.85);                         // crouching, about to jump
+      if (u < 0.5) { const e = (u - 0.08) / 0.42; return K.figure('koalas', x, y - Math.round(Math.sin(e * Math.PI) * 8), 'wave', 0, false, z * (1.3 - 0.3 * e)); }
+      if (u < 0.62) return K.figure('koalas', x, y, 'wave', 0, false, z * 0.9);                               // lands, and squats a little
+      if (u < 1.8 || (s.over && !s.lost)) return K.figure('koalas', x, y - Math.round(Math.abs(Math.sin(s.t * 8 + k.id)) * 2), 'wave', 0, false, z);
+      K.figure('koalas', x, y, 'happy', 0, false, z);
+      for (const [dx, dy] of [[-3, 0], [-2, 1], [-1, 2], [0, 1], [1, 0], [2, -1], [3, -2]]) { rect(x + dx, y - 22 + dy + 1, 1, 2, INK); rect(x + dx, y - 22 + dy, 1, 2, '#7CE07C'); }   // a tick: this one is found
+    }
+    // Help by a koala on the screen: the bush beside it shakes and drops a leaf now and then.
+    function rustle(x, y) {
+      const j = Math.floor(s.t * 12) % 2;
+      if (K.sprites.koalas) { K.figure('koalas', x - 9 + j, y - 2, 'leaves', 0, false, 0.2); K.figure('koalas', x + 9 - j, y - 4, 'leaves', 0, true, 0.2); }
+      else { rect(x - 10 + j * 2, y - 6, 4, 2, '#DDE8B0'); rect(x + 6 - j * 2, y - 2, 4, 2, '#DDE8B0'); }
+    }
+    // An arrow at the edge of the screen, with a little koala by it, pointing the way to one off the screen. It nudges
+    // towards the edge, in the koala's direction.
+    function arrow(dir, ky) {
+      const y = clamp(ky, 40, 192), push = Math.round((Math.sin(s.t * 7) + 1) * 1.5), tip = dir > 0 ? W - 3 - push : 2 + push;
+      const tri = (x, n, c) => { for (let i = 0; i < n; i++) rect(x - dir * i, y - i, 1, 2 * i + 1, c); };
+      rect(dir > 0 ? tip - 15 : tip + 7, y - 3, 9, 7, INK); tri(tip + dir, 10, INK);
+      rect(dir > 0 ? tip - 14 : tip + 7, y - 2, 8, 5, '#FFD43A'); tri(tip, 8, '#FFD43A');
+      if (K.sprites.koalas) K.figure('koalas', tip - dir * 23, y + 7, 'peek', 0, dir < 0, 0.24);
+    }
+    // Four blinking corners round a koala: help that cannot be missed (at the start, and after a long while).
+    function corners(x, y, c) {
+      const w = 9 + Math.round(Math.sin(s.t * 8)), h = 11 + Math.round(Math.sin(s.t * 8));
+      for (const sx of [-1, 1]) for (const sy of [-1, 1]) {
+        const cx = x + sx * w, cy = y + sy * h;
+        rect(sx > 0 ? cx - 3 : cx, cy, 4, 1, c || '#FFD43A'); rect(cx, sy > 0 ? cy - 3 : cy, 1, 4, c || '#FFD43A');
+      }
+    }
     return {
-      s, kind: 'find', peek: () => ({ off: s.off, most: most(), out: koalas.filter((k) => !found(k) && out(k)).map((k) => ({ id: k.id, x: k.x - s.off, y: cfg.hidden ? k.y - 6 : k.y, wx: k.x })) }),
-      sync(n) { for (const id of n.found) if (!(id in s.when)) s.when[id] = s.t; live = n; paint(); },
-      fx(m) { if (m.k === 'look') { const d = m.off - s.mate.off; if (Math.abs(d) > 0.5) { s.mate.dir = Math.sign(d); s.mate.at = s.t; } s.mate.off = m.off; } },
-      over(won) { s.over = true; s.lost = !won; paint(); view.end(won, won ? 'Všechny koaly!' : 'Čas vypršel.', won ? 'Žádná se neschovala.' : `Našli jste ${live.found.length} z ${live.need}. Zkuste to ještě jednou.`); },
-      move(x, y, dx) { s.off = clamp(s.off - dx, 0, most()); s.pend = null; },
-      down(x, y) {
-        if (s.over || s.t < 0 || y < 22) return;
-        const k = cfg.hidden
-          ? koalas.find((q) => !found(q) && Math.abs(q.x - s.off - x) < 9 && y > q.y - 17 && y < q.y + 3)          // hidden ones can be tapped any time: they are just hard to see
-          : koalas.find((q) => !found(q) && out(q) && Math.hypot(q.x - s.off - x, q.y - y) < 14);
-        if (k) { s.got.add(k.id); s.when[k.id] = s.t; beep(660, 880, 1100); view.tip.textContent = ''; Net.send({ type: 'ev', e: 'find', id: k.id }); }
-        else s.pend = { x, y };                                         // a miss, unless the finger now drags to look round
+      s, kind: 'find',
+      peek: () => ({ off: s.off, most: most(), t: s.t, out: koalas.filter((k) => !found(k) && (out(k) || hello(k) || nudge(k))).map((k) => ({ id: k.id, ...where(k), wx: k.x })),
+        left: koalas.filter((k) => !found(k)).map((k) => ({ id: k.id, ...where(k), wx: k.x })), hint: s.hint && { id: s.hint.id, ...where(s.hint), wx: s.hint.x },
+        hello: s.hello && s.hello.id, mate: s.mate.off, tip: view.tip.textContent, bits: s.bits.length }),
+      sync(n) {
+        live = n;
+        for (const id of n.found) if (!(id in s.when)) {                                  // the other one found it: a soft ding, and the stars if it is in view
+          s.when[id] = s.t; s.by[id] = mate(); s.mate.yay = s.t;
+          const k = koalas[id], p = k && where(k);
+          if (k && !s.over) { beep(784); if (p.x > -4 && p.x < W + 4) plus('+1', clamp(p.x, 10, W - 10), p.y - 10, COLOUR[mate()]); }   // one low note: softer than one's own three
+        }
+        paint();
       },
-      tap() { if (s.pend && !s.over) { s.miss = { ...s.pend, at: s.t }; beep(180); } s.pend = null; },
-      update(dt) {
+      fx(m) { if (m.k === 'look') { const d = m.off - s.mate.off; if (Math.abs(d) > 0.5) { s.mate.dir = Math.sign(d); s.mate.at = s.t; } s.mate.off = m.off; } },
+      over(won) {
+        s.over = true; s.lost = !won; s.endAt = s.t; s.hint = null; s.pan = 0; keys.mark('left', false); keys.mark('right', false); paint();
+        s.tipTill = 0; view.tip.textContent = '';                                         // no advice left to give
+        const n = total(), both = two || mateHere();
+        const all = n >= koalas.length;                                                    // with two the goal may have come down: then some are still up there
+        const card = () => view.end(won, won ? (all ? 'Všechny koaly!' : 'Máte je!') : 'Čas vypršel.', won ? (all ? 'Žádná se neschovala.' : `Našli jste ${n} koal.`) : both ? `Našli jste ${n} z ${live.need}. Zkuste to znovu.` : `${who === 'kel' ? 'Našla' : 'Našel'} jsi ${n} z ${live.need}. Zkus to znovu.`);
+        if (won) setTimeout(() => { if (view.tip.isConnected) card(); }, 1500); else card();   // a win: first every koala waves in the trees, then the card (unless the scene has gone)
+      },
+      move(x, y, dx) { s.off = clamp(s.off - dx, 0, most()); s.v = 0; },
+      down(x, y) {
         if (s.over) return;
-        if (s.pan) s.off = clamp(s.off + s.pan * 70 * dt, 0, most());           // walking along the path with the arrows
-        if (Math.abs(s.off - s.walk.last) > 0.3) { s.walk.dir = Math.sign(s.off - s.walk.last); s.walk.at = s.t; s.walk.last = s.off; }   // the view moved: walking
-        if (Net.now() - s.told > 200 && s.t - s.walk.at < 0.3) { s.told = Net.now(); Net.send({ type: 'fx', k: 'look', off: Math.round(s.off) }); }
+        s.pend = { x, y };                                                                // a miss, unless it is a koala, or the finger drags to look round
+        if (s.t < 0) return;                                                               // not started yet: only leaves
+        const d = (q) => Math.hypot(q.x - s.off - x, (cfg.hidden ? q.y - 9 : q.y) - y), near = (list) => list.sort((a, b) => d(a) - d(b))[0];
+        // A finger is big: a little round each koala counts too. Not while tapping all over (three misses within 1.5 s):
+        // then only the koala itself does, so looking pays and mashing does not.
+        const slack = s.misses.filter((m) => s.t - m < 1.5).length >= 3 ? 0 : 4;
+        const at = (q) => Math.abs(q.x - s.off - x) < 7 + slack && y > q.y - 19 - slack / 2 && y < q.y + 2 + slack * 0.75;
+        const k = cfg.hidden ? near(koalas.filter((q) => !found(q) && at(q)))             // hidden ones can be tapped any time: they are just hard to see
+          : koalas.find((q) => !found(q) && out(q) && d(q) < 14);
+        if (k) { s.pend = null; return find(k); }
+        const old = cfg.hidden && near(koalas.filter((q) => found(q) && at(q)));
+        if (old) { s.pend = null; s.again[old.id] = s.t; beep(988); }                         // found already: it waves again (one note: nothing new)
+      },
+      tap() {
+        if (s.pend && !s.over) {
+          puff(s.pend.x, s.pend.y); drum('cymbal');                                        // only leaves there: a rustle, nothing lost
+          s.misses = s.misses.filter((m) => s.t - m < 3).concat(s.t);
+          if (s.misses.length >= 5 && s.t - s.nag > 5) { s.nag = s.t; say('Koukej, co se hýbe!'); }   // tapping all over: look first
+        }
+        s.pend = null;
+      },
+      update(dt) {
+        if (!s.placed && most() > 0) {                                                     // the picture is there: each to their end of the path
+          s.placed = true; s.off = s.walk.last = start(who); s.mate.off = start(mate());
+          const mid = s.off + W / 2;
+          s.hello = koalas.filter((k) => !found(k) && Math.abs(k.x - mid) < W / 2 - 16).sort((a, b) => Math.abs(a.x - mid) - Math.abs(b.x - mid))[0] || null;
+        }
         s.t = clock(live);
+        for (const b of s.bits) {
+          b.vy += (b.leaf ? 120 : 160) * dt;
+          if (b.leaf) { b.vx *= 1 - 3 * dt; b.vy = Math.min(b.vy, 24); b.x += Math.sin((s.t - b.at) * 9 + b.life * 7) * 10 * dt; }   // leaves flutter down
+          b.x += b.vx * dt; b.y += b.vy * dt;
+        }
+        s.bits = s.bits.filter((b) => s.t - b.at < b.life);
+        if (s.over) {
+          if (!s.lost && s.t - s.endAt < 2.5 && Math.random() < 0.5) fly(Math.random() * W, 20 + Math.random() * 30, (Math.random() - 0.5) * 30, 10, 1.4, Math.random() < 0.5 ? '#FFD43A' : '#FFF8E7');   // a shower of stars
+          return;
+        }
+        // Walking with the arrows: it speeds up and slows down rather than jerking. The end of the path is shown, not
+        // just stopped at: a bump and a low note.
+        s.v += (s.pan * SPEED - s.v) * Math.min(1, dt * 8);
+        if (!s.pan && Math.abs(s.v) < 1) s.v = 0;
+        const was = s.off; s.off = clamp(s.off + s.v * dt, 0, most());
+        if (s.pan && s.off === was) { s.v = 0; if (!s.bumped) { s.bumped = true; s.edge = { at: s.t, dir: s.pan }; beep(196); } }
+        if (Math.abs(s.off - s.walk.last) > 0.3) { s.walk.dir = Math.sign(s.off - s.walk.last); s.walk.at = s.t; s.walk.last = s.off; }   // the view moved: walking
+        if (Net.now() - s.told > (s.t - s.walk.at < 0.3 ? 200 : 1500)) { s.told = Net.now(); Net.send({ type: 'fx', k: 'look', off: Math.round(s.off) }); }   // where one is, for the other one's bar
         if (s.t >= cfg.seconds && Net.now() - s.sent > 1000) { s.sent = Net.now(); Net.send({ type: 'ev', e: 'finish' }); }
+        if (s.tipTill && s.t > s.tipTill) { s.tipTill = 0; view.tip.textContent = ''; }
+        // Help for whoever has found nothing for a while (never before HELP seconds into the hunt): sooner when they are
+        // behind the clock, sooner still a koala or two behind (one of two may be stuck or away), and for the last two.
+        const left = koalas.filter((k) => !found(k)), lag = (s.t / cfg.seconds - total() / live.need) * live.need;   // in koalas
+        const wait = s.t < HELP ? HELP : lag >= 2 ? 3 : left.length <= 2 || lag >= 1 ? 5 : lag > 0 ? 7 : HELP;
+        if (s.hint && found(s.hint)) { s.hint = null; s.calm = Math.max(s.calm, s.t - wait + 4); }   // the other one got it: a moment, then the next
+        if (!s.hint && left.length && s.t - s.calm >= wait) {
+          const mid = s.off + W / 2;
+          s.hint = left.reduce((a, b) => (Math.abs(b.x - mid) < Math.abs(a.x - mid) ? b : a)); s.hintAt = s.t; s.near = null;
+        }
+        const hx = s.hint ? s.hint.x - s.off : 0, side = !s.hint ? null : hx < 0 ? 'left' : hx > W ? 'right' : 'here';   // here once half of it shows
+        if (s.hint && (side === 'here') !== s.near) { s.near = side === 'here'; say(s.near ? 'Tady něco šustí!' : 'Jdi za šipkou!'); }
+        keys.mark('left', side === 'left'); keys.mark('right', side === 'right');      // the button to press blinks too
+        if (side === 'here' && Math.floor(s.t / 0.35) !== Math.floor((s.t - dt) / 0.35)) fly(hx + (Math.random() - 0.5) * 14, s.hint.y - 20, (Math.random() - 0.5) * 10, 0, 1.2, LEAF[Math.floor(Math.random() * 3)], true);
         paint();
       },
       draw() {
@@ -2411,10 +2552,14 @@
         const art = !!K.sprites.koalas;                                                     // drawn koalas once they exist, stand-ins before
         for (const k of koalas) {
           const x = Math.round(k.x - off), y = Math.round(k.y);
-          if (x < -12 || x > W + 12) continue;
+          if (x < -14 || x > W + 14) continue;
+          if (cfg.hidden && found(k)) { cheerful(k, x, y); continue; }
           if (cfg.hidden && art) {                                                           // small and still; a twitch now and then gives one away
-            if (found(k)) { const fresh = s.t - (s.when[k.id] || 0) < 1.5; K.figure('koalas', x, y - (fresh ? Math.round(Math.abs(Math.sin(s.t * 8)) * 3) : 0), fresh ? 'wave' : 'happy', s.t, false, cfg.size * 1.1); rect(x - 1, y - 22, 3, 3, '#1FA463'); }
-            else K.figure('koalas', x, y - (out(k) ? 1 : 0), k.pose, s.t, out(k) ? Math.floor(s.t * 12) % 2 === 0 : k.x > width() / 2, cfg.size);
+            if (s.hint === k && !s.over) rustle(x, y);
+            if (hello(k)) { K.figure('koalas', x, y - Math.round(Math.abs(Math.sin(s.t * 6)) * 2), 'wave', 0, false, cfg.size); continue; }
+            if (s.over) { K.figure('koalas', x, y - Math.round(Math.abs(Math.sin(s.t * 6 + k.id)) * 2), 'wave', 0, false, cfg.size); continue; }   // the ones not found come out at the end: there they were
+            const tw = out(k) || nudge(k);
+            K.figure('koalas', x, y - (tw ? 1 : 0), k.pose, s.t, tw ? Math.floor(s.t * 12) % 2 === 0 : k.x > width() / 2, cfg.size);
             continue;
           }
           if (found(k)) {
@@ -2422,24 +2567,57 @@
             if (art) K.figure('koalas', x, y + 11 - bob, s.t - (s.when[k.id] || 0) < 1.5 ? 'wave' : 'happy', s.t, k.x > width() / 2); else koala(x, y - bob, true);
             continue;
           }
-          if (out(k)) { if (art) K.figure('koalas', x, y + 11, k.id % 2 ? 'side' : 'peek', s.t, k.id % 2 && k.x < width() / 2); else koala(x, y, false); }
-          else if (soon(k)) {                                                                // a rustle in the leaves, just before
+          if (out(k) || s.lost) { if (art) K.figure('koalas', x, y + 11, k.id % 2 ? 'side' : 'peek', s.t, k.id % 2 && k.x < width() / 2); else koala(x, y, false); }
+          else if (soon(k) || s.hint === k) {                                                // a rustle in the leaves, just before
             const j = Math.floor(s.t * 14) % 2;
             if (art) K.figure('koalas', x + j - 1, y + 11, 'leaves', s.t);
             else { rect(x - 8 + j * 2, y - 2, 4, 2, '#DDE8B0'); rect(x + 4 - j * 2, y + 2, 4, 2, '#DDE8B0'); }
           }
         }
-        if (s.miss && s.t - s.miss.at < 0.25) { const { x, y } = s.miss; rect(x - 4, y - 1, 8, 2, '#FFF8E7'); rect(x - 1, y - 4, 2, 8, '#FFF8E7'); }
-        for (const k of koalas) {                                         // a burst of stars round a koala just found
-          const u = s.t - (s.when[k.id] === undefined ? -9 : s.when[k.id]); if (u < 0 || u > 0.7) continue;
-          const x = k.x - s.off, y = (cfg.hidden ? k.y - 6 : k.y) - 4;
-          for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2, r = 6 + u * 22; rect(Math.round(x + Math.cos(a) * r), Math.round(y + Math.sin(a) * r), 2, 2, i % 2 ? '#FFD43A' : '#FFF8E7'); }
+        for (const b of s.bits) {                                                           // leaves fluttering, stars falling
+          const x = Math.round(b.x - off), y = Math.round(b.y), u = (s.t - b.at) / b.life;
+          if (u > 0.7 && Math.floor(s.t * 16) % 2) continue;
+          if (b.leaf) { const flat = Math.sin((s.t - b.at) * 12 + b.life * 5) > 0, w = flat ? 3 : 2, h = flat ? 2 : 3; rect(x - 1, y, w + 2, h + 1, '#2E4A1E'); rect(x, y, w, h, b.c); }   // a leaf turning as it falls, with a dark edge to stand out
+          else rect(x - 1, y - 1, 2, 2, b.c);
+        }
+        if (s.poof && s.t - s.poof.at < 0.35) {                                             // where a tap on leaves landed: a ring of puffs spreading out, eased
+          const u = (s.t - s.poof.at) / 0.35, r = 3 + (1 - (1 - u) ** 2) * 8, x = Math.round(s.poof.x - off), y = Math.round(s.poof.y);
+          for (let i = 0; i < 8; i++) {
+            const a = i / 8 * Math.PI * 2, px = Math.round(x + Math.cos(a) * r) - 1, py = Math.round(y + Math.sin(a) * r) - 1;
+            rect(px + 1, py + 1, 2, 2, INK); rect(px, py, 2, 2, '#FFF8E7');
+          }
+        }
+        for (const k of koalas) {                                         // a flash and a burst of stars round a koala just found, in the finder's colour
+          const u = s.t - (s.when[k.id] === undefined ? -9 : s.when[k.id]); if (u < 0 || u > 0.8) continue;
+          const { x, y } = where(k), e = 1 - (1 - u / 0.8) ** 3, c = s.by[k.id] === mate() ? COLOUR[mate()] : '#FFD43A';
+          if (u < 0.12) { rect(x - 8, y, 17, 1, '#FFF8E7'); rect(x, y - 8, 1, 17, '#FFF8E7'); }
+          for (let i = 0; i < 8; i++) {
+            if (u > 0.55 && (i + Math.floor(u * 24)) % 2) continue;
+            const a = i / 8 * Math.PI * 2 + 0.4, r = 4 + e * 18;
+            rect(Math.round(x + Math.cos(a) * r) - 1, Math.round(y + Math.sin(a) * r) - 1, 2, 2, i % 2 ? c : '#FFF8E7');
+          }
+        }
+        if (!s.over) {
+          if (s.hello && hello(s.hello)) { const { x, y } = where(s.hello); if (Math.floor(s.t * 4) % 2 === 0) corners(x, y); }   // this is what a koala looks like
+          if (s.hint) {                                                                      // help: corners round it after a long wait, or the way to it
+            const { x, y } = where(s.hint);
+            if (x >= 0 && x <= W) { if (s.t - s.hintAt > 8 && Math.floor(s.t * 4) % 2 === 0) corners(x, y); }
+            else arrow(x < 0 ? -1 : 1, y);
+          }
         }
         // the kids on the path: one's own in the middle of the view, the other where they have walked to on theirs
-        const walking = (w) => s.t - w.at < 0.2, PATH = 274;
-        if (mateHere()) { const mx = s.mate.off + W / 2 - off; if (mx > -20 && mx < W + 20) K.hero(mate(), mx, PATH - 2, walking(s.mate) ? 'run' : 'stand', s.t * 0.6, s.mate.dir < 0); }
-        K.hero(who, W / 2, PATH, s.lost ? 'dizzy' : walking(s.walk) ? 'run' : 'stand', s.t * 0.6, s.walk.dir < 0);
-        if (most() > 0) { rect(W / 2 - 20, H - 6, 40, 2, 'rgba(43,31,26,.6)'); rect(W / 2 - 20 + Math.round(off / most() * 30), H - 6, 10, 2, '#FFD43A'); }   // where in the forest one is looking
+        const walking = (w) => s.t - w.at < 0.2, won = s.over && !s.lost, bump = s.edge && s.t - s.edge.at < 0.3;
+        if (mateHere()) { const mx = s.mate.off + W / 2 - off; if (mx > -20 && mx < W + 20) K.hero(mate(), mx, PATH - 2, won || s.t - s.mate.yay < 0.6 ? 'cheer' : walking(s.mate) ? 'run' : 'stand', s.t * 0.6, s.mate.dir < 0); }
+        const nx = bump ? Math.round(Math.sin((s.t - s.edge.at) / 0.3 * Math.PI) * 3) * s.edge.dir : 0;   // bumps into the end of the path and back
+        K.hero(who, W / 2 + nx, PATH, s.lost ? 'dizzy' : won || s.t - s.yay < 0.6 ? 'cheer' : walking(s.walk) && !bump ? 'run' : 'stand', s.t * 0.6, s.walk.dir < 0);
+        if (most() > 0) {                                                                   // where in the forest each of them is: one's own view in yellow, the kids as pins in their colours
+          const BW = 56, bx = W / 2 - BW / 2, by = H - 7, at = (wx) => bx + Math.round(wx / width() * BW), vw = Math.max(4, Math.round(W / width() * BW));
+          const pin = (wx, c) => { const px = clamp(at(wx), bx + 1, bx + BW - 1); rect(px - 2, by - 4, 4, 9, INK); rect(px - 1, by - 3, 2, 7, c); };
+          rect(bx - 1, by - 1, BW + 2, 5, INK); rect(bx, by, BW, 3, '#7A6F6A');
+          rect(at(off), by, vw, 3, bump && Math.floor(s.t * 24) % 2 ? '#FFF8E7' : '#FFD43A');
+          if (mateHere()) pin(s.mate.off + W / 2, COLOUR[mate()]);
+          pin(off + W / 2, COLOUR[who]);
+        }
       },
     };
   }

@@ -63,6 +63,15 @@ button{font:inherit;color:inherit}
 .tip:empty{display:none}
 .tip.up{inset:4em 0 auto}
 .count{min-width:4em}
+/* Buš: the tip sits low, over the bushes, never over the trees the koalas hide in. The count has a koala in front of
+   it (the 'happy' frame of the koala sheet) and jumps when it goes up; the clock blinks red in the last seconds.
+   A "+1" (the partner's in their colour) is outlined all round to read over the leaves. */
+#ui > .tip.bush{inset:auto 0 9.5em}
+#ui:has(.tip.bush) .plus{font-size:1.3em;text-shadow:.07em .07em 0 var(--ink),-.07em -.07em 0 var(--ink),.07em -.07em 0 var(--ink),-.07em .07em 0 var(--ink)}
+.count .koala{display:inline-block;width:1.08em;height:1.5em;margin:-.3em .3em -.3em 0;vertical-align:middle;background-repeat:no-repeat;
+  background-size:6.47em 1.5em;background-position:-4.31em 0;image-rendering:pixelated;image-rendering:crisp-edges}
+.count.bump{animation:pop .35s ease-out;transform-origin:25% 50%}
+.meter.time.late i{background:var(--red);animation:blink .5s steps(2,jump-none) infinite}
 .clock{min-width:3em;text-align:center;color:var(--paper)}
 .turn{display:flex;align-items:center;gap:.4em;color:var(--paper);text-transform:none}
 .shout{position:absolute;right:.25em;top:25em;margin:0;background:var(--paper);color:var(--red);border:.25em solid var(--ink);padding:.2em .5em;font-weight:700;pointer-events:none}
