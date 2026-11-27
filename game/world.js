@@ -222,9 +222,30 @@ window.WORLD = {
         // The new flat is empty. In Sydney people put furniture they no longer need out on the kerb: walk the street of
         // terrace houses and find everything on the list (play 'platform', with `list`: the door of the flat opens only
         // when all of it is found). Ibises walk the footpath, magpies swoop.
-        { id: 'sydney-kerb', name: 'Nábytek', at: [112, 204], label: 'left', bg: 'sydney-street', scroll: true, play: 'platform', music: 'street', code: 'GAUC', cast: ['sami', 'zofia'],
-          platform: { length: 2640, goal: 2552, gate: 'flat', list: ['sofa', 'armchair', 'lamp', 'table', 'chair', 'shelf', 'rugroll', 'plant', 'bed'],
-            blocks: [], foes: [], items: [] },
+        // The pieces on the list are items named like their pictures, standing where `h` says (on the footpath, or on top
+        // of a pile); touching one takes it. The junk to climb is kerbside rubbish: a box 18 high, an old TV 23, a bin 23
+        // (each fitted to its width: 34, 30, 24), stacked by putting one over another. Magpies ['magpie', from, to, height,
+        // speed, every] glide high and every few seconds dive at whoever is near (game.js); only a dive can hurt, and it
+        // is seen coming. `forgiving`: the gentler controls (a jump pressed a moment early or late still counts, a knock
+        // pushes you back off what hurt you, one who stops to free the other from a bubble is not dived at).
+        // No step is taller than 23 (a short press of Skok), from either side, so a child going back is never stuck.
+        // `later`: a piece a neighbour puts out only once another is found (the plant, once the shelf is): it turns up a
+        // little way back, so it is found by turning round. The rug in the dip between two TVs can be jumped over too.
+        { id: 'sydney-kerb', name: 'Nábytek', at: [112, 204], label: 'left', bg: 'sydney-street', scroll: true, play: 'platform', music: 'street', code: 'GAUC', cast: ['sami', 'zofia'], ground: 228,
+          platform: { length: 2640, goal: 2552, gate: 'flat', forgiving: true, list: ['sofa', 'armchair', 'lamp', 'table', 'chair', 'shelf', 'rugroll', 'plant', 'bed'], later: { plant: 'shelf' },
+            blocks: [[400, 34, 18, 'box'], [490, 34, 18, 'box'], [524, 34, 18, 'box'],
+              [720, 34, 18, 'box'], [754, 30, 23, 'tv'], [752, 34, 41, 'box'], [786, 34, 18, 'box'], [1010, 24, 23, 'bin'], [1090, 34, 18, 'box'],
+              [1310, 34, 18, 'box'], [1344, 30, 23, 'tv'], [1420, 30, 23, 'tv'], [1452, 34, 18, 'box'],
+              [1620, 24, 23, 'bin'], [1644, 24, 23, 'bin'], [1740, 34, 18, 'box'], [1774, 30, 23, 'tv'], [1772, 34, 41, 'box'], [1806, 30, 23, 'tv'], [1806, 30, 46, 'tv'], [1836, 30, 23, 'tv'],
+              [2080, 24, 23, 'bin'],
+              [2200, 34, 18, 'box'], [2234, 30, 23, 'tv'], [2232, 34, 41, 'box'], [2266, 30, 23, 'tv'], [2266, 30, 46, 'tv'], [2296, 30, 23, 'tv'], [2296, 30, 46, 'tv'],
+              [2326, 30, 23, 'tv'], [2326, 30, 46, 'tv'], [2356, 30, 23, 'tv']],
+            foes: [['ibis', 250, 330, 0, 10], ['ibis', 600, 670, 0, 14], ['magpie', 680, 900, 116, 20, 7], ['ibis', 920, 990, 0, 18], ['ibis', 1022, 1022, 23, 0],
+              ['magpie', 1080, 1270, 112, 22, 6], ['ibis', 1215, 1270, 0, 20], ['ibis', 1500, 1580, 0, 22], ['ibis', 1630, 1658, 23, 10],
+              ['magpie', 1540, 1730, 120, 24, 5], ['ibis', 1900, 1990, 0, 24], ['ibis', 1960, 2040, 0, 28], ['magpie', 1880, 2100, 112, 26, 4.5],
+              ['ibis', 2272, 2290, 46, 8], ['magpie', 2230, 2420, 130, 26, 4], ['ibis', 2410, 2470, 0, 22]],   // the last ibis keeps clear of the door, which pushes back whoever comes too soon
+            items: [['armchair', 170, 0], ['table', 524, 18], ['lamp', 769, 41], ['chair', 880, 0], ['heart', 1107, 34], ['sofa', 1180, 0],
+              ['rugroll', 1398, 0], ['shelf', 1789, 41], ['plant', 1712, 0], ['heart', 2092, 38], ['bed', 2326, 46]] },
           talk: [['sami', 'Dům stojí, jenže náš nový byt je úplně prázdný.'], ['zofia', 'V Sydney lidi dávají nábytek, který už nechtějí, ven na chodník. Kdo chce, ten si ho vezme!'],
             ['sami', 'Seznam máte nahoře. Najděte všechno, co na něm je.'], ['', 'Pozor na ibisy a straky!']] },
         // Moving in before night: the flat seen like a dollhouse, two rooms; drag every piece to its place (play 'flat').

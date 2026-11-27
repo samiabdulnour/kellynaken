@@ -11,7 +11,7 @@
 //   play {place, index} start a level from its pin on a region's map
 //   next                the next line of the story               done             leave a scene that has no game yet
 //   ev {e, ...}         something that counts: hurt, hit, miss, pick, finish, pad, find, flip, grab, sting, pull, crane, drop (a storey, or a salon customer let go),
-//                       beat (an enemy), got (a coin or a clue), revive (a partner out of their bubble)
+//                       beat (an enemy), got (a coin, a clue or a piece on the list), revive (a partner out of their bubble)
 //   fx {...}            something only to show on the other device (a jump, a shot, a drum tap)
 //   cont / retry        after a scene is won / lost              home             back to the map after a rescue
 //   back                up one level: from a level to its map, from a region's map to the map around it
@@ -55,9 +55,15 @@
         }
         const len = Math.max(1, f.x1 - f.x0), d = ((Math.max(0, t) * f.speed + (f.id * 37) % len) % (2 * len)), out = d < len;
         const x = f.x0 + (out ? d : 2 * len - d);
-        return { id: String(f.id), x, y: f.h + (f.kind === 'flyer' || f.kind === 'crow' ? Math.sin(t * 1.6 + f.id) * 12 : 0), dir: out ? 1 : -1 };   // flyers swoop low and up again
+        const bob = f.kind === 'flyer' || f.kind === 'crow' ? Math.sin(t * 1.6 + f.id) * 12 : f.kind === 'magpie' ? Math.sin(t * 2.2 + f.id) * 5 : 0;   // flyers swoop low and up again; a magpie keeps high (its dives are the phone's, game.js)
+        return { id: String(f.id), x, y: f.h + bob, dir: out ? 1 : -1 };
       }
       return { blocks, foes, items, top, at, length: cfg.length, goal: cfg.goal };
+    },
+    // A walk with a list (Nábytek): what on it nobody has found yet. `got` holds the found items by their number.
+    missing(sc, got) {
+      const { list, items } = sc.platform || {};
+      return list ? list.filter((k) => !got.some((id) => items[id] && items[id][0] === k)) : [];
     },
     drums(seed, sc) {
       const cfg = sc.drums, beat = 60 / cfg.bpm, r = rng(seed), notes = [];
@@ -304,6 +310,7 @@
         if (m.e === 'hurt' && !sn.out[who] && !sn.fin[who] && --sn.hp[who] <= 0) {
           sn.out[who] = true; sn.outs++;                                               // out of hearts: floating in a bubble
           if (team.every((w) => sn.out[w])) sn.phase = 'lost';                         // nobody left walking
+          else if (team.every((w) => sn.fin[w] || sn.out[w])) sn.phase = 'won';         // the other is already at the door: the bubble comes along (else they would wait for ever)
         }
         if (m.e === 'revive' && sn.two && sn.out[other] && !sn.out[who]) { sn.out[other] = false; sn.hp[other] = 2; }   // the partner jumped into the bubble
         const id = String(m.id).slice(0, 12);
@@ -313,7 +320,7 @@
           const it = course.platform(sc).items[+id];
           if (it && it.kind === 'heart' && !sn.out[who]) sn.hp[who] = Math.min(sn.max, sn.hp[who] + 1);   // a heart picked up: one back
         }
-        if (m.e === 'finish' && !sn.out[who]) {
+        if (m.e === 'finish' && !sn.out[who] && !course.missing(sc, sn.got).length) {   // with a list, the door stays shut until all of it is found
           sn.fin[who] = true;                                                          // at the door; one still in a bubble comes along with the other
           if (team.every((w) => sn.fin[w] || sn.out[w])) sn.phase = 'won';
         }
