@@ -42,19 +42,24 @@ const K = (() => {
         o.connect(g).connect(ac.destination); o.start(t + i * 0.09); o.stop(t + i * 0.09 + 0.1);
       });
     } catch (e) {}
-  }  // Drums, made from a falling tone and a burst of noise: kick, snare, tom and cymbal.
+  }  // Drums, made from a falling tone and a burst of noise: kick, snare, tom and cymbal; for a backing beat also a
+  // short hi-hat ('hat') and two sticks clicked together ('stick'). `wait` plays it that many seconds from now, timed
+  // on the sound's own clock (steadier than a timer); `vol` plays it quieter (1 is full).
   let noise = null;
-  function drum(kind) {
+  function drum(kind, wait, vol) {
     try {
       ac = ac || new (window.AudioContext || window.webkitAudioContext)();
-      const t = ac.currentTime, out = ac.createGain(); out.connect(ac.destination);
+      if (wait && ac.state !== 'running') return;                                   // asleep: nothing piles up to burst out later
+      const t = ac.currentTime + Math.max(0, wait || 0), v = vol === undefined ? 1 : vol, out = ac.createGain(); out.connect(ac.destination);
       if (!noise) { noise = ac.createBuffer(1, ac.sampleRate * 0.5, ac.sampleRate); const d = noise.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; }
-      const tone = (f0, f1, len, vol) => { const o = ac.createOscillator(), g = ac.createGain(); o.type = 'sine'; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f1, t + len); g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + len); o.connect(g).connect(out); o.start(t); o.stop(t + len + 0.02); };
-      const hiss = (freq, len, vol) => { const n = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain(); n.buffer = noise; f.type = 'highpass'; f.frequency.value = freq; g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + len); n.connect(f).connect(g).connect(out); n.start(t); n.stop(t + len + 0.02); };
+      const tone = (f0, f1, len, vol) => { const o = ac.createOscillator(), g = ac.createGain(); o.type = 'sine'; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f1, t + len); g.gain.setValueAtTime(vol * v, t); g.gain.exponentialRampToValueAtTime(0.001, t + len); o.connect(g).connect(out); o.start(t); o.stop(t + len + 0.02); };
+      const hiss = (freq, len, vol) => { const n = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain(); n.buffer = noise; f.type = 'highpass'; f.frequency.value = freq; g.gain.setValueAtTime(vol * v, t); g.gain.exponentialRampToValueAtTime(0.001, t + len); n.connect(f).connect(g).connect(out); n.start(t); n.stop(t + len + 0.02); };
       if (kind === 'kick') tone(150, 45, 0.18, 0.5);
       if (kind === 'snare') { tone(220, 120, 0.08, 0.15); hiss(1500, 0.14, 0.2); }
       if (kind === 'tom') tone(240, 120, 0.16, 0.4);
       if (kind === 'cymbal') hiss(6000, 0.4, 0.12);
+      if (kind === 'hat') hiss(8000, 0.05, 0.1);
+      if (kind === 'stick') { tone(1900, 1500, 0.04, 0.2); hiss(5000, 0.03, 0.12); }
     } catch (e) {}
   }
   // Phones only let sound start from a tap: every tap wakes the sound up (it may have been made, asleep, before one),
@@ -175,7 +180,8 @@ const K = (() => {
   }
 
   // ---- scenes and the loop ----
-  let scene = null, last = 0, down = null;
+  let scene = null, last = 0;
+  const down = new Map();                                   // the fingers on the picture, each where it went down and last was
   function go(next) {
     if (scene && scene.leave) scene.leave();
     ui.innerHTML = '';
@@ -191,12 +197,25 @@ const K = (() => {
   requestAnimationFrame(frame);
 
   // ---- input, in screen pixels ----
+  // A scene may also hear the finger lift (`up`, with whether it was only a tap), for things dragged and let go. The
+  // canvas keeps the finger while it is down, so a drag over the bar or out of the picture still ends here.
+  // Every finger is followed on its own (the last argument says which), so a second finger or a resting palm neither
+  // moves nor lets go of what the first one drags; a scene that does not care simply ignores it.
   const at = (e) => { const r = canvas.getBoundingClientRect(); return { x: ((e.clientX - r.left) / r.width) * W, y: ((e.clientY - r.top) / r.height) * H }; };
-  canvas.addEventListener('pointerdown', (e) => { down = at(e); down.px = down.x; if (scene && scene.down) scene.down(down.x, down.y); });
-  canvas.addEventListener('pointermove', (e) => { if (!down) return; const p = at(e); if (scene && scene.move) scene.move(p.x, p.y, p.x - down.px); down.px = p.x; });
-  const lift = (e) => { if (!down) return; const p = at(e); if (Math.hypot(p.x - down.x, p.y - down.y) < 5 && scene && scene.tap) scene.tap(p.x, p.y); down = null; };
+  canvas.addEventListener('pointerdown', (e) => {
+    const f = at(e); f.px = f.x; f.py = f.y; down.set(e.pointerId, f);
+    try { canvas.setPointerCapture(e.pointerId); } catch (x) { /* not every browser */ }
+    if (scene && scene.down) scene.down(f.x, f.y, e.pointerId);
+  });
+  canvas.addEventListener('pointermove', (e) => { const f = down.get(e.pointerId); if (!f) return; const p = at(e); if (scene && scene.move) scene.move(p.x, p.y, p.x - f.px, e.pointerId); f.px = p.x; f.py = p.y; });
+  const lift = (e) => {
+    const f = down.get(e.pointerId); if (!f) return; down.delete(e.pointerId);
+    const p = at(e), tapped = Math.hypot(p.x - f.x, p.y - f.y) < 5;
+    if (tapped && scene && scene.tap) scene.tap(p.x, p.y);
+    if (scene && scene.up) scene.up(p.x, p.y, tapped, e.pointerId);
+  };
   canvas.addEventListener('pointerup', lift);
-  canvas.addEventListener('pointercancel', () => { down = null; });
+  canvas.addEventListener('pointercancel', (e) => { const f = down.get(e.pointerId); if (!f) return; down.delete(e.pointerId); if (scene && scene.up) scene.up(f.px, f.py, false, e.pointerId); });
 
   // ---- the UI layer: real text and buttons on top of the pixels ----
   function add(html) { const t = document.createElement('template'); t.innerHTML = html.trim(); const el = t.content.firstElementChild; ui.appendChild(el); return el; }

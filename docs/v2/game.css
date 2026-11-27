@@ -94,6 +94,7 @@ button{font:inherit;color:inherit}
 .face{display:inline-block;flex:none;background-repeat:no-repeat;image-rendering:pixelated;image-rendering:crisp-edges}
 .btn .face{display:block;margin:0 auto .35em}
 .say .face{float:left;margin:0 .75em .25em 0}
+.tip .face{vertical-align:-.3em;margin-right:.2em}
 .card .line{display:flex;align-items:center;gap:.6em;text-align:left}
 .album .face{display:block;margin:.2em auto .5em}
 .power{color:var(--yellow)}
@@ -133,6 +134,8 @@ button{font:inherit;color:inherit}
 /* Lives as hearts; a bar that counts time down gets a little clock in front of it. */
 .lives i{width:1em;height:.9em;background:var(--ink-soft);clip-path:polygon(0 25%,12% 0,38% 0,50% 18%,62% 0,88% 0,100% 25%,100% 50%,50% 100%,0 50%)}
 .lives i.on{background:var(--red)}
+.lives i.gone{animation:gone .8s steps(4) both}
+@keyframes gone{0%{background:var(--paper);transform:scale(1.5)}40%{background:var(--red);transform:scale(1.3)}}
 .meter.time{position:relative;margin-left:1.4em}
 .meter.time::before{content:'';position:absolute;left:-1.3em;top:-.2em;width:1em;height:1em;border:.17em solid var(--paper);border-radius:50%;box-sizing:border-box;
   background:linear-gradient(var(--paper),var(--paper)) 50% 25%/.14em .4em no-repeat,linear-gradient(var(--paper),var(--paper)) 70% 50%/.3em .14em no-repeat}
@@ -145,5 +148,87 @@ button{font:inherit;color:inherit}
 @keyframes rise{to{transform:translateY(-1.5em);opacity:0}}
 .plus{position:absolute;margin:0;transform:translate(-50%,-100%);font-size:1.1em;font-weight:700;color:var(--yellow);pointer-events:none;
   text-shadow:.08em .08em 0 var(--ink);animation:rise .8s steps(5) forwards}
+/* Pop-up texts let taps through to the game under them (#ui > * above would catch them). */
+#ui > .plus, #ui > .praise, #ui > .go{pointer-events:none}
 .card .stars{font-size:2em;line-height:1;color:var(--yellow);letter-spacing:.1em;text-shadow:.06em .06em 0 var(--ink);margin:-.2em 0 -.1em}
 .pin .st{display:block;font-size:.85em;line-height:1;color:#B8862A;letter-spacing:.05em}
+/* Nábytek: the list of furniture under the bar, grey until found, then in colour with a tick. The door asks for what is
+   missing by making it blink; a piece found flies up into its place, which pops; a full list gives a little wave. */
+.list{position:absolute;inset:2.75em 0 auto;margin:0 auto;width:fit-content;display:flex;gap:.2em;padding:.2em .3em;background:var(--paper);border:.17em solid var(--ink);pointer-events:none}
+.list i{position:relative;width:2.2em;height:1.8em;display:grid;place-items:end center}
+.list canvas{display:block;image-rendering:pixelated;image-rendering:crisp-edges;filter:grayscale(1) brightness(1.2) opacity(.4)}
+.list i.got canvas{filter:none}
+.list i.got::after{content:'✓';position:absolute;right:-.25em;bottom:-.3em;width:1.15em;height:1.15em;display:grid;place-items:center;font-size:.7em;font-weight:700;line-height:1;
+  color:var(--paper);background:var(--green);border:.15em solid var(--ink)}
+.list i.miss{animation:want .5s steps(2,jump-none) infinite}
+.list i.miss canvas{filter:grayscale(1) brightness(.6) opacity(.8)}
+@keyframes want{50%{background:var(--yellow);transform:translateY(-.2em)}}
+.list i.pop{animation:pop .35s ease-out}
+@keyframes pop{from{transform:scale(1.7)}}
+.list.all i{animation:hop .45s steps(3) both;animation-delay:calc(var(--n) * .07s)}
+@keyframes hop{50%{transform:translateY(-.5em)}}
+.flying{position:absolute;margin:0;pointer-events:none;transform-origin:0 0;z-index:3}
+.flying canvas{display:block;width:100%;height:100%;image-rendering:pixelated;image-rendering:crisp-edges}
+:root:not(.roomy) #ui:has(.list) .tip:not(.up){inset:5.75em 0 auto}
+#ui:has(.list) .plus{font-size:1.3em;text-shadow:.07em .07em 0 var(--ink),-.07em -.07em 0 var(--ink),.07em -.07em 0 var(--ink),-.07em .07em 0 var(--ink)}
+.lives.hit{animation:shake .45s steps(4)}
+@keyframes shake{25%{transform:translateX(-.3em)}75%{transform:translateX(.3em)}}
+/* Moving in (Byt): a square for every piece, green once it stands in its place; and the evening as a strip of sky from
+   day to night with the sun on it, which turns into the moon and blinks when night is close. */
+.dots{display:flex;gap:.2em}
+.dots i{width:.7em;height:.7em;background:var(--ink-soft)}
+.dots i.on{background:var(--green);box-shadow:0 0 0 .1em var(--paper)}
+.sky{position:relative;flex:1;max-width:9em;height:.75em;margin:0 .6em;border:.17em solid var(--paper);
+  background:linear-gradient(90deg,#8FD3F4 0 38%,#F6A55B 58%,#7A4B8F 78%,#141A3C 95%)}
+.sky i{position:absolute;top:50%;width:1.25em;height:1.25em;margin:-.625em 0 0 -.625em;background:var(--yellow);
+  clip-path:polygon(30% 0,70% 0,100% 30%,100% 70%,70% 100%,30% 100%,0 70%,0 30%)}
+.sky i.moon{background:var(--paper)}
+.sky.late i{animation:blink .5s steps(2,jump-none) infinite}
+/* Pexeso: the pairs found, and the wrong guesses as boxes filling with red crosses (the empty ones are what is left,
+   blinking when only two are). A partner's "Tady!" over a card. Praise floats over the cards without catching taps. */
+.dvojice{position:relative;display:inline-block;width:.6em;height:.8em;margin:0 .6em 0 .1em;vertical-align:-.05em;background:var(--paper);border:.125em solid var(--green)}
+.dvojice::after{content:'';position:absolute;left:.2em;top:-.35em;width:.6em;height:.8em;background:var(--paper);border:.125em solid var(--green)}
+.chyby{display:flex;align-items:center;gap:.125em;color:var(--paper)}
+.chyby span{margin-right:.35em}
+.chyby i{display:block;width:.75em;height:.75em;border:.125em solid var(--ink-soft)}
+.chyby i.x{border:0;background:#FF5A5F;clip-path:polygon(0 18%,18% 0,50% 32%,82% 0,100% 18%,68% 50%,100% 82%,82% 100%,50% 68%,18% 100%,0 82%,32% 50%)}
+.chyby i.new{animation:chyba .4s steps(4)}
+@keyframes chyba{from{transform:scale(2.4)}}
+.chyby.warn i:not(.x){animation:chyby .5s steps(2,jump-none) infinite}
+@keyframes chyby{50%{border-color:var(--yellow)}}
+.tip .face{vertical-align:middle;margin:-.3em .35em -.1em 0}
+#ui > .tady{position:absolute;margin:0;transform:translate(-50%,-100%);pointer-events:none;font-size:.9em;font-weight:700;line-height:1.15;padding:0 .3em;
+  color:var(--ink);background:var(--yellow);border:.17em solid var(--ink);animation:tady .45s steps(2,jump-none) infinite alternate}
+@keyframes tady{to{margin-top:-.3em}}
+#ui > .praise,#ui > .plus{pointer-events:none}
+/* The concert: four dots filling up with the clicks of the count-in (numbers would follow "2, 1, Start!" with another
+   1); on each drum, with two, the face of whose drum it is; the tip just under the bar, clear of the board on the stage
+   roof; three stars by the meter that light up as they are earned. */
+.go.beat{font-size:4em;line-height:1;animation:beat .5s steps(4) forwards}
+.go.beat i{display:inline-block;width:.25em;height:.25em;margin:0 .0625em;background:var(--ink-soft);box-shadow:.0625em .0625em 0 var(--ink)}
+.go.beat i.on{background:var(--yellow);box-shadow:.0625em .0625em 0 var(--red),.125em .125em 0 var(--ink)}
+@keyframes beat{from{transform:scale(1.6)}to{transform:scale(1);opacity:.3}}
+#ui > .owner{position:absolute;pointer-events:none;line-height:0}
+.tip.up.roof{inset:2.625em 0 auto}
+.starbar{display:flex;gap:.25em}
+.starbar i{width:1.25em;height:1.25em;background:var(--ink-soft);clip-path:polygon(50% 0,63% 36%,100% 38%,71% 61%,81% 100%,50% 77%,19% 100%,29% 61%,0 38%,37% 36%)}
+.starbar i.on{background:var(--yellow);animation:starpop .5s steps(3)}
+@keyframes starpop{from{transform:scale(2.2)}}
+/* The beach: a torn note under the bar, an empty line for every letter, filled in as the pieces are found.
+   A heart that is lost blinks as it goes; the clock turns to sea blue when the tide comes. */
+.note{position:absolute;top:calc(100% + .45em);left:50%;transform:translateX(-50%);pointer-events:none;filter:drop-shadow(.125em .125em 0 var(--ink))}
+.note > div{display:grid;gap:.1em;justify-items:center;padding:.4em .55em .45em;background:#F2E4BE;color:var(--ink);
+  clip-path:polygon(0 .2em,6% 0,11% .18em,17% .04em,23% .22em,29% 0,35% .14em,41% .02em,47% .2em,53% 0,59% .16em,65% .03em,71% .22em,77% 0,83% .15em,89% .02em,95% .2em,100% 0,
+    100% calc(100% - .18em),94% 100%,88% calc(100% - .2em),82% calc(100% - .03em),76% calc(100% - .22em),70% 100%,64% calc(100% - .15em),58% calc(100% - .02em),52% calc(100% - .2em),46% 100%,40% calc(100% - .17em),34% calc(100% - .03em),28% calc(100% - .22em),22% 100%,16% calc(100% - .14em),10% calc(100% - .02em),4% calc(100% - .2em),0 100%)}
+.note p{margin:0;display:flex;gap:.12em}
+.note b{width:.85em;height:1.15em;display:grid;place-items:center;line-height:1;color:transparent;box-shadow:inset 0 -.15em 0 rgba(43,31,26,.3)}
+.note i{width:.45em}
+.note b.on{color:var(--ink);box-shadow:none;animation:notepop .4s steps(4) both}
+.note b svg{width:.52em;height:.66em;fill:currentColor;shape-rendering:crispEdges}
+@keyframes notepop{0%{transform:scale(0)}50%{transform:scale(1.6);color:var(--red)}100%{transform:none}}
+.note.full > div{animation:noteshine .25s steps(2,jump-none) 6}
+@keyframes noteshine{50%{background:var(--yellow)}}
+.lives i.lost{animation:heartlose .7s steps(7)}
+@keyframes heartlose{0%,30%,60%{background:var(--paper);transform:scale(1.4)}15%,45%,75%{background:var(--red)}100%{transform:none}}
+.meter.time.tide i{background:#3FB8E0}
+:root:not(.roomy) #ui:has(.note) .tip:not(.up){inset:7em 0 auto}
