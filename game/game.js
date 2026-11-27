@@ -540,17 +540,20 @@
     const FLIES = ['flyer', 'crow', 'magpie'];
     const CLUES = { comb: ['prague', 'comb'], clip: ['salonkit', 'clip'], note: ['strahov', 'note'] };
     // Nábytek: a list of furniture to find (cfg.list). Each piece stands true to size next to the kids (sheet, scale)
-    // and has its name as it is written on the list.
-    const PIECE = { sofa: ['furniture', 0.5, 'gauč'], armchair: ['furniture', 0.5, 'křeslo'], lamp: ['furniture', 0.5, 'lampa'], table: ['furniture', 0.5, 'stolek'],
-      chair: ['furniture', 0.5, 'židle'], shelf: ['furniture', 0.5, 'knihovna'], rugroll: ['furniture', 0.5, 'koberec'], plant: ['furniture', 0.5, 'kytka'], bed: ['kerb', 0.75, 'postel'] };
+    // and has its name as it is written on the list (and as in "Soused vynesl …", where that is different).
+    const PIECE = { sofa: ['furniture', 0.5, 'gauč'], armchair: ['furniture', 0.5, 'křeslo'], lamp: ['furniture', 0.5, 'lampa', 'lampu'], table: ['furniture', 0.5, 'stolek'],
+      chair: ['furniture', 0.5, 'židle', 'židli'], shelf: ['furniture', 0.5, 'knihovna', 'knihovnu'], rugroll: ['furniture', 0.5, 'koberec'], plant: ['furniture', 0.5, 'kytka', 'kytku'], bed: ['kerb', 0.75, 'postel'] };
     const LIST = cfg.list ? cfg.list.filter((k) => PIECE[k]) : null, SOFT = !!cfg.forgiving;
     const pieces = LIST ? L.items.filter((it) => LIST.includes(it.kind)) : [];
     const dims = (kind) => { const [sheet, k] = PIECE[kind], sz = art(sheet, kind) || [40, 40]; return { w: Math.round(sz[0] * k), h: Math.round(sz[1] * k), k, sheet }; };
     const named = (kind) => PIECE[kind][2];
     const taken = new Set(), seen = new Set(sn.got || []);    // taken: found on this phone (the room hears of it a moment later); seen: shown as found
+    // cfg.later: a piece that a neighbour puts out only once another is found; until then it is not on the kerb.
+    const LATER = cfg.later || {}, there = (it) => !LATER[it.kind] || pieces.some((o) => o.kind === LATER[it.kind] && found(o));
     const s = { t: 0, over: false, lost: false, me: { x: who === 'kel' && mateHere() ? 18 : 36, y: 0, vy: 0, face: 1, ground: true, inv: 0, hurt: -9, cool: 0, sent: 0, done: false },
       mate: { x: who === 'kel' ? 36 : 18, y: 0, face: 1, pose: 'stand', tx: null, ty: 0 }, dir: 0, held: { left: false, right: false }, jumpHeld: false,
-      shots: [], cam: 0, pops: [], whack: -9, told: false, freed: -9, sw: {}, flying: {}, sent: {}, hunt: false, bumpAt: -9, allAt: 0, quake: -9, stuck: 0 };
+      shots: [], cam: 0, pops: [], whack: -9, told: false, freed: -9, sw: {}, flying: {}, sent: {}, hunt: false, bumpAt: -9, allAt: 0, quake: -9, stuck: 0,
+      born: {}, news: null, short: 0, holdTold: -99 };
     let live = sn;
     const found = (it) => taken.has(it.id) || live.got.includes(it.id);
     const missing = () => pieces.filter((it) => !found(it));
@@ -559,8 +562,8 @@
     if (LIST) s.tipAt = 1.5;                                                                     // the advice goes once the walk is under way
     const steer = () => { s.dir = (s.held.right ? 1 : 0) - (s.held.left ? 1 : 0); };
     const keys = pad([
-      { id: 'left', side: 'left', press: () => { s.held.left = true; steer(); }, release: () => { s.held.left = false; steer(); } },
-      { id: 'right', side: 'left', press: () => { s.held.right = true; steer(); }, release: () => { s.held.right = false; steer(); } },
+      { id: 'left', side: 'left', press: () => { s.held.left = true; steer(); if (SOFT && out(who) && !s.over) blub(); }, release: () => { s.held.left = false; steer(); } },
+      { id: 'right', side: 'left', press: () => { s.held.right = true; steer(); if (SOFT && out(who) && !s.over) blub(); }, release: () => { s.held.right = false; steer(); } },
       { id: 'throw', label: 'Hoď', press: () => throwIt() },
       { id: 'jump', label: 'Skok', big: true, press: () => { s.jumpKey = true; jump(); }, release: () => { s.jumpKey = false; cut(); } },
     ], 'walk');                                                                                  // big arrows: walking is most of the game here
@@ -572,7 +575,7 @@
       if (!LIST) view.hud.children[1].textContent = `★ ${live.got.length}`;
       view.hud.lastElementChild.firstElementChild.style.width = clamp(s.me.x / L.goal, 0, 1) * 100 + '%';
       for (const it of pieces) {                                                               // grey until found (and landed in its place), pulsing when the door asks for it
-        const el = slots[it.kind], got = found(it) && !s.flying[it.kind], want = s.hunt && !found(it);
+        const el = slots[it.kind], got = found(it) && !s.flying[it.kind], want = !found(it) && (s.hunt || (s.news === it && s.t - s.born[it.id] < 2.5));
         if (el.classList.contains('got') !== got) el.classList.toggle('got', got);
         if (el.classList.contains('miss') !== want) el.classList.toggle('miss', want);
       }
@@ -589,6 +592,7 @@
       return c;
     }
     if (LIST) {
+      for (const it of pieces) if (there(it)) s.born[it.id] = -9;                               // already out on the kerb (a game picked up again)
       s.strip = add(`<div class="list">${LIST.map((k, i) => `<i data-k="${k}" style="--n:${i}" title="${esc(named(k))}"></i>`).join('')}</div>`);
       for (const k of LIST) { slots[k] = s.strip.querySelector(`[data-k="${k}"]`); slots[k].appendChild(pic(k, 2, 1.6)); }
       for (const id of seen) { const it = L.items[id]; if (it && slots[it.kind]) slots[it.kind].classList.add('got'); }
@@ -599,9 +603,9 @@
       if (s.over || s.t < 0 || out(who) || m.done) return;
       // forgiving: a moment after stepping off an edge still jumps, and a press just before landing is kept for it
       if (!m.ground && !(SOFT && m.vy <= 0 && s.t - (m.left || -9) < 0.1)) { if (SOFT) m.want = s.t; return; }
-      m.vy = JUMP; m.ground = false; s.jumpHeld = true; m.want = 0; m.left = -9; s.stuck = 0; beep(520);
+      m.vy = JUMP; m.ground = false; s.jumpHeld = true; m.want = 0; m.left = -9; s.stuck = 0; m.from = m.y; m.short = false; beep(520);
     }
-    function cut() { s.jumpHeld = false; if (s.me.vy > 90) s.me.vy = 90; }               // let go early: a little hop
+    function cut() { s.jumpHeld = false; if (s.me.vy > 90) { s.me.vy = 90; s.me.short = true; } }   // let go early: a little hop
     function blub() {                                                                          // forgiving: in a bubble a press wobbles it, and says who can help
       if (s.t - (s.wobble || -9) < 0.35) return;
       s.wobble = s.t; beep(330, 440);
@@ -623,18 +627,22 @@
     const foesNow = () => L.foes.map((f) => dive(f, L.at(f, s.t))).filter(Boolean).map((p, i) => p).filter((p) => !beaten(p.id));
     // A magpie dives now and then at whoever walks below it: it stops to flap and cry, a shadow shows where it will
     // come down, and down it comes and up again; walk out of the shadow and it misses. When it may dive is set by the
-    // clock, the same on both phones; each phone aims it at its own hero (only one close by and on the screen).
-    const WARN = 0.9, DIVE = 1.0;
+    // clock, the same on both phones, and both aim it at the same one: the nearer of the two kids (each phone knows
+    // where the other is, a moment late). It leaves alone one who was hurt a moment ago, and nobody dives while one
+    // of them floats in a bubble and the other has stopped to free them.
+    const WARN = 0.9, DIVE = 1.0, REST = 8;
     function dive(f, p) {
       if (!p || f.kind !== 'magpie' || !f.every) return p;
       const c = s.t + f.id * 1.3, k = Math.floor(c / f.every), u = c - k * f.every;
       let sw = s.sw[f.id];
       if (!sw || sw.k !== k) {
         if (u > 0.15) return p;                                                                  // only at the start of its turn
-        const busy = mateHere() && out(mate());                                                 // not at one who has stopped to free the other from a bubble
-        const m = s.me, near = s.t > 1 && !busy && !out(who) && !m.done && !s.over && Math.abs(m.x - p.x) < 72 && Math.abs(p.x - s.cam - W / 2) < W / 2;
-        sw = s.sw[f.id] = { k, tx: near ? Math.round(clamp(m.x, p.x - 64, p.x + 64)) : null };
-        if (near) beep(1500, 1150, 1500);                                                        // its cry
+        const calm = s.t <= 1 || s.over || out(who) || (mateHere() && out(mate()));
+        const kids = [{ x: s.me.x, ok: !s.me.done && s.t - s.me.hurt > REST, mine: true }];
+        if (mateHere()) kids.push({ x: s.mate.x, ok: !(live.fin && live.fin[mate()]) && s.t - (s.mate.hurt || -99) > REST, mine: false });
+        const aim = calm ? null : kids.filter((q) => q.ok && Math.abs(q.x - p.x) < 72).sort((a, b) => Math.abs(a.x - p.x) - Math.abs(b.x - p.x))[0];
+        sw = s.sw[f.id] = { k, tx: aim ? Math.round(clamp(aim.x, p.x - 64, p.x + 64)) : null };
+        if (aim && Math.abs(p.x - s.cam - W / 2) < W / 2 + 20) beep(1500, 1150, 1500);           // its cry, if it is on this screen
       }
       if (sw.tx === null || u >= WARN + DIVE) return p;
       const ty = L.top(sw.tx, 4) + 30;                                                           // as low as a head
@@ -699,10 +707,21 @@
           const fall = m.vy;
           m.y = floor; m.vy = 0; m.ground = true; if (wasAir) beep(180);
           if (SOFT && fall < -200) s.pops.push({ x: m.x, y: m.y, at: s.t, dust: true });          // a puff of dust from a big landing
-          if (SOFT && m.want && s.t - m.want < 0.15) { jump(); if (!s.jumpKey) cut(); }           // Skok pressed just before landing
+          if (SOFT) hopped(m);
+          // Skok pressed just before landing, or pressed in the air and still held: off again
+          if (SOFT && m.want && (s.t - m.want < 0.15 || s.jumpKey)) { jump(); if (!s.jumpKey) cut(); }
         }
       }
       if (m.ground) m.left = s.t;
+    }
+    // A jump let go of too soon that did not get up onto what is in front: after the second one, a tip to hold Skok.
+    function hopped(m) {
+      const from = m.from; m.from = undefined;
+      if (!s.dir || from === undefined) return;
+      if (m.y > from + 1) { s.short = 0; return; }                                              // got up: well done
+      const gap = (b) => (s.dir > 0 ? b.x - m.x : m.x - (b.x + b.w));
+      const wall = L.blocks.some((b) => gap(b) > -2 && gap(b) < HALF + 6 && b.h > m.y + STEP && b.h < m.y + 50);
+      if (wall && m.short && ++s.short >= 2 && s.t - s.holdTold > 8) { s.holdTold = s.t; s.short = 0; say('Drž Skok déle!'); }
     }
     // At the shut door: it rattles, the padlock swings, the list shows what is still missing, and an arrow points to it.
     function knock() {
@@ -715,6 +734,14 @@
       if (n === 1) return `Ještě chybí: ${named(left[0].kind)}.`;
       if (n === 2) return `Ještě chybí: ${named(left[0].kind)} a ${named(left[1].kind)}.`;
       return `Ještě chybí: ${n} ${n < 5 ? 'věci' : 'věcí'}.`;
+    }
+    // A neighbour puts a piece out (cfg.later): it drops onto the kerb with a puff, its place on the list blinks, and an
+    // arrow points to it until it is taken.
+    function putOut(it) {
+      s.born[it.id] = s.t; if (found(it)) return;
+      s.news = it; beep(392, 523, 659);
+      s.pops.push({ x: it.x, y: it.h, at: s.t + 0.35, dust: true });
+      say(`Soused vynesl ${PIECE[it.kind][3] || named(it.kind)}!`);
     }
     // A piece taken here: it is gone from the kerb at once, its name rises from where it stood, and it flies up into the list.
     function take(it) {
@@ -757,7 +784,7 @@
       }
       for (const it of pieces) {                                                                // a piece on the list: reached when standing (or jumping) where it stands
         const d = dims(it.kind);
-        if (!found(it) && Math.abs(it.x - m.x) < d.w / 2 + HALF - 1 && m.y > it.h - 6 && m.y < it.h + d.h - 4) take(it);
+        if (!found(it) && there(it) && Math.abs(it.x - m.x) < d.w / 2 + HALF - 1 && m.y > it.h - 6 && m.y < it.h + d.h - 4) take(it);
       }
       for (const it of L.items) {
         if (pieces.includes(it)) continue;
@@ -802,7 +829,7 @@
         foes: foesNow().map((p) => ({ dx: p.x - s.me.x, y: p.y, kind: kindOf(p.id) })), wall: L.blocks.filter((b) => b.x - s.me.x > -4 && b.x - s.me.x < 26 && b.h > s.me.y + STEP).map((b) => b.h)[0] || 0,
         bubble: mateHere() && out(mate()) ? bubbleAt() : null, goal: L.goal, got: live.got.length, cool: s.me.cool,
         wallL: L.blocks.filter((b) => s.me.x - (b.x + b.w) > -4 && s.me.x - (b.x + b.w) < 26 && b.h > s.me.y + STEP).map((b) => b.h)[0] || 0,
-        list: LIST && { left: missing().map((it) => ({ kind: it.kind, x: it.x, h: it.h, w: dims(it.kind).w })), hunt: s.hunt, shut: missing().length > 0 },
+        list: LIST && { left: missing().filter(there).map((it) => ({ kind: it.kind, x: it.x, h: it.h, w: dims(it.kind).w })), hunt: s.hunt, shut: missing().length > 0, news: s.news && !found(s.news) ? s.news.kind : null },
         dives: foesNow().filter((p) => p.tx !== undefined).map((p) => ({ tx: p.tx, warn: p.warn, dive: p.dive })) }),
       sync(n) {
         const wasOut = out(who), mateWas = mateHere() && out(mate()); live = n;
@@ -823,10 +850,11 @@
       },
       over(won) {
         s.over = true; s.lost = !won; paint();
-        if (LIST) return view.end(won, won ? 'Všechno máme!' : 'Au!', won ? 'Celý seznam je hotový. Jde se zařizovat byt!' : 'Došla vám srdíčka. Zkuste to ještě jednou.');
+        const spent = mateHere() ? 'Došla vám srdíčka. Zkuste to ještě jednou.' : 'Došla ti srdíčka. Zkus to ještě jednou.';   // alone: to one child
+        if (LIST) return view.end(won, won ? 'Všechno máme!' : 'Au!', won ? 'Celý seznam je hotový. Jde se zařizovat byt!' : spent);
         const count = (k) => live.got.filter((id) => k.includes(L.items[id].kind)).length, n = count(['coin']), clues = count(['comb', 'clip']), notes = count(['note']);
         const found = cfg.gate === 'salon' ? `Sebrali jste ${n} mincí${clues ? ` a ${clues === 2 ? 'hřeben i sponku' : 'jednu stopu'}` : ''}.` : `Sebrali jste ${notes} not.`;
-        view.end(won, won ? (cfg.gate === 'salon' ? 'Jste u kadeřnictví!' : 'Jste nahoře!') : 'Au!', won ? found : 'Došla vám srdíčka. Zkuste to ještě jednou.');
+        view.end(won, won ? (cfg.gate === 'salon' ? 'Jste u kadeřnictví!' : 'Jste nahoře!') : 'Au!', won ? found : spent);
       },
       down() {},                                                                               // tapping the picture does nothing: only Skok jumps
       move() {},
@@ -841,12 +869,13 @@
         fly(dt); drift(dt);
         if (LIST) {
           for (const id of taken) if (!live.got.includes(id) && s.t - s.sent[id] > 1.5) { s.sent[id] = s.t; Net.send({ type: 'ev', e: 'got', id }); }   // in case it was lost on the way
+          for (const it of pieces) if (s.born[it.id] === undefined && there(it)) putOut(it);
           if (!s.allAt && !missing().length && !Object.keys(s.flying).length) {                  // the last piece has landed: the door opens
             s.allAt = s.t; cheer('Máme všechno!'); beep(523, 659, 784, 1047);
             s.strip.classList.add('all'); if (s.hunt) say('Dveře jsou otevřené!');
           }
         }
-        if (!m.done && !out(who) && m.x >= L.goal) { m.done = true; Net.send({ type: 'ev', e: 'finish' }); beep(784, 988, 1175); if (mateHere() && !out(mate()) && !live.fin[mate()]) say(`Hotovo! Počkej na ${heroName(mate())}.`); }
+        if (!m.done && !out(who) && m.x >= L.goal) { m.done = true; Net.send({ type: 'ev', e: 'finish' }); beep(784, 988, 1175); if (mateHere() && !out(mate()) && !live.fin[mate()]) say(`Hotovo! Počkej, ${heroName(mate())} ještě jde.`); }   // the name as it is (Czech would bend it after "na")
         if (live.fin && live.fin[who] === undefined && m.done && Net.now() - (m.sentFin || 0) > 1500) { m.sentFin = Net.now(); Net.send({ type: 'ev', e: 'finish' }); }   // in case the first was lost
         // where I am, for the other phone, a few times a second
         if (mateHere() && Net.now() - m.sent > 140) {
@@ -867,7 +896,7 @@
         for (const f of L.foes) if (f.kind === 'cone') pine(X(f.x1 + 4), Y(L.top(f.x1)));         // the spruces the cones drop from
         for (const b of L.blocks) if (b.x + b.w > cam - 4 && b.x < cam + W + 4) block(b, X(b.x));
         if (cfg.gate === 'flat') tower(X(L.goal), tt); else gate(cfg.gate, X(L.goal + 12));
-        for (const it of pieces) if (!found(it)) piece(it, X(it.x), Y(it.h), tt);
+        for (const it of pieces) if (!found(it) && there(it)) piece(it, X(it.x), Y(it.h), tt);
         for (const it of L.items) {
           if (pieces.includes(it)) continue;
           if (it.kind === 'pickup' ? live.picked || !sc.pickup : live.got.includes(it.id)) continue;
@@ -885,6 +914,7 @@
         s.pops = s.pops.filter((q) => tt - q.at < 0.8);
         for (const q of s.pops) {
           const u = (tt - q.at) / 0.8, x = X(q.x), y = Y(q.y);
+          if (u < 0) continue;                                                                     // one still to come
           if (q.got) { const r = Math.round(u * 10); rect(x - 1, y - 8 - r, 2, 2, '#FFD43A'); rect(x - 6 - r / 2, y - 4 - r, 2, 2, '#FFF1A8'); rect(x + 5 + r / 2, y - 4 - r, 2, 2, '#FFF1A8'); continue; }
           if (q.dust) { if (u < 0.4) { const r = Math.round(u * 20); rect(x - 5 - r, y - 2, 3, 2, '#E9DCCB'); rect(x + 3 + r, y - 2, 3, 2, '#E9DCCB'); rect(x - 3 - r, y - 4, 2, 1, '#F4ECE0'); rect(x + 2 + r, y - 4, 2, 1, '#F4ECE0'); } continue; }
           if (q.kind === 'ibis' || q.kind === 'magpie') { bird(q, u, x, y, tt); continue; }
@@ -917,7 +947,9 @@
     function piece(it, x, foot, tt) {
       const d = dims(it.kind); if (x < -d.w || x > W + d.w) return;
       const m = s.me, close = !out(who) && Math.abs(m.x - it.x) < d.w / 2 + 24 && Math.abs(m.y - it.h) < 30;
-      K.figure(d.sheet, x, foot - (close ? Math.round(Math.abs(Math.sin(tt * 9))) : 0), it.kind, 0, false, d.k);
+      const u = (tt - (s.born[it.id] || -9)) / 0.5;                                             // just put out: it drops in and bounces once
+      const lift = u < 0.7 ? Math.round(36 * (1 - u / 0.7) * (1 - u / 0.7)) : u < 1 ? Math.round(Math.sin((u - 0.7) / 0.3 * Math.PI) * 4) : 0;
+      K.figure(d.sheet, x, foot - lift - (close ? Math.round(Math.abs(Math.sin(tt * 9))) : 0), it.kind, 0, false, d.k);
       for (let i = 0; i < 3; i++) {
         const ph = (tt * 0.9 + i / 3 + it.id * 0.37) % 1; if (ph > 0.32) continue;
         const r = Math.round(Math.sin(ph / 0.32 * Math.PI) * 2), gx = Math.round(x + [-0.42, 0.38, -0.05][i] * d.w), gy = Math.round(foot - [0.7, 0.45, 1][i] * d.h);
@@ -946,12 +978,17 @@
         if (drop < 0.5) { ctx.save(); ctx.globalAlpha = 1 - drop * 2; K.figure('prague', x + swing, gy + 24 + fall, 'padlock', 0, false, 0.32); ctx.restore(); }
       }
     }
-    // The shadow a diving magpie will fall on: it grows darker and wider as the magpie gets ready.
+    // The shadow a diving magpie will fall on: wider than a child, it grows and darkens as the magpie gets ready, and
+    // red marks at its ends blink with the magpie's "!": step out of it.
     function shadow(p, X, Y) {
-      const u = p.warn !== undefined ? p.warn : 1, w = Math.round(5 + 8 * u), x = X(p.tx), y = Y(L.top(p.tx, 4)) + 1;
-      ctx.save(); ctx.globalAlpha = 0.3 + 0.35 * u;
-      rect(x - w, y - 1, w * 2, 2, INK); rect(x - w + 3, y - 2, w * 2 - 6, 1, INK); rect(x - w + 3, y + 1, w * 2 - 6, 1, INK);
+      const u = p.warn !== undefined ? p.warn : 1, w = Math.round(9 + 8 * u), x = X(p.tx), y = Y(L.top(p.tx, 4)) + 1;
+      ctx.save(); ctx.globalAlpha = 0.4 + 0.4 * u;
+      rect(x - w + 4, y - 2, w * 2 - 8, 1, INK); rect(x - w + 1, y - 1, w * 2 - 2, 1, INK); rect(x - w, y, w * 2, 2, INK); rect(x - w + 3, y + 2, w * 2 - 6, 1, INK);
       ctx.restore();
+      if (p.warn !== undefined && Math.floor(s.t * 8) % 2 === 0) for (const side of [-1, 1]) {
+        const ex = side < 0 ? x - w - 4 : x + w + 1;
+        rect(ex, y - 4, 3, 7, INK); rect(ex + 1, y - 3, 1, 5, '#FF4A4A');
+      }
     }
     // Knocked out: an ibis is squashed for a moment and flaps off, a magpie tumbles away; a few feathers drift down.
     function bird(q, u, x, y, tt) {
@@ -962,27 +999,31 @@
       if (K.has('kerb', pose)) K.figure('kerb', x + Math.round(e * 70 * a), foot - Math.round(e * 90) - Math.round(v * 6), pose, 0, a > 0, 0.36);
       for (let i = 0; i < 3; i++) rect(x - 6 + i * 6 + Math.round(Math.sin(u * 9 + i) * 2), foot - 14 + Math.round(u * 16) + i * 2, 2, 1, q.kind === 'magpie' && i === 1 ? INK : '#FFF8E7');
     }
-    // Where to go next. A piece left behind gets an arrow at the edge of the screen, with the piece beside it; once the
-    // shut door has said what is missing, the arrow bounces and points the way to it, and an arrow over it marks it.
+    // Where to go next. A piece left behind gets an arrow at the edge of the screen, with the piece beside it (in two,
+    // not one the other has still to walk past: that one is theirs). Once the shut door has said what is missing, or a
+    // neighbour has just put a piece out, the arrow bounces and points the way to it, and an arrow over it marks it.
     // With everything found, the arrow points to the door.
     function pointers(X, Y, tt) {
       if (s.over || s.me.done || out(who)) return;
-      const left = missing(), hop = Math.round(Math.abs(Math.sin(tt * 6)) * 3);
-      if (!left.length) {
+      const left = missing().filter(there), hop = Math.round(Math.abs(Math.sin(tt * 6)) * 3);
+      if (!missing().length) {
         if (!s.allAt) return;
         const x = X(L.goal);
         if (x > W + 4) edge(1, null, tt); else arrow(x, Y(48) - hop, 0, '#7CE07C');
         return;
       }
+      if (!left.length) return;
       const near = (list) => list.reduce((a, b) => (Math.abs(b.x - s.me.x) < Math.abs(a.x - s.me.x) ? b : a));
-      const behind = left.filter((it) => X(it.x) < -dims(it.kind).w / 2), it = s.hunt ? near(left) : behind.length ? near(behind) : null;
+      const theirs = (it) => mateHere() && !out(mate()) && !(live.fin && live.fin[mate()]) && s.mate.x < it.x - 10;
+      const news = s.news && !found(s.news) && !theirs(s.news) ? s.news : null;
+      const behind = left.filter((it) => X(it.x) < -dims(it.kind).w / 2 && !theirs(it)), it = s.hunt ? near(left) : news || (behind.length ? near(behind) : null);
       if (!it) return;
-      const x = X(it.x), d = dims(it.kind);
-      if (x < -d.w / 2) edge(-1, it, tt); else if (x > W + d.w / 2) edge(1, it, tt); else arrow(x, Y(it.h + d.h) - 4 - hop, 0, '#FFD43A');
+      const x = X(it.x), d = dims(it.kind), hot = s.hunt || it === news;
+      if (x < 6) edge(-1, it, tt, hot); else if (x > W - 6) edge(1, it, tt, hot); else arrow(x, Y(it.h + d.h) - 4 - hop, 0, '#FFD43A');   // half off the screen: the edge arrow, which is seen
     }
-    function edge(dir, it, tt) {                                                                // at the side of the screen: an arrow out, and what it points to
-      const wob = s.hunt || !it ? Math.round(Math.sin(tt * 9) * 2) * dir : 0, y = 120, tip = dir < 0 ? 2 + wob : W - 3 + wob;
-      arrow(tip, y, dir, it ? (s.hunt ? '#FFD43A' : '#FFF8E7') : '#7CE07C');
+    function edge(dir, it, tt, hot) {                                                           // at the side of the screen: an arrow out, and what it points to
+      const wob = hot || !it ? Math.round(Math.sin(tt * 9) * 2) * dir : 0, y = 120, tip = dir < 0 ? 2 + wob : W - 3 + wob;
+      arrow(tip, y, dir, it ? (hot ? '#FFD43A' : '#FFF8E7') : '#7CE07C');
       const cx = tip - dir * 26, top = y - 11;
       rect(cx - 12, top, 24, 22, INK); rect(cx - 11, top + 1, 22, 20, '#FFF8E7');
       if (it) { const [sheet] = PIECE[it.kind], sz = art(sheet, it.kind); if (sz) K.figure(sheet, cx, top + 19, it.kind, 0, false, Math.min(18 / sz[0], 17 / sz[1])); }
