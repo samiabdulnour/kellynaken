@@ -53,6 +53,7 @@ three throws that fly ahead, knock out the first thing in the way and come back.
 | `art/source/characters.webp` | The character sheet: six cards of standing figures, action poses and faces. |
 | `tools/sprites.py` | Cuts the characters: the heroes' drawn poses from `art/source/poses/`, the grown-ups' sheets of eight figures from `art/source/people/`, the faces, and rows of objects from `art/source/objects/`. Dark outlines round the characters become darker shades of their own colours. | Praděda Václav has a sheet of his own (`art/source/people/vaclav-stand.png`), drawn through Figma from a description; his face is shown with the story lines about him.
 | `tools/pixelate.py` | Shrinks those pictures to the game's true pixel size, keeping every colour and edge as painted. |
+| `tools/font.py` | Makes the game's font, Kellyn Pixel, in `game/assets/fonts/`: Pixelify Sans (SIL Open Font License, the licence beside it) with C, c and Z drawn again on its own pixel grid, so that they cannot be read as O, o and 2. Needs fontTools, brotli and skia-pathops. |
 
 All 14 scene backgrounds and all six characters are in. The objects (obstacles, targets, the puck, the bunny, the
 hockey stick, the items) are still drawn stand-ins. Until a picture exists the game draws a stand-in for it, so everything is playable before the art arrives.

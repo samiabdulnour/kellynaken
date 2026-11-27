@@ -3278,11 +3278,8 @@
     let live = sn;
     const view = stage('<span class="lives"></span><span class="meter time"><i></i></span>', 'Sbírej kousky vzkazu. Medúzu přeskoč!');
     s.tipText = view.tip.textContent;
-    // the torn note, in place of a count: an empty line for every letter, filled in as the pieces come. The pixel font
-    // draws C almost as O and Z as a 2, so on the note those two are drawn here, pixel by pixel.
-    const GLYPH = { C: ['.###', '#...', '#...', '#...', '.###'], Z: ['####', '..#.', '.#..', '#...', '####'] };          // on the font's own grid: 4 by 5
-    const glyph = (c) => (GLYPH[c] ? `<svg viewBox="0 0 4 5" preserveAspectRatio="none" role="img" aria-label="${c}"><path d="${GLYPH[c].map((row, y) => [...row].map((p, x) => (p === '#' ? `M${x} ${y}h1v1h-1z` : '')).join('')).join('')}"/></svg>` : esc(c));
-    view.hud.insertAdjacentHTML('beforeend', `<div class="note" aria-label="Vzkaz"><div>${ROWS.map((row) => `<p>${[...row].map((c) => (c === ' ' ? '<i></i>' : `<b>${glyph(c)}</b>`)).join('')}</p>`).join('')}</div></div>`);
+    // the torn note, in place of a count: an empty line for every letter, filled in as the pieces come
+    view.hud.insertAdjacentHTML('beforeend', `<div class="note" aria-label="Vzkaz"><div>${ROWS.map((row) => `<p>${[...row].map((c) => (c === ' ' ? '<i></i>' : `<b>${esc(c)}</b>`)).join('')}</p>`).join('')}</div></div>`);
     const note = view.hud.lastElementChild, cells = [...note.querySelectorAll('b')];
     const solo = () => !live.two;
     // The tide: in the last seconds, or sooner once the room has seen half the note found. Things washed up in it stay
@@ -3544,7 +3541,7 @@
           else if (!s.near && mateAt) tip = `${heroName(them)} čeká u láhve!`;
         }
         if (view.tip.textContent !== tip) view.tip.textContent = tip;
-        const label = solo() && s.near ? 'Hej rup' : 'Skok';                // (not 'Zvedni': the pixel font's Z reads as a 2)
+        const label = solo() && s.near ? 'Hej rup' : 'Skok';
         if (label !== s.label) { s.label = label; keys.label('jump', label); keys.mark('jump', label !== 'Skok'); }
         paint();
       },

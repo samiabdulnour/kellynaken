@@ -236,7 +236,6 @@ button{font:inherit;color:inherit}
 .note b{width:.85em;height:1.15em;display:grid;place-items:center;line-height:1;color:transparent;box-shadow:inset 0 -.15em 0 rgba(43,31,26,.3)}
 .note i{width:.45em}
 .note b.on{color:var(--ink);box-shadow:none;animation:notepop .4s steps(4) both}
-.note b svg{width:.52em;height:.66em;fill:currentColor;shape-rendering:crispEdges}
 @keyframes notepop{0%{transform:scale(0)}50%{transform:scale(1.6);color:var(--red)}100%{transform:none}}
 .note.full > div{animation:noteshine .25s steps(2,jump-none) 6}
 @keyframes noteshine{50%{background:var(--yellow)}}
