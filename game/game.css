@@ -157,8 +157,9 @@ button{font:inherit;color:inherit}
 @keyframes rise{to{transform:translateY(-1.5em);opacity:0}}
 .plus{position:absolute;margin:0;transform:translate(-50%,-100%);font-size:1.1em;font-weight:700;color:var(--yellow);pointer-events:none;
   text-shadow:.08em .08em 0 var(--ink);animation:rise .8s steps(5) forwards}
-/* Pop-up texts let taps through to the game under them (#ui > * above would catch them). */
-#ui > .plus, #ui > .praise, #ui > .go{pointer-events:none}
+/* Pop-up texts let taps through to the game under them (#ui > * above would catch them). Only the countdown p.go: the
+   "Svět" button also nudges with the class go, and must stay tappable. */
+#ui > .plus, #ui > .praise, #ui > p.go{pointer-events:none}
 .card .stars{font-size:2em;line-height:1;color:var(--yellow);letter-spacing:.1em;text-shadow:.06em .06em 0 var(--ink);margin:-.2em 0 -.1em}
 .pin .st{display:block;font-size:.85em;line-height:1;color:#B8862A;letter-spacing:.05em}
 /* Nábytek: the list of furniture under the bar, grey until found, then in colour with a tick. The door asks for what is
@@ -209,7 +210,6 @@ button{font:inherit;color:inherit}
 #ui > .tady{position:absolute;margin:0;transform:translate(-50%,-100%);pointer-events:none;font-size:.9em;font-weight:700;line-height:1.15;padding:0 .3em;
   color:var(--ink);background:var(--yellow);border:.17em solid var(--ink);animation:tady .45s steps(2,jump-none) infinite alternate}
 @keyframes tady{to{margin-top:-.3em}}
-#ui > .praise,#ui > .plus{pointer-events:none}
 /* The concert: four dots filling up with the clicks of the count-in (numbers would follow "2, 1, Start!" with another
    1); on each drum, with two, the face of whose drum it is; the tip just under the bar, clear of the board on the stage
    roof; three stars by the meter that light up as they are earned. */
