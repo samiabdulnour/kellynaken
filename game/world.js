@@ -199,11 +199,12 @@ window.WORLD = {
             ['', 'A nějaký čas tu žil i váš druhý praděda, Georges.', null, 'photo'],
             ['', 'Dnes se po stopách pradědy Václava vydali dva cestovatelé. Chtěli vidět místa, kde kdysi žil.', null, 'travellers'],
             ['', 'Jenže na pláži Bondi teď vyplavilo moře roztrhaný vzkaz v láhvi.'], ['hero', 'Posbíráme všechny kousky, než je vlny zase odnesou!']] },
-        { id: 'australia-sea', name: 'Na vlně', at: [136, 230], label: 'right', bg: 'australia-sea', scroll: true, play: 'run', code: 'SURF', ground: 200, tile: 'repeat', pickup: 'boomerang',
+        // Byron Bay: the bulge of the east coast north of Sydney, the easternmost point of the mainland
+        { id: 'australia-sea', name: 'Na vlně', at: [167, 106], label: 'below', bg: 'australia-sea', scroll: true, play: 'run', code: 'SURF', ground: 200, tile: 'repeat', pickup: 'boomerang',
           // `speed`: how fast the sea goes by at the start and at the end, in pixels a second; `heart`: when a heart floats by, to
           // jump into for one back (room.js: course.run lays the course out)
           run: { seconds: 40, speed: [70, 105], heart: 0.62, low: 'žralok', high: 'papoušek', board: true, art: { low: ['aussie', 'fin', 'fin2'], high: ['parrot', 'parrot1', 'parrot2'] } },
-          talk: [['', 'Za útesem se zvedají pořádné vlny. Vy to zvládnete na prkně!'], ['', 'Na prkno! Žraloka přeskoč, pod papouškem zůstaň dole.']] },
+          talk: [['', 'V Byron Bay se zvedají pořádné vlny. Vy to zvládnete na prkně!'], ['', 'Na prkno! Žraloka přeskoč, pod papouškem zůstaň dole.']] },
         // Koalas sit still, small, in the forks and on the trunks of the bush picture (S15). A hiding place is [x, y, pose]:
         // where its feet are on the picture, and whether it hugs the trunk (branch), looks round it (side) or peeks over leaves (peek).
         { id: 'australia-outback', name: 'Buš', at: [151, 102], label: 'left', bg: 'australia-bush', play: 'find', code: 'KOALA', ground: 284,

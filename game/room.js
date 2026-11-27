@@ -307,7 +307,7 @@
       // more; it is lost only when nobody is left surfing. A boomerang knocks its obstacle out for both of them.
       if (kind === 'run') {
         const team = sn.two ? ['ken', 'kel'] : [who], other = who === 'ken' ? 'kel' : 'ken', i = m.i | 0;
-        if (m.e === 'hurt' && !sn.out[who]) {
+        if (m.e === 'hurt' && !sn.out[who] && !sn.ko.includes(i)) {                     // a thing already knocked out hurts nobody (the news was slow)
           sn.hurts++;
           if (--sn.hp[who] <= 0) {
             sn.out[who] = true; sn.outs++; sn.ride[who] = 0; sn.outAt[who] = i;
