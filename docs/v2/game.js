@@ -2358,51 +2358,192 @@
   }
 
   // Finding: koalas hide in the trees. With `hidden` they sit still, small, in the forks and on the trunks, and only
-  // twitch now and then as a hint; without it they peek out for a moment and duck back. Tap one to find it.
-  // The picture may be wider than the screen: drag to look around. Both look in the same forest, so it pays to
-  // search different trees. All of them have to be found before the time runs out.
+  // twitch now and then as a hint; without it they peek out for a moment and duck back. Tap one to find it: it hops
+  // out and waves. A tap on nothing only puffs a few leaves, no harm done.
+  // The picture is wider than the screen: walk with the arrows, or drag, to look around. Both look in the same forest,
+  // Kellyn from its left end and Kendrick (with two) from its right, so each starts on trees of their own; the bar
+  // along the bottom shows where each of them is. Whoever has found nothing for a while gets help: leaves rustle by
+  // the nearest koala, or an arrow at the edge of the screen (and the arrow button) points the way to it. Help comes
+  // sooner when the time runs short and for the last two. All of them have to be found before the time runs out; with
+  // two, the goal comes down a koala at a time while one of them finds nothing (room.js), but never below one alone's.
   function Find(sc, place, sn) {
-    const cfg = sc.find, who = me(), GY = sc.ground || GROUND;
-    const { koalas } = Room.course.find(sn.seed, sc);
-    const s = { t: 0, over: false, lost: false, off: 0, got: new Set(), sent: 0, miss: null, when: {}, pan: 0, pend: null,
-      walk: { last: 0, at: -9, dir: 1 }, mate: { off: 0, at: -9, dir: 1 }, told: 0 };
-    let live = sn;
-    const view = stage('<span class="count"></span><span class="meter time"><i></i></span>', cfg.hidden ? 'Koaly se schovávají ve stromech. Choď šipkami a klepni na koalu.' : 'Koaly vykukují ze stromů. Klepni na ně, než se schovají.');
-    pad([{ id: 'left', side: 'left', press: () => { s.pan = -1; }, release: () => { s.pan = 0; } }, { id: 'right', side: 'left', press: () => { s.pan = 1; }, release: () => { s.pan = 0; } }]);
-    view.tip.classList.add('up');                                                       // the kid walks along the bottom
+    const cfg = sc.find, who = me(), placed = sn.koalas || sn.need, two = placed > cfg.need, PATH = 274, SPEED = 80, HELP = 12;
+    const COLOUR = { ken: '#CC2233', kel: '#F0448F' }, LEAF = ['#5E8C3A', '#9BC45A', '#D4E89A'];
+    const { koalas } = Room.course.find(sn.seed, sc, placed);                                // the goal may get smaller (room.js), the koalas stay
+    const s = { t: 0, over: false, lost: false, off: 0, v: 0, placed: false, got: new Set(), sent: 0, when: {}, by: {}, again: {}, pan: 0, pend: null,
+      walk: { last: 0, at: -9, dir: 1 }, mate: { off: 0, at: -9, dir: 1, yay: -9 }, told: 0, bits: [], calm: 0, hint: null, hintAt: 0, near: null,
+      tipTill: 4, misses: [], nag: -9, poof: null, edge: null, bumped: false, yay: -9, n: sn.found.length, need: sn.need, endAt: 0, hello: null };
+    for (const id of sn.found) s.when[id] = -9;                                           // found before this phone came in: no fuss
+    let live = sn, shown = '';
+    const view = stage('<span class="count"><i class="koala"></i><b></b></span><span class="meter time"><i></i></span>', 'Klepni na každou koalu!');
+    const count = view.hud.firstElementChild, time = view.hud.lastElementChild;
+    count.firstElementChild.style.backgroundImage = `url(${K.asset(`assets/sprites/${(K.sprites.koalas || {}).file || 'koalas.png'}`)})`;   // what is counted: a koala
+    view.tip.classList.add('up', 'bush');                                                  // low, over the bushes: never over the trees the koalas sit in
+    const walkKey = (id, dir) => ({ id, side: 'left', press: () => { s.pan = dir; s.bumped = false; }, release: () => { if (s.pan === dir) s.pan = 0; } });
+    const keys = pad([walkKey('left', -1), walkKey('right', 1)]);
     const pic = () => K.picture(sc.bg), width = () => (pic() ? pic().naturalWidth : W), most = () => Math.max(0, width() - W);
+    const start = (w) => (two && w === 'ken' ? most() : 0);                                // with two, Kendrick starts at the far end
     const found = (k) => s.got.has(k.id) || live.found.includes(k.id);
-    const out = (k) => { const u = s.t - k.first; return u >= 0 && u % k.period < cfg.show; };                 // peeking right now
+    const out = (k) => { const u = s.t - k.first; return u >= 0 && u % k.period < cfg.show; };                 // peeking (or twitching) right now
     const soon = (k) => { const u = s.t - k.first + 0.6; return u >= 0 && u % k.period < 0.6; };               // leaves rustle just before
-    const paint = () => { view.hud.firstElementChild.textContent = `${live.found.length} / ${live.need}`; view.hud.lastElementChild.firstElementChild.style.width = clamp(1 - s.t / cfg.seconds, 0, 1) * 100 + '%'; };
+    const nudge = (k) => s.hint === k && (s.t - s.hintAt) % 1.6 < 0.3;                      // the one the help points at twitches more often
+    const hello = (k) => s.hello === k && s.t >= 0 && s.t < 3 && !found(k);               // one in view waves hello at the start
+    const total = () => new Set([...live.found, ...s.got]).size;                           // one's own finds count at once, before the room has heard
+    const where = (k) => ({ x: Math.round(k.x - s.off), y: Math.round(cfg.hidden ? k.y - 9 : k.y) });   // the middle of a koala on the screen
+    const say = (text, secs) => { view.tip.textContent = text; s.tipTill = s.t + (secs || 3); };
+    const paint = () => {
+      const n = total(), text = `${n} / ${live.need}`, moved = n > s.n || live.need < s.need;
+      if (moved) { count.classList.remove('bump'); void count.offsetWidth; count.classList.add('bump'); }   // the count jumps when it goes up (or the goal comes down)
+      if (moved && n === live.need - 1 && !s.over) say('Poslední koala!', 4);              // low, in the tip: the trees stay in view
+      s.n = n; s.need = live.need;
+      if (text !== shown) { shown = text; count.lastElementChild.textContent = text; }
+      time.firstElementChild.style.width = clamp(1 - s.t / cfg.seconds, 0, 1) * 100 + '%';
+      time.classList.toggle('late', !s.over && s.t > 0 && cfg.seconds - s.t < 15);         // the last seconds: the bar blinks red
+    };
     paint();
     function koala(x, y, happy) {                          // a stand-in koala: round grey head, big ears
       rect(x - 9, y - 9, 6, 6, INK); rect(x + 3, y - 9, 6, 6, INK); rect(x - 8, y - 8, 4, 4, '#B9B4AE'); rect(x + 4, y - 8, 4, 4, '#B9B4AE');
       rect(x - 6, y - 6, 12, 11, INK); rect(x - 5, y - 5, 10, 9, '#A39E98'); rect(x - 1, y - 2, 2, 3, INK);
       rect(x - 4, y - 3, 2, happy ? 1 : 2, INK); rect(x + 2, y - 3, 2, happy ? 1 : 2, INK);
     }
+    // Leaves and stars flying about, kept in forest coordinates so they stay put while the view moves.
+    const fly = (x, y, vx, vy, life, c, leaf) => s.bits.push({ x: x + s.off, y, vx, vy, at: s.t, life, c, leaf });
+    const puff = (x, y) => {                                                               // a tap on leaves: a ring where it landed, and leaves fly up
+      s.poof = { x: x + s.off, y, at: s.t };
+      for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + (i - 4.5) * 0.4; fly(x, y, Math.cos(a) * (34 + (i % 3) * 10), Math.sin(a) * (46 + (i % 2) * 16), 1.1, LEAF[1 + (i % 2)], true); }
+    };
+    function find(k) {
+      s.got.add(k.id); s.when[k.id] = s.t; s.by[k.id] = who; s.calm = s.t; s.yay = s.t;
+      if (s.hint === k) s.hint = null;
+      beep(660, 880, 1320);
+      const p = where(k); plus('+1', clamp(p.x, 10, W - 10), p.y - 10);
+      for (let i = 0; i < 4; i++) fly(p.x, p.y, (i - 1.5) * 18, -50 - (i % 2) * 20, 0.9, i % 2 ? '#FFD43A' : '#FFF8E7');   // a few stars fall after the burst
+      if (s.tipTill) { s.tipTill = 0; view.tip.textContent = ''; }                          // the advice did its job
+      Net.send({ type: 'ev', e: 'find', id: k.id });
+      paint();
+    }
+    // A koala that has been found: a crouch, a hop out with a wave (eased up and down, a little bigger at first), a
+    // squash on landing, then it sits there happy with a tick over it. Tapped again it waves again; at a win all wave.
+    function cheerful(k, x, y) {
+      const since = (m) => s.t - (m[k.id] === undefined ? -9 : m[k.id]), u = Math.min(since(s.when), since(s.again)), z = cfg.size * 1.1;
+      if (!K.sprites.koalas) return koala(x, y - 6 - (u < 1.5 ? Math.round(Math.abs(Math.sin(s.t * 5)) * 2) : 0), true);
+      if (u < 0.08) return K.figure('koalas', x, y + 1, 'happy', 0, false, z * 0.85);                         // crouching, about to jump
+      if (u < 0.5) { const e = (u - 0.08) / 0.42; return K.figure('koalas', x, y - Math.round(Math.sin(e * Math.PI) * 8), 'wave', 0, false, z * (1.3 - 0.3 * e)); }
+      if (u < 0.62) return K.figure('koalas', x, y, 'wave', 0, false, z * 0.9);                               // lands, and squats a little
+      if (u < 1.8 || (s.over && !s.lost)) return K.figure('koalas', x, y - Math.round(Math.abs(Math.sin(s.t * 8 + k.id)) * 2), 'wave', 0, false, z);
+      K.figure('koalas', x, y, 'happy', 0, false, z);
+      for (const [dx, dy] of [[-3, 0], [-2, 1], [-1, 2], [0, 1], [1, 0], [2, -1], [3, -2]]) { rect(x + dx, y - 22 + dy + 1, 1, 2, INK); rect(x + dx, y - 22 + dy, 1, 2, '#7CE07C'); }   // a tick: this one is found
+    }
+    // Help by a koala on the screen: the bush beside it shakes and drops a leaf now and then.
+    function rustle(x, y) {
+      const j = Math.floor(s.t * 12) % 2;
+      if (K.sprites.koalas) { K.figure('koalas', x - 9 + j, y - 2, 'leaves', 0, false, 0.2); K.figure('koalas', x + 9 - j, y - 4, 'leaves', 0, true, 0.2); }
+      else { rect(x - 10 + j * 2, y - 6, 4, 2, '#DDE8B0'); rect(x + 6 - j * 2, y - 2, 4, 2, '#DDE8B0'); }
+    }
+    // An arrow at the edge of the screen, with a little koala by it, pointing the way to one off the screen. It nudges
+    // towards the edge, in the koala's direction.
+    function arrow(dir, ky) {
+      const y = clamp(ky, 40, 192), push = Math.round((Math.sin(s.t * 7) + 1) * 1.5), tip = dir > 0 ? W - 3 - push : 2 + push;
+      const tri = (x, n, c) => { for (let i = 0; i < n; i++) rect(x - dir * i, y - i, 1, 2 * i + 1, c); };
+      rect(dir > 0 ? tip - 15 : tip + 7, y - 3, 9, 7, INK); tri(tip + dir, 10, INK);
+      rect(dir > 0 ? tip - 14 : tip + 7, y - 2, 8, 5, '#FFD43A'); tri(tip, 8, '#FFD43A');
+      if (K.sprites.koalas) K.figure('koalas', tip - dir * 23, y + 7, 'peek', 0, dir < 0, 0.24);
+    }
+    // Four blinking corners round a koala: help that cannot be missed (at the start, and after a long while).
+    function corners(x, y, c) {
+      const w = 9 + Math.round(Math.sin(s.t * 8)), h = 11 + Math.round(Math.sin(s.t * 8));
+      for (const sx of [-1, 1]) for (const sy of [-1, 1]) {
+        const cx = x + sx * w, cy = y + sy * h;
+        rect(sx > 0 ? cx - 3 : cx, cy, 4, 1, c || '#FFD43A'); rect(cx, sy > 0 ? cy - 3 : cy, 1, 4, c || '#FFD43A');
+      }
+    }
     return {
-      s, kind: 'find', peek: () => ({ off: s.off, most: most(), out: koalas.filter((k) => !found(k) && out(k)).map((k) => ({ id: k.id, x: k.x - s.off, y: cfg.hidden ? k.y - 6 : k.y, wx: k.x })) }),
-      sync(n) { for (const id of n.found) if (!(id in s.when)) s.when[id] = s.t; live = n; paint(); },
-      fx(m) { if (m.k === 'look') { const d = m.off - s.mate.off; if (Math.abs(d) > 0.5) { s.mate.dir = Math.sign(d); s.mate.at = s.t; } s.mate.off = m.off; } },
-      over(won) { s.over = true; s.lost = !won; paint(); view.end(won, won ? 'Všechny koaly!' : 'Čas vypršel.', won ? 'Žádná se neschovala.' : `Našli jste ${live.found.length} z ${live.need}. Zkuste to ještě jednou.`); },
-      move(x, y, dx) { s.off = clamp(s.off - dx, 0, most()); s.pend = null; },
-      down(x, y) {
-        if (s.over || s.t < 0 || y < 22) return;
-        const k = cfg.hidden
-          ? koalas.find((q) => !found(q) && Math.abs(q.x - s.off - x) < 9 && y > q.y - 17 && y < q.y + 3)          // hidden ones can be tapped any time: they are just hard to see
-          : koalas.find((q) => !found(q) && out(q) && Math.hypot(q.x - s.off - x, q.y - y) < 14);
-        if (k) { s.got.add(k.id); s.when[k.id] = s.t; beep(660, 880, 1100); view.tip.textContent = ''; Net.send({ type: 'ev', e: 'find', id: k.id }); }
-        else s.pend = { x, y };                                         // a miss, unless the finger now drags to look round
+      s, kind: 'find',
+      peek: () => ({ off: s.off, most: most(), t: s.t, out: koalas.filter((k) => !found(k) && (out(k) || hello(k) || nudge(k))).map((k) => ({ id: k.id, ...where(k), wx: k.x })),
+        left: koalas.filter((k) => !found(k)).map((k) => ({ id: k.id, ...where(k), wx: k.x })), hint: s.hint && { id: s.hint.id, ...where(s.hint), wx: s.hint.x },
+        hello: s.hello && s.hello.id, mate: s.mate.off, tip: view.tip.textContent, bits: s.bits.length }),
+      sync(n) {
+        live = n;
+        for (const id of n.found) if (!(id in s.when)) {                                  // the other one found it: a soft ding, and the stars if it is in view
+          s.when[id] = s.t; s.by[id] = mate(); s.mate.yay = s.t;
+          const k = koalas[id], p = k && where(k);
+          if (k && !s.over) { beep(784); if (p.x > -4 && p.x < W + 4) plus('+1', clamp(p.x, 10, W - 10), p.y - 10, COLOUR[mate()]); }   // one low note: softer than one's own three
+        }
+        paint();
       },
-      tap() { if (s.pend && !s.over) { s.miss = { ...s.pend, at: s.t }; beep(180); } s.pend = null; },
-      update(dt) {
+      fx(m) { if (m.k === 'look') { const d = m.off - s.mate.off; if (Math.abs(d) > 0.5) { s.mate.dir = Math.sign(d); s.mate.at = s.t; } s.mate.off = m.off; } },
+      over(won) {
+        s.over = true; s.lost = !won; s.endAt = s.t; s.hint = null; s.pan = 0; keys.mark('left', false); keys.mark('right', false); paint();
+        s.tipTill = 0; view.tip.textContent = '';                                         // no advice left to give
+        const n = total(), both = two || mateHere();
+        const all = n >= koalas.length;                                                    // with two the goal may have come down: then some are still up there
+        const card = () => view.end(won, won ? (all ? 'Všechny koaly!' : 'Máte je!') : 'Čas vypršel.', won ? (all ? 'Žádná se neschovala.' : `Našli jste ${n} koal.`) : both ? `Našli jste ${n} z ${live.need}. Zkuste to znovu.` : `${who === 'kel' ? 'Našla' : 'Našel'} jsi ${n} z ${live.need}. Zkus to znovu.`);
+        if (won) setTimeout(() => { if (view.tip.isConnected) card(); }, 1500); else card();   // a win: first every koala waves in the trees, then the card (unless the scene has gone)
+      },
+      move(x, y, dx) { s.off = clamp(s.off - dx, 0, most()); s.v = 0; },
+      down(x, y) {
         if (s.over) return;
-        if (s.pan) s.off = clamp(s.off + s.pan * 70 * dt, 0, most());           // walking along the path with the arrows
-        if (Math.abs(s.off - s.walk.last) > 0.3) { s.walk.dir = Math.sign(s.off - s.walk.last); s.walk.at = s.t; s.walk.last = s.off; }   // the view moved: walking
-        if (Net.now() - s.told > 200 && s.t - s.walk.at < 0.3) { s.told = Net.now(); Net.send({ type: 'fx', k: 'look', off: Math.round(s.off) }); }
+        s.pend = { x, y };                                                                // a miss, unless it is a koala, or the finger drags to look round
+        if (s.t < 0) return;                                                               // not started yet: only leaves
+        const d = (q) => Math.hypot(q.x - s.off - x, (cfg.hidden ? q.y - 9 : q.y) - y), near = (list) => list.sort((a, b) => d(a) - d(b))[0];
+        // A finger is big: a little round each koala counts too. Not while tapping all over (three misses within 1.5 s):
+        // then only the koala itself does, so looking pays and mashing does not.
+        const slack = s.misses.filter((m) => s.t - m < 1.5).length >= 3 ? 0 : 4;
+        const at = (q) => Math.abs(q.x - s.off - x) < 7 + slack && y > q.y - 19 - slack / 2 && y < q.y + 2 + slack * 0.75;
+        const k = cfg.hidden ? near(koalas.filter((q) => !found(q) && at(q)))             // hidden ones can be tapped any time: they are just hard to see
+          : koalas.find((q) => !found(q) && out(q) && d(q) < 14);
+        if (k) { s.pend = null; return find(k); }
+        const old = cfg.hidden && near(koalas.filter((q) => found(q) && at(q)));
+        if (old) { s.pend = null; s.again[old.id] = s.t; beep(988); }                         // found already: it waves again (one note: nothing new)
+      },
+      tap() {
+        if (s.pend && !s.over) {
+          puff(s.pend.x, s.pend.y); drum('cymbal');                                        // only leaves there: a rustle, nothing lost
+          s.misses = s.misses.filter((m) => s.t - m < 3).concat(s.t);
+          if (s.misses.length >= 5 && s.t - s.nag > 5) { s.nag = s.t; say('Koukej, co se hýbe!'); }   // tapping all over: look first
+        }
+        s.pend = null;
+      },
+      update(dt) {
+        if (!s.placed && most() > 0) {                                                     // the picture is there: each to their end of the path
+          s.placed = true; s.off = s.walk.last = start(who); s.mate.off = start(mate());
+          const mid = s.off + W / 2;
+          s.hello = koalas.filter((k) => !found(k) && Math.abs(k.x - mid) < W / 2 - 16).sort((a, b) => Math.abs(a.x - mid) - Math.abs(b.x - mid))[0] || null;
+        }
         s.t = clock(live);
+        for (const b of s.bits) {
+          b.vy += (b.leaf ? 120 : 160) * dt;
+          if (b.leaf) { b.vx *= 1 - 3 * dt; b.vy = Math.min(b.vy, 24); b.x += Math.sin((s.t - b.at) * 9 + b.life * 7) * 10 * dt; }   // leaves flutter down
+          b.x += b.vx * dt; b.y += b.vy * dt;
+        }
+        s.bits = s.bits.filter((b) => s.t - b.at < b.life);
+        if (s.over) {
+          if (!s.lost && s.t - s.endAt < 2.5 && Math.random() < 0.5) fly(Math.random() * W, 20 + Math.random() * 30, (Math.random() - 0.5) * 30, 10, 1.4, Math.random() < 0.5 ? '#FFD43A' : '#FFF8E7');   // a shower of stars
+          return;
+        }
+        // Walking with the arrows: it speeds up and slows down rather than jerking. The end of the path is shown, not
+        // just stopped at: a bump and a low note.
+        s.v += (s.pan * SPEED - s.v) * Math.min(1, dt * 8);
+        if (!s.pan && Math.abs(s.v) < 1) s.v = 0;
+        const was = s.off; s.off = clamp(s.off + s.v * dt, 0, most());
+        if (s.pan && s.off === was) { s.v = 0; if (!s.bumped) { s.bumped = true; s.edge = { at: s.t, dir: s.pan }; beep(196); } }
+        if (Math.abs(s.off - s.walk.last) > 0.3) { s.walk.dir = Math.sign(s.off - s.walk.last); s.walk.at = s.t; s.walk.last = s.off; }   // the view moved: walking
+        if (Net.now() - s.told > (s.t - s.walk.at < 0.3 ? 200 : 1500)) { s.told = Net.now(); Net.send({ type: 'fx', k: 'look', off: Math.round(s.off) }); }   // where one is, for the other one's bar
         if (s.t >= cfg.seconds && Net.now() - s.sent > 1000) { s.sent = Net.now(); Net.send({ type: 'ev', e: 'finish' }); }
+        if (s.tipTill && s.t > s.tipTill) { s.tipTill = 0; view.tip.textContent = ''; }
+        // Help for whoever has found nothing for a while (never before HELP seconds into the hunt): sooner when they are
+        // behind the clock, sooner still a koala or two behind (one of two may be stuck or away), and for the last two.
+        const left = koalas.filter((k) => !found(k)), lag = (s.t / cfg.seconds - total() / live.need) * live.need;   // in koalas
+        const wait = s.t < HELP ? HELP : lag >= 2 ? 3 : left.length <= 2 || lag >= 1 ? 5 : lag > 0 ? 7 : HELP;
+        if (s.hint && found(s.hint)) { s.hint = null; s.calm = Math.max(s.calm, s.t - wait + 4); }   // the other one got it: a moment, then the next
+        if (!s.hint && left.length && s.t - s.calm >= wait) {
+          const mid = s.off + W / 2;
+          s.hint = left.reduce((a, b) => (Math.abs(b.x - mid) < Math.abs(a.x - mid) ? b : a)); s.hintAt = s.t; s.near = null;
+        }
+        const hx = s.hint ? s.hint.x - s.off : 0, side = !s.hint ? null : hx < 0 ? 'left' : hx > W ? 'right' : 'here';   // here once half of it shows
+        if (s.hint && (side === 'here') !== s.near) { s.near = side === 'here'; say(s.near ? 'Tady něco šustí!' : 'Jdi za šipkou!'); }
+        keys.mark('left', side === 'left'); keys.mark('right', side === 'right');      // the button to press blinks too
+        if (side === 'here' && Math.floor(s.t / 0.35) !== Math.floor((s.t - dt) / 0.35)) fly(hx + (Math.random() - 0.5) * 14, s.hint.y - 20, (Math.random() - 0.5) * 10, 0, 1.2, LEAF[Math.floor(Math.random() * 3)], true);
         paint();
       },
       draw() {
@@ -2411,10 +2552,14 @@
         const art = !!K.sprites.koalas;                                                     // drawn koalas once they exist, stand-ins before
         for (const k of koalas) {
           const x = Math.round(k.x - off), y = Math.round(k.y);
-          if (x < -12 || x > W + 12) continue;
+          if (x < -14 || x > W + 14) continue;
+          if (cfg.hidden && found(k)) { cheerful(k, x, y); continue; }
           if (cfg.hidden && art) {                                                           // small and still; a twitch now and then gives one away
-            if (found(k)) { const fresh = s.t - (s.when[k.id] || 0) < 1.5; K.figure('koalas', x, y - (fresh ? Math.round(Math.abs(Math.sin(s.t * 8)) * 3) : 0), fresh ? 'wave' : 'happy', s.t, false, cfg.size * 1.1); rect(x - 1, y - 22, 3, 3, '#1FA463'); }
-            else K.figure('koalas', x, y - (out(k) ? 1 : 0), k.pose, s.t, out(k) ? Math.floor(s.t * 12) % 2 === 0 : k.x > width() / 2, cfg.size);
+            if (s.hint === k && !s.over) rustle(x, y);
+            if (hello(k)) { K.figure('koalas', x, y - Math.round(Math.abs(Math.sin(s.t * 6)) * 2), 'wave', 0, false, cfg.size); continue; }
+            if (s.over) { K.figure('koalas', x, y - Math.round(Math.abs(Math.sin(s.t * 6 + k.id)) * 2), 'wave', 0, false, cfg.size); continue; }   // the ones not found come out at the end: there they were
+            const tw = out(k) || nudge(k);
+            K.figure('koalas', x, y - (tw ? 1 : 0), k.pose, s.t, tw ? Math.floor(s.t * 12) % 2 === 0 : k.x > width() / 2, cfg.size);
             continue;
           }
           if (found(k)) {
@@ -2422,24 +2567,57 @@
             if (art) K.figure('koalas', x, y + 11 - bob, s.t - (s.when[k.id] || 0) < 1.5 ? 'wave' : 'happy', s.t, k.x > width() / 2); else koala(x, y - bob, true);
             continue;
           }
-          if (out(k)) { if (art) K.figure('koalas', x, y + 11, k.id % 2 ? 'side' : 'peek', s.t, k.id % 2 && k.x < width() / 2); else koala(x, y, false); }
-          else if (soon(k)) {                                                                // a rustle in the leaves, just before
+          if (out(k) || s.lost) { if (art) K.figure('koalas', x, y + 11, k.id % 2 ? 'side' : 'peek', s.t, k.id % 2 && k.x < width() / 2); else koala(x, y, false); }
+          else if (soon(k) || s.hint === k) {                                                // a rustle in the leaves, just before
             const j = Math.floor(s.t * 14) % 2;
             if (art) K.figure('koalas', x + j - 1, y + 11, 'leaves', s.t);
             else { rect(x - 8 + j * 2, y - 2, 4, 2, '#DDE8B0'); rect(x + 4 - j * 2, y + 2, 4, 2, '#DDE8B0'); }
           }
         }
-        if (s.miss && s.t - s.miss.at < 0.25) { const { x, y } = s.miss; rect(x - 4, y - 1, 8, 2, '#FFF8E7'); rect(x - 1, y - 4, 2, 8, '#FFF8E7'); }
-        for (const k of koalas) {                                         // a burst of stars round a koala just found
-          const u = s.t - (s.when[k.id] === undefined ? -9 : s.when[k.id]); if (u < 0 || u > 0.7) continue;
-          const x = k.x - s.off, y = (cfg.hidden ? k.y - 6 : k.y) - 4;
-          for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2, r = 6 + u * 22; rect(Math.round(x + Math.cos(a) * r), Math.round(y + Math.sin(a) * r), 2, 2, i % 2 ? '#FFD43A' : '#FFF8E7'); }
+        for (const b of s.bits) {                                                           // leaves fluttering, stars falling
+          const x = Math.round(b.x - off), y = Math.round(b.y), u = (s.t - b.at) / b.life;
+          if (u > 0.7 && Math.floor(s.t * 16) % 2) continue;
+          if (b.leaf) { const flat = Math.sin((s.t - b.at) * 12 + b.life * 5) > 0, w = flat ? 3 : 2, h = flat ? 2 : 3; rect(x - 1, y, w + 2, h + 1, '#2E4A1E'); rect(x, y, w, h, b.c); }   // a leaf turning as it falls, with a dark edge to stand out
+          else rect(x - 1, y - 1, 2, 2, b.c);
+        }
+        if (s.poof && s.t - s.poof.at < 0.35) {                                             // where a tap on leaves landed: a ring of puffs spreading out, eased
+          const u = (s.t - s.poof.at) / 0.35, r = 3 + (1 - (1 - u) ** 2) * 8, x = Math.round(s.poof.x - off), y = Math.round(s.poof.y);
+          for (let i = 0; i < 8; i++) {
+            const a = i / 8 * Math.PI * 2, px = Math.round(x + Math.cos(a) * r) - 1, py = Math.round(y + Math.sin(a) * r) - 1;
+            rect(px + 1, py + 1, 2, 2, INK); rect(px, py, 2, 2, '#FFF8E7');
+          }
+        }
+        for (const k of koalas) {                                         // a flash and a burst of stars round a koala just found, in the finder's colour
+          const u = s.t - (s.when[k.id] === undefined ? -9 : s.when[k.id]); if (u < 0 || u > 0.8) continue;
+          const { x, y } = where(k), e = 1 - (1 - u / 0.8) ** 3, c = s.by[k.id] === mate() ? COLOUR[mate()] : '#FFD43A';
+          if (u < 0.12) { rect(x - 8, y, 17, 1, '#FFF8E7'); rect(x, y - 8, 1, 17, '#FFF8E7'); }
+          for (let i = 0; i < 8; i++) {
+            if (u > 0.55 && (i + Math.floor(u * 24)) % 2) continue;
+            const a = i / 8 * Math.PI * 2 + 0.4, r = 4 + e * 18;
+            rect(Math.round(x + Math.cos(a) * r) - 1, Math.round(y + Math.sin(a) * r) - 1, 2, 2, i % 2 ? c : '#FFF8E7');
+          }
+        }
+        if (!s.over) {
+          if (s.hello && hello(s.hello)) { const { x, y } = where(s.hello); if (Math.floor(s.t * 4) % 2 === 0) corners(x, y); }   // this is what a koala looks like
+          if (s.hint) {                                                                      // help: corners round it after a long wait, or the way to it
+            const { x, y } = where(s.hint);
+            if (x >= 0 && x <= W) { if (s.t - s.hintAt > 8 && Math.floor(s.t * 4) % 2 === 0) corners(x, y); }
+            else arrow(x < 0 ? -1 : 1, y);
+          }
         }
         // the kids on the path: one's own in the middle of the view, the other where they have walked to on theirs
-        const walking = (w) => s.t - w.at < 0.2, PATH = 274;
-        if (mateHere()) { const mx = s.mate.off + W / 2 - off; if (mx > -20 && mx < W + 20) K.hero(mate(), mx, PATH - 2, walking(s.mate) ? 'run' : 'stand', s.t * 0.6, s.mate.dir < 0); }
-        K.hero(who, W / 2, PATH, s.lost ? 'dizzy' : walking(s.walk) ? 'run' : 'stand', s.t * 0.6, s.walk.dir < 0);
-        if (most() > 0) { rect(W / 2 - 20, H - 6, 40, 2, 'rgba(43,31,26,.6)'); rect(W / 2 - 20 + Math.round(off / most() * 30), H - 6, 10, 2, '#FFD43A'); }   // where in the forest one is looking
+        const walking = (w) => s.t - w.at < 0.2, won = s.over && !s.lost, bump = s.edge && s.t - s.edge.at < 0.3;
+        if (mateHere()) { const mx = s.mate.off + W / 2 - off; if (mx > -20 && mx < W + 20) K.hero(mate(), mx, PATH - 2, won || s.t - s.mate.yay < 0.6 ? 'cheer' : walking(s.mate) ? 'run' : 'stand', s.t * 0.6, s.mate.dir < 0); }
+        const nx = bump ? Math.round(Math.sin((s.t - s.edge.at) / 0.3 * Math.PI) * 3) * s.edge.dir : 0;   // bumps into the end of the path and back
+        K.hero(who, W / 2 + nx, PATH, s.lost ? 'dizzy' : won || s.t - s.yay < 0.6 ? 'cheer' : walking(s.walk) && !bump ? 'run' : 'stand', s.t * 0.6, s.walk.dir < 0);
+        if (most() > 0) {                                                                   // where in the forest each of them is: one's own view in yellow, the kids as pins in their colours
+          const BW = 56, bx = W / 2 - BW / 2, by = H - 7, at = (wx) => bx + Math.round(wx / width() * BW), vw = Math.max(4, Math.round(W / width() * BW));
+          const pin = (wx, c) => { const px = clamp(at(wx), bx + 1, bx + BW - 1); rect(px - 2, by - 4, 4, 9, INK); rect(px - 1, by - 3, 2, 7, c); };
+          rect(bx - 1, by - 1, BW + 2, 5, INK); rect(bx, by, BW, 3, '#7A6F6A');
+          rect(at(off), by, vw, 3, bump && Math.floor(s.t * 24) % 2 ? '#FFF8E7' : '#FFD43A');
+          if (mateHere()) pin(s.mate.off + W / 2, COLOUR[mate()]);
+          pin(off + W / 2, COLOUR[who]);
+        }
       },
     };
   }
@@ -3232,89 +3410,303 @@
     };
   }
 
-  // The reef: the two of them are stranded on the rock. First throw lifebuoys to them: a meter swings up and down,
-  // tap to throw, and the buoy has to land right by them. When enough have reached them, they hold on and the heroes
-  // pull them across to the jetty, tapping as fast as they can, before the shark gets there.
+  // The reef: the two of them are stranded on the rock, and a shark circles it. First throw lifebuoys to them: a needle
+  // rises and falls by the hero, and a buoy thrown while it is in the green comes down in the ring on the rock. One buoy
+  // at a time; after a miss a new one has to be fetched, and a press while there is none (or a finger hammering away)
+  // only gets a "Počkej!". Now and then the shark dashes at the jetty: a buoy thrown just then is knocked away. Once
+  // enough have reached them, they hold on to a raft and the heroes pull them across on a rope, a tap a tug, while the
+  // shark bites the raft now and then and drags it back. With two, each loses only buoys of their own, and pulling in
+  // turn (hej, rup!) pulls harder: the rope lights up.
   function Rescue(sc, place, sn) {
-    const cfg = sc.rescue, who = me(), GY = sc.ground || GROUND, G = 520, HX = 34, HY = GY - 26, LAND = cfg.land;
-    const s = { t: 0, over: false, lost: false, buoys: [], mateBuoys: [], cool: 0, taps: 0, sentTaps: 0, lastSend: 0, splash: [], stuck: 0 };
+    const cfg = sc.rescue, who = me(), GY = sc.ground || GROUND, G = 520, VY = 300, HX = 34, MX = HX + 22, HY = GY - 26, LAND = cfg.land;
+    const plan = Room.course.rescue(sn.seed, sc, sn.two), WATER = 182, JET = { x: 48, y: 192 };   // where a buoy in the sea splashes; where the shark dashes at the jetty
+    const FLY = (VY + Math.sqrt(VY * VY - 2 * G * (HY - LAND.y))) / G;                     // seconds a buoy flies before it comes down on the rock
+    const ease = (u) => { u = clamp(u, 0, 1); return u * u * (3 - 2 * u); };
+    const s = { t: 0, over: false, lost: false, buoys: [], parts: [], u: 0, cool: 0, flying: false, mark: null, ring: null, noAt: -9, nos: 0, waitAt: -9, beepAt: -9,
+      throwAt: -9, mateAt: -9, catchAt: -9, catcher: 0, pile: sn.hits, lunge: null, warned: false, tip: '', tipTill: 0, left: sn.left[who],
+      taps: sn.tugs[who], sentTaps: sn.tugs[who], lastSend: 0, f: 0, tugAt: -9, mateTugAt: -9, beads: [], ropeAt: -9, said: -1, combo: 0 };
     let live = sn, stage0 = sn.stage;
-    const view = stage('<span class="lives"></span><span class="count"></span><span class="meter"><i></i></span>', 'Hoď, když je ručička v zeleném!');
-    const keys = pad([{ id: 'act', label: 'Hoď', big: true, press: () => press() }]);
-    const meter = (t) => (Math.sin(t * 2.6) + 1) / 2;                                    // swings 0..1
+    const view = stage('<span class="lives buoys"></span><span class="count"></span><span class="meter"><i></i></span>', '');
+    const keys = pad([{ id: 'act', label: sn.stage === 'pull' ? 'Táhni!' : 'Hoď', big: true, press: () => press() }], 'reef');
+    const btn = K.ui.querySelector('.pad.reef [data-k="act"]');
+    const wait = add(`<p class="reef-wait" style="${pinAt([17, 118])}">Počkej!</p>`);
     const pulling = () => live.stage === 'pull';
-    const pullT = () => ((live.paused || Net.now()) - live.pullAt) / 1000;              // stands still while paused
+    const nowR = () => live.paused || Net.now();
+    const pullT = () => (nowR() - live.pullAt) / 1000;                                  // stands still while paused
+    const mine = () => live.left[who];
+    const needle = () => (s.u < 1 ? s.u : 2 - s.u);                                     // up the meter and down again, steadily
+    // a buoy in hand, and a finger that has been still for a moment: while it hammers away, the needle waits at the bottom
+    const ready = () => !s.flying && s.cool <= 0 && mine() > 0 && s.t - s.noAt >= 0.4;
+    const inGreen = (p) => p >= cfg.green[0] && p <= cfg.green[1];
+    // the needle is slow for the first buoy and quicker with every one caught
+    const speed = () => cfg.swing[0] + (cfg.swing[1] - cfg.swing[0]) * clamp(live.hits / Math.max(1, live.needHits - 1), 0, 1);
+    const danger = () => !!s.lunge && s.t > s.lunge.at - 1.4 && s.t < s.lunge.at + 0.8;   // the shark is coming at the jetty: not now
+    const throwNow = () => ready() && inGreen(needle()) && !danger();                   // the moment to throw
+    // how far the raft has come: what the room counted, less what the shark has dragged back since, and the taps not yet counted
+    // what a tap of mine counts, as the room counts it: more the longer the other has let go of the rope
+    const weight = () => (live.two ? 1 + (live.needPull / cfg.pull - 1) * clamp((Net.now() - live.tugAt[mate()] - 400) / 800, 0, 1) : 1);
+    const progress = () => Math.max(0, live.pull - Room.course.dragged(plan, live.pullAt, live.pullT, nowR())) + Math.max(0, s.taps - live.tugs[who]) * weight();
+    const surge = (T) => plan.surges.find((q) => T > q.at - 1.2 && T < q.at + q.len + 0.8);
+    const myTurn = () => live.two && live.lastTug === mate() && Net.now() - live.lastTugAt < 1000 && live.lastTugAt > s.lastSend;   // the rope is with me
+    const bonus = () => myTurn() && live.turns >= 2 && Net.now() - live.lastTugAt >= 180 && Net.now() - live.comboAt >= 300;   // this tap will be one tug more
+    // A line of advice for a while; then back to the one that stands (only the first throw has one).
+    const say = (text, secs) => { s.tip = text; s.tipTill = secs ? s.t + secs : 0; };
+    const advice = () => (pulling() ? '' : !live.hits && !s.pile ? 'Hoď, když je ručička v zeleném!' : live.two && mine() <= 0 ? `Došly ti kruhy. Hází ${heroName(mate())}.` : live.two && live.left[mate()] <= 0 ? `${heroName(mate())} nemá kruhy. Trefuj!` : '');
     const paint = () => {
-      hearts(view.hud.children[0], live.lives, sn.lives);
-      view.hud.children[1].textContent = pulling() ? `${Math.min(live.pull, live.needPull)} / ${live.needPull}` : `${live.hits} / ${live.needHits}`;
-      view.hud.children[2].firstElementChild.style.width = (pulling() ? clamp(live.pull / live.needPull, 0, 1) : clamp(live.hits / live.needHits, 0, 1)) * 100 + '%';
+      const lv = view.hud.children[0];
+      if (lv.dataset.n !== String(mine())) {                                          // the buoy lost sinks away; one handed back pops in
+        const was = lv.dataset.n === undefined ? mine() : +lv.dataset.n;
+        hearts(lv, mine(), Math.max(sn.left[who], mine())); lv.dataset.n = mine();
+        const i = lv.children[was > mine() ? mine() : mine() - 1]; if (i && was !== mine()) i.classList.add(was > mine() ? 'gone' : 'new');
+      }
+      view.hud.children[1].textContent = pulling() ? `${Math.min(Math.floor(s.f * live.needPull), live.needPull)} / ${live.needPull}` : `${s.pile} / ${live.needHits}`;
+      view.hud.children[2].firstElementChild.style.width = (pulling() ? clamp(s.f, 0, 1) : clamp(s.pile / live.needHits, 0, 1)) * 100 + '%';
     };
     paint();
-    function launch(list, p, x0) { list.push({ x: x0, y: HY, vx: 20 + 190 * p, vy: -300, done: false }); }
-    function press() {                                                                    // throw a lifebuoy, or once they hold on, pull
-      if (s.over || s.t < 0) return;
-      if (pulling()) { if (pullT() >= 0) { s.taps++; beep(300 + (s.taps % 4) * 40); } return; }
-      if (s.cool > 0) return;
-      const p = meter(s.t); launch(s.buoys, p, HX); s.cool = 0.9; beep(440, 660);
-      Net.send({ type: 'fx', k: 'buoy', p });
+    function burst(x, y, n, colors, up, wide, fall) {                                    // a few pixels flying out: spray, sparkles
+      for (let i = 0; i < n; i++) {
+        const a = (i / n) * Math.PI * 2 + Math.random() * 0.5;
+        s.parts.push({ x, y, vx: fall ? (Math.random() - 0.5) * wide : Math.cos(a) * wide, vy: fall ? -up * (0.55 + Math.random() * 0.6) : Math.sin(a) * up, g: fall ? 420 : 0, c: colors[i % colors.length], at: s.t, life: 0.45 + Math.random() * 0.25 });
+      }
     }
+    const spray = (x, y, n) => burst(x, y, n || 10, ['#FFFFFF', '#BFE8F5', '#FFFFFF', '#7FC8E8'], 120, 70, true);
+    // Where a buoy thrown with the needle at p comes down, and what becomes of it (decided when it leaves the hand).
+    function fate(p, t0) {
+      const x = HX + (20 + 190 * p) * FLY, q = s.lunge;
+      if (q && t0 > q.at - 0.25 && t0 < q.at + 0.8) return 'shark';
+      return Math.abs(x - LAND.x) <= LAND.w ? 'hit' : x < LAND.x ? 'short' : 'long';
+    }
+    // A buoy in the air, from x0 (one's own hand or the other's) to the same spot either way.
+    function launch(p, x0, real, out) {
+      const land = HX + (20 + 190 * p) * FLY, knockAt = out === 'shark' ? Math.max(s.t + 0.12, s.lunge ? s.lunge.at : 0) : null;
+      s.buoys.push({ x: x0, y: HY, vx: (land - x0) / FLY, vy: -VY, real, out, knockAt, knocked: false, spin: 0 });
+    }
+    function press() {                                                                    // throw a lifebuoy, or once they hold on, pull
+      if (s.over) return;
+      if (s.t < 0) { no(); return; }                                                      // 2, 1, Start! first
+      if (pulling()) return tug();
+      if (mine() <= 0) { no(); return; }
+      if (!ready()) { no(); return; }                                                     // none in hand yet, or a finger hammering away
+      if (s.u < cfg.green[0]) { no(true); return; }                                       // the needle is still climbing to the green: too soon, not a weak throw
+      const p = needle(), out = fate(p, s.t);
+      s.flying = true; s.u = 0; s.throwAt = s.t; s.mark = { p, at: s.t, ok: null }; s.nos = 0;
+      launch(p, HX, true, out);
+      beep(520, 780);
+      Net.send({ type: 'fx', k: 'buoy', p, out });
+    }
+    // A press that cannot do anything now: the button shakes, "Počkej!" by the meter, and a low tick (not on every press of a hammering finger).
+    // Each one holds the next buoy back a moment (see ready); one too soon on the climbing needle does not, it just says so.
+    function no(soon) {
+      if (!soon) s.noAt = s.t;
+      s.waitAt = s.t; s.nos++; wait.textContent = soon ? 'Ještě ne!' : !pulling() && mine() <= 0 ? 'Nemáš kruh' : 'Počkej!';
+      for (const el of [btn, wait]) if (el) { el.classList.remove('no', 'on'); void el.offsetWidth; el.classList.add(el === wait ? 'on' : 'no'); }
+      if (s.t - s.beepAt > 0.3) { s.beepAt = s.t; beep(150); }
+      if (!pulling() && mine() > 0 && s.nos >= 4) say('Počkej na zelenou!', 2.5);
+    }
+    function tug() {
+      const T = pullT();
+      if (T < 0) { no(); return; }                                                        // 3, 2, 1 first
+      const turn = myTurn(), gold = bonus();
+      s.taps++; s.tugAt = s.t; s.beads.push({ at: s.t, x: HX + 8, gold });
+      if (gold) beep(660, 880); else beep(300 + (s.taps % 4) * 40);
+      if (turn) flush();                                                                  // pulling in turn: tell the room at once
+    }
+    function flush() {
+      const n = Math.min(12, s.taps - s.sentTaps); if (n <= 0) return;
+      Net.send({ type: 'ev', e: 'pull', n }); Net.send({ type: 'fx', k: 'tug', n });
+      s.sentTaps += n; s.lastSend = Net.now();
+    }
+    // A buoy comes down: caught on the rock, or into the sea with a splash.
+    function caught(b) {
+      b.done = true; s.catchAt = s.t; s.catcher = (s.catcher + 1) % 2; s.ring = { at: s.t, ok: true };
+      burst(LAND.x, LAND.y - 6, 12, ['#FFD43A', '#FFFFFF', '#7CE07C'], 50, 50, false);
+      beep(660, 880, 1100);
+      const id = (sc.cast || [])[s.catcher];
+      plus(id === 'zofia' ? 'Chytila!' : 'Chytil!', LAND.x, LAND.y - 48);
+      if (b.real) { s.pile = Math.max(s.pile, live.hits + 1); s.flying = false; s.cool = 0.5; if (s.mark) s.mark.ok = true; Net.send({ type: 'ev', e: 'hit' }); say('', 0); }
+    }
+    function splash(b) {
+      b.done = true; const x = clamp(b.x, 6, 186), y = b.knocked ? JET.y + 2 : WATER;
+      spray(x, y, 12); s.parts.push({ ring: true, x, y: y + 2, at: s.t, life: 0.5 });
+      beep(180, 110);
+      if (!b.knocked) s.ring = { at: s.t, ok: false };
+      if (b.real) {
+        s.flying = false; s.cool = 1.8;                                                      // a new buoy has to be fetched
+        if (s.mark) s.mark.ok = false;
+        if (!b.knocked) { Net.send({ type: 'ev', e: 'miss' }); say(b.out === 'short' ? 'Kousek dál!' : 'Moc daleko!', 1.6); }
+      }
+    }
+    function knock(b) {                                                                      // the shark leaps into it: away it goes
+      b.knocked = true; b.vx = -40 - Math.random() * 30; b.vy = -170; spray(b.x, b.y, 8); beep(130, 90);
+      if (b.real) { Net.send({ type: 'ev', e: 'miss' }); say('Žralok ho odrazil!', 1.8); }
+    }
+    // The shark during the throws: circling in front of the rock, or, during a dash, out to the jetty, up out of the
+    // water and back. y is where the water is; `up` how far it leaps.
+    function shark(t) {
+      const a = t * 0.7, cx = 100 + Math.cos(a) * 64, cy = 180 + Math.sin(a) * 6, round = { x: cx, y: cy, left: Math.sin(a) > 0, size: 0.3 + 0.05 * (Math.sin(a) + 1) / 2, up: 0 };
+      const q = s.lunge; if (!q) return round;
+      if (t < q.at) { const e = ease((t - q.at + 1.4) / 1.4); return { x: cx + (JET.x - cx) * e, y: cy + (JET.y - cy) * e, left: JET.x < cx, size: round.size + (0.36 - round.size) * e, up: 0, warn: true }; }
+      if (t < q.at + 0.8) { const u = (t - q.at) / 0.8; return { x: JET.x, y: JET.y, left: true, size: 0.36, up: Math.round(Math.sin(u * Math.PI) * 14), snap: true }; }
+      const e = ease((t - q.at - 0.8) / 1.2); return { x: JET.x + (cx - JET.x) * e, y: JET.y + (cy - JET.y) * e, left: cx < JET.x, size: 0.36 + (round.size - 0.36) * e, up: 0 };
+    }
+    // The shark during the pull: off to the side of the raft, closer as time runs out; biting the raft during a surge.
+    function sharkPull(T, rx, ry) {
+      const q = surge(T), d0 = 8 + 50 * (1 - clamp(T / cfg.seconds, 0, 1));
+      const k = !q ? 0 : T < q.at ? ease((T - q.at + 1.2) / 1.2) : T < q.at + q.len ? 1 : 1 - ease((T - q.at - q.len) / 0.8);
+      const d = d0 + (3 - d0) * k, shake = k === 1 ? Math.round(Math.sin(T * 40)) : 0;
+      return { x: rx + 12 + d + shake, y: ry + 4 + Math.round(Math.sin(T * 2.3) * 3 * (1 - k)), left: true, size: 0.3 + 0.1 * s.f, up: 0, warn: !!q && T < q.at, bite: k === 1 };
+    }
+    function drawShark(f) {
+      if (!K.has('aussie', 'fin')) return;
+      if (f.up) rect(f.x - 10, f.y - 1, 20, 1, '#FFFFFF');                                 // where it broke the water
+      K.figure('aussie', f.x, f.y - f.up, Math.floor(s.t * 5) % 2 ? 'fin' : 'fin2', 0, f.left, f.size);
+      if (f.warn && Math.floor(s.t * 6) % 2) {                                              // "!" over it: here it comes
+        const x = Math.round(f.x) - 1, y = Math.round(f.y - 34);
+        rect(x - 1, y - 1, 5, 12, INK); rect(x, y, 3, 6, '#FF5A4A'); rect(x, y + 8, 3, 2, '#FF5A4A');
+      }
+    }
+    // The ring on the rock where a buoy must come down, a bright patch going round it. Blinking when it is the moment to throw;
+    // green for a moment after a catch, red after a miss. Drawn in two halves: the back behind their feet, the front before.
+    function ring(front) {
+      const r = s.ring, age = r ? s.t - r.at : 9, flash = age < 0.5, lit = throwNow();
+      const c = flash ? (r.ok ? '#7CE07C' : Math.floor(age * 10) % 2 ? '#FF5A4A' : '#FFFFFF') : lit && Math.floor(s.t * 8) % 2 ? '#FFFFFF' : '#FFD43A';
+      const rx = LAND.w + (flash && r.ok ? Math.round(age * 12) : lit ? 1 : 0), ry = Math.round(rx / 3.6), N = 72, spin = Math.floor(s.t * 24);
+      for (let k = 0; k < N; k++) {
+        const a = (k / N) * Math.PI * 2; if ((Math.sin(a) >= 0) !== front) continue;
+        const x = LAND.x + Math.round(Math.cos(a) * rx), y = LAND.y - 3 + Math.round(Math.sin(a) * ry);
+        rect(x, y + 1, 1, 1, INK); rect(x, y, 1, 1, !flash && (k + spin) % 24 < 4 ? '#FFFFFF' : c);   // a bright patch going round
+      }
+    }
+    const buoyPic = (x, y, size) => { if (K.has('beach', 'buoy')) K.figure('beach', x, y, 'buoy', 0, false, size); else rect(x - 4, y - 8, 8, 8, '#CC2233'); };
     return {
-      s, kind: 'rescue', peek: () => ({ stage: live.stage, meter: meter(s.t), cool: s.cool, pullT: pullT() }),
+      s, kind: 'rescue', peek: () => ({ stage: live.stage, meter: needle(), cool: ready() ? 0 : 1, danger: danger(), pullT: pullT(), left: mine(), f: s.f }),
       sync(n) {
-        live = n; paint();
-        if (n.stage !== stage0) { stage0 = n.stage; keys.label('act', 'Táhni!'); beep(520, 660, 780); }
+        live = n;
+        if (n.stage !== stage0) { stage0 = n.stage; keys.label('act', 'Táhni!'); beep(520, 660, 780); s.buoys = []; s.ropeAt = s.t; say('', 0); }
+        if (n.left[who] < s.left) { const lv = view.hud.children[0]; lv.classList.remove('hit'); void lv.offsetWidth; lv.classList.add('hit'); }   // a buoy lost
+        if (n.left[who] > s.left && !s.over) { cheer('Máš nový kruh!'); beep(520, 660, 880); }   // the other one's catch brought one back
+        s.left = n.left[who];
+        if (n.hits > s.pile) s.pile = n.hits;
+        paint();
       },
-      fx(m) { if (m.k === 'buoy') launch(s.mateBuoys, m.p, HX); },                      // the same arc as on their own screen
-      over(won) { s.over = true; s.lost = !won; paint(); view.end(won, won ? 'Jsou na molu!' : pulling() ? 'Žralok byl rychlejší!' : 'Došly záchranné kruhy.', won ? 'Žralok odplouvá s prázdnou.' : 'Zkuste to ještě jednou.'); },
+      fx(m) {
+        if (m.k === 'buoy' && !pulling()) { s.mateAt = s.t; launch(+m.p || 0, MX, false, m.out); beep(600); }   // the same buoy, from their hands to the same spot
+        if (m.k === 'tug' && pulling()) { s.mateTugAt = s.t; s.beads.push({ at: s.t, x: MX + 8, gold: false }); }
+      },
+      over(won) { s.over = true; s.lost = !won; wait.remove(); if (won && pulling()) s.f = 1; paint(); view.end(won, won ? 'Jsou na molu!' : pulling() ? 'Žralok byl rychlejší!' : 'Došly záchranné kruhy!', won ? 'Žralok odplouvá s prázdnou.' : 'Zkuste to ještě jednou.'); },
       down() { press(); },
       update(dt) {
         if (s.over) return;
-        s.t = clock(live); s.cool -= dt;
-        for (const [list, real] of [[s.buoys, true], [s.mateBuoys, false]]) {
-          for (const b of list) {
-            if (b.done) continue;
-            b.x += b.vx * dt; b.vy += G * dt; b.y += b.vy * dt;
-            if (b.vy > 0 && b.y >= LAND.y) {                                                   // it comes down: by them on the rock, or in the sea
-              b.done = true;
-              const hit = Math.abs(b.x - LAND.x) <= LAND.w;
-              if (hit) { s.stuck = 1.2; beep(660, 880, 1100); } else { s.splash.push({ x: b.x, at: s.t }); beep(160); }
-              if (real) Net.send({ type: 'ev', e: hit ? 'hit' : 'miss' });
-            }
+        s.t = clock(live);
+        if (!pulling()) {
+          // a dash at the jetty: decided as it starts, from the first buoy caught on (and more often for the last one)
+          if (s.lunge && s.t > s.lunge.at + 2) s.lunge = null;
+          if (!s.lunge) s.lunge = plan.lunges.find((q) => s.t > q.at - 1.4 && s.t < q.at - 1.0 && live.hits >= (q.late ? live.needHits - 1 : 1)) || null;
+          if (s.lunge && !s.warned && s.t > s.lunge.at - 1.4) { s.warned = true; say('Pozor, žralok! Počkej.', 2.2); beep(220, 180); }
+          if (ready() && s.t > 0) s.u = (s.u + speed() * dt) % 2; else s.u = 0;             // a new buoy: the needle starts from the bottom
+          if (!s.flying && s.cool > 0) s.cool -= dt;
+          for (const b of s.buoys) {
+            if (b.knockAt !== null && !b.knocked && s.t >= b.knockAt) knock(b);
+            b.x += b.vx * dt; b.vy += G * dt; b.y += b.vy * dt; b.spin += dt * (b.knocked ? 16 : 5);
+            if (!b.knocked && b.out === 'hit' && b.vy > 0 && b.y >= LAND.y) caught(b);
+            else if (b.vy > 0 && b.y >= (b.knocked ? JET.y + 2 : WATER)) splash(b);
           }
+          s.buoys = s.buoys.filter((b) => !b.done);
+          keys.mark('act', throwNow());
+        } else {
+          const T = pullT(), q = surge(T);
+          if (T < 0) say(`${live.two ? 'Připravte' : 'Připrav'} se… ${Math.ceil(-T)}`, 0);
+          else if (q && T < q.at) say('Pozor, žralok!', 0);
+          else if (q && T < q.at + q.len) say('Žralok tahá! Rychle!', 0);
+          else if (T < 3) say(live.two ? 'Ťukejte střídavě: hej, rup!' : 'Ťukej rychle, táhni!', 0);
+          else say('', 0);
+          if (q && T >= q.at && s.said !== q.at) { s.said = q.at; beep(200, 150, 120); }
+          if (s.taps > s.sentTaps && Net.now() - s.lastSend > 120) flush();
+          keys.mark('act', T >= 0 && ((q && T >= q.at && T < q.at + q.len) || myTurn()));
+          s.f += (clamp(progress() / live.needPull, 0, 1) - s.f) * Math.min(1, dt * 10);   // eased: the raft glides after every tug
+          const combo = live.two && Net.now() - live.comboAt < 1200 ? live.combo : 0;
+          if (combo > s.combo && combo % 4 === 0) plus('Hej rup!', 60, HY - 30, '#FFD43A');
+          s.combo = combo;
         }
-        if (s.stuck > 0) s.stuck -= dt;
-        s.buoys = s.buoys.filter((b) => !b.done); s.mateBuoys = s.mateBuoys.filter((b) => !b.done);
-        s.splash = s.splash.filter((q) => s.t - q.at < 0.6);
-        if (pulling() && !s.over) { const c = Math.ceil(-pullT()); view.tip.textContent = c > 0 ? `Připravte se… ${c}` : 'Táhni! Mačkej co nejrychleji, ať jsou u mola dřív než žralok!'; }
-        if (pulling() && s.taps > s.sentTaps && Net.now() - s.lastSend > 150) { Net.send({ type: 'ev', e: 'pull', n: s.taps - s.sentTaps }); s.sentTaps = s.taps; s.lastSend = Net.now(); }
+        if (s.tipTill && s.t > s.tipTill) say('', 0);
+        const text = s.tip || advice();
+        if (view.tip.textContent !== text) view.tip.textContent = text;
+        if (s.t - s.waitAt > 0.7) wait.classList.remove('on');
+        for (const q of s.parts) if (!q.ring) { q.x += q.vx * dt; q.vy += q.g * dt; q.y += q.vy * dt; }
+        s.parts = s.parts.filter((q) => s.t - q.at < q.life);
+        s.beads = s.beads.filter((b) => s.t - b.at < 0.35);
         paint();
       },
       draw() {
         K.background(sc.bg, 0, place.look);
-        const f = pulling() ? clamp(live.pull / live.needPull, 0, 1) : 0;
-        // the stranded two: on the rock, then on the raft coming across
-        const rx = LAND.x + (132 - LAND.x) * f, ry = LAND.y - 4 + (cfg.jetty - LAND.y + 4) * f, far = 0.31 + 0.13 * f;   // smaller far out, bigger as they come
-
-        if (pulling()) {
-          if (K.has('beach', 'raft')) K.figure('beach', rx, ry + 6, 'raft', 0, false, 0.62);
-          rect(Math.min(HX + 8, rx), HY + 4, 1, 1, '#000');
-          for (let k = 0; k <= 10; k++) { const u = k / 10; rect(Math.round(HX + 8 + (rx - HX - 8) * u), Math.round(HY + (ry - 6 - HY) * u + Math.sin(u * Math.PI) * 6), 2, 1, '#D9C08A'); }   // the rope
+        const f = pulling() ? s.f : 0, T = pullT();
+        // the stranded two: on the rock, then on the raft coming across, bigger as they come
+        const rx = LAND.x + (132 - LAND.x) * f, ry = LAND.y - 4 + (cfg.jetty - LAND.y + 4) * f + (pulling() ? Math.round(Math.sin(s.t * 3) * 1) : 0), far = 0.31 + 0.13 * f;
+        const sh = pulling() ? sharkPull(T, rx, ry) : shark(s.t);
+        if (!pulling()) {
+          ring(false);
+          // the buoys they have caught, in a little pile by the tower; the newest pops in
+          for (let i = 0; i < s.pile; i++) { const pop = i === s.pile - 1 && s.t - s.catchAt < 0.25 ? 0.06 : 0; buoyPic(122 + (i % 3) * 7 + (i >= 3 ? 3 : 0), 140 - Math.floor(i / 3) * 6, 0.2 + pop); }
+        } else {
+          if (K.has('beach', 'raft')) K.figure('beach', rx, ry + 6, 'raft', 0, false, 0.5 + 0.2 * f);
+          // the rope, thrown over first; slack, taut and red while the shark pulls, golden where both pull in turn
+          const out = ease((s.t - s.ropeAt) / 0.6), x0 = HX + 8, y0 = HY + 4, x1 = x0 + (rx - 8 - x0) * out, y1 = y0 + (ry - 6 - y0) * out;
+          const bite = sh.bite, gold = clamp(s.combo / 8, 0, 1), N = Math.max(1, Math.ceil(Math.hypot(x1 - x0, y1 - y0)));
+          const along = (u) => ({ x: Math.round(x0 + (x1 - x0) * u), y: Math.round(y0 + (y1 - y0) * u + (bite ? 0 : Math.sin(u * Math.PI) * 5)) });
+          for (let k = 0; k <= N; k++) {
+            const u = k / N, p = along(u), y = p.y + (bite ? Math.round(Math.sin(s.t * 50 + k * 0.7)) : 0);
+            rect(p.x, y + 1, 1, 1, INK); rect(p.x, y, 1, 1, bite ? '#E0735A' : u < gold ? '#FFD43A' : '#D9C08A');
+          }
+          for (const b of s.beads) {                                                         // every tug runs along the rope to the raft
+            const v0 = clamp((b.x - x0) / Math.max(1, x1 - x0), 0, 1), p = along(v0 + (1 - v0) * (s.t - b.at) / 0.35);
+            rect(p.x - 1, p.y - 1, b.gold ? 4 : 3, b.gold ? 3 : 2, b.gold ? '#FFD43A' : '#FFFFFF');
+          }
         }
-        (sc.cast || []).forEach((id, i) => K.figure(id, rx - 10 + i * 20, ry - (pulling() ? 2 : Math.round(Math.abs(Math.sin(s.t * 4 + i * 1.7)) * 3)), pulling() ? 'three' : 'cheer', s.t, true, far));   // hopping and calling for help, then holding on
-        if (!pulling() && s.stuck > 0 && K.has('beach', 'buoy')) K.figure('beach', LAND.x, LAND.y + 2, 'buoy', 0, false, 0.32);
-        // the shark: circling during the throws, closing in on the raft while they pull
-        const sx = pulling() ? 196 - (196 - rx - 14) * clamp(pullT() / cfg.seconds, 0, 1) : 100 + Math.sin(s.t * 0.9) * 70, sy = pulling() ? ry + 4 : 178;
-        if (K.has('aussie', 'fin')) K.figure('aussie', sx, sy, Math.floor(s.t * 5) % 2 ? 'fin' : 'fin2', 0, pulling() || Math.cos(s.t * 0.9) < 0, 0.34);
-        for (const q of s.splash) { const u = (s.t - q.at) / 0.6; rect(q.x - 6 * u - 1, LAND.y - 4 - 8 * (1 - u), 3, 3, '#FFFFFF'); rect(q.x + 6 * u - 1, LAND.y - 4 - 8 * (1 - u), 3, 3, '#FFFFFF'); }
-        for (const b of [...s.buoys, ...s.mateBuoys]) { if (K.has('beach', 'buoy')) K.figure('beach', b.x, b.y + 6, 'buoy', 0, false, 0.3); else rect(b.x - 4, b.y - 4, 8, 8, '#CC2233'); }
-        if (mateHere()) K.hero(mate(), HX + 22, GY + 2, pulling() ? (Math.floor(s.t * 6) % 2 ? 'aim' : 'stand') : 'stand', s.t + 0.3);
-        K.hero(who, HX, GY + 4, s.lost ? 'dizzy' : pulling() ? (s.taps % 2 ? 'aim' : 'stand') : 'aim', s.t);
-        if (!pulling() && !s.over) {                                                         // the throwing meter, by the hero
-          const mx = 6, my = 120, mh = 90, p = meter(s.t);
+        (sc.cast || []).forEach((id, i) => {
+          const catching = !pulling() && i === s.catcher && s.t - s.catchAt < 0.9, hop = pulling() ? 0 : Math.round(Math.abs(Math.sin(s.t * 4 + i * 1.7)) * 3);
+          const pose = pulling() ? (sh.bite ? 'act' : f > 0.97 ? 'joy' : 'three') : catching ? (s.t - s.catchAt < 0.3 ? 'act' : 'joy') : Math.floor(s.t * 1.3 + i) % 3 === 0 ? 'joy' : 'front';   // waving and calling, catching, holding on
+          K.figure(id, rx - 10 + i * 20, ry - (catching ? 0 : hop), pose, s.t, true, far);
+        });
+        if (!pulling()) ring(true);
+        drawShark(sh);
+        for (const b of s.buoys) {                                                            // a buoy in the air, turning
+          const k = Math.floor(b.spin) % 4, w = k === 1 || k === 3 ? 0.27 : 0.3;
+          buoyPic(b.x, b.y + 6, w);
+        }
+        for (const q of s.parts) {
+          const u = (s.t - q.at) / q.life;
+          if (q.ring) { const r = 3 + Math.round(u * 9); rect(q.x - r, q.y, 2, 1, '#FFFFFF'); rect(q.x + r - 1, q.y, 2, 1, '#FFFFFF'); rect(q.x - Math.round(r / 2), q.y + 1, 1, 1, '#BFE8F5'); rect(q.x + Math.round(r / 2), q.y + 1, 1, 1, '#BFE8F5'); }
+          else if (u < 0.85 || Math.floor(s.t * 20) % 2) rect(q.x, q.y, 1, 1, q.c);
+        }
+        // the heroes: a buoy held up ready, thrown (arms out), fetching the next; pulling on the rope with every tap
+        const holdUp = (w, x, y) => buoyPic(x + (w === 'ken' ? 1 : 0), y - 46 + (Math.floor(s.t * 3) % 2), 0.3);
+        if (mateHere()) {
+          const thrown = s.t - s.mateAt, out = live.left[mate()] <= 0;
+          const pose = pulling() ? (s.t - s.mateTugAt < 0.15 ? 'surf' : 'stand') : thrown < 0.3 ? 'surf' : thrown < 1.1 || out ? 'stand' : 'cheer';
+          K.hero(mate(), MX, GY + 2, pose, s.t + 0.3);
+          if (pose === 'cheer') holdUp(mate(), MX, GY + 2);
+        }
+        const mePose = s.lost ? 'dizzy' : pulling() ? (s.t - s.tugAt < 0.15 ? 'surf' : 'stand') : s.t - s.throwAt < 0.3 ? 'surf' : ready() ? 'cheer' : 'stand';
+        K.hero(who, HX, GY + 4, mePose, s.t);
+        if (mePose === 'cheer') holdUp(who, HX, GY + 4);
+        if (pulling() && live.two && T >= 0 && !s.over) {                                     // whose turn it is to pull: an arrow over them
+          const turn = myTurn() ? HX : live.lastTug === who && Net.now() - live.lastTugAt < 1000 ? MX : null;
+          if (turn !== null) {
+            const y = GY - 62 + Math.round(Math.sin(s.t * 8) * 2);
+            for (const [dy, w] of [[0, 3], [1, 3], [2, 3], [3, 9], [4, 7], [5, 5], [6, 3], [7, 1]]) { rect(turn - (w >> 1) - 1, y + dy, w + 2, 1, INK); }
+            for (const [dy, w] of [[0, 1], [1, 1], [2, 1], [3, 7], [4, 5], [5, 3], [6, 1]]) rect(turn - (w >> 1), y + dy, w, 1, '#FFD43A');
+            rect(turn - 1, y - 1, 3, 1, INK); rect(turn, y + 8, 1, 1, INK);
+          }
+        }
+        if (!pulling() && !s.over && mine() > 0) {                                            // the throwing meter, by the hero
+          const mx = 6 + (s.t - s.waitAt < 0.3 ? Math.round(Math.sin(s.t * 70) * 2) : 0), my = 120, mh = 90, p = needle(), lo = cfg.green[0], hi = cfg.green[1], lit = throwNow();
           rect(mx - 1, my - 1, 10, mh + 2, INK); rect(mx, my, 8, mh, '#3A2F33');
-          const lo = cfg.green[0], hi = cfg.green[1];
-          rect(mx, my + Math.round(mh * (1 - hi)), 8, Math.round(mh * (hi - lo)), '#1FA463');
-          rect(mx - 3, my + Math.round(mh * (1 - p)) - 1, 14, 3, s.cool > 0 ? '#8A8F9C' : '#FFD43A');
+          rect(mx, my + Math.round(mh * (1 - hi)), 8, Math.round(mh * (hi - lo)), lit ? (Math.floor(s.t * 8) % 2 ? '#7CE07C' : '#1FA463') : '#1FA463');
+          const gy = my + Math.round(mh * (1 - (lo + hi) / 2));                               // a little ring by the green: this is the ring on the rock
+          for (const [dx, dy] of [[-2, -1], [-1, -2], [0, -2], [1, -2], [2, -1], [-3, 0], [3, 0], [-2, 1], [-1, 2], [0, 2], [1, 2], [2, 1]]) { rect(mx + 14 + dx, gy + dy + 1, 1, 1, INK); rect(mx + 14 + dx, gy + dy, 1, 1, lit ? '#FFFFFF' : '#FFD43A'); }
+          if (s.mark && s.t - s.mark.at < 3 && s.mark.ok !== null) rect(mx + 8, my + Math.round(mh * (1 - s.mark.p)) - 1, 3, 3, s.mark.ok ? '#7CE07C' : '#FF5A4A');   // where the last one was thrown
+          const c = danger() ? '#FF5A4A' : !ready() ? '#8A8F9C' : lit ? '#FFFFFF' : '#FFD43A', ny = my + Math.round(mh * (1 - p)) - 1;
+          rect(mx - 4, ny - 1, 16, 5, INK); rect(mx - 3, ny, 14, 3, c);
         }
       },
     };
