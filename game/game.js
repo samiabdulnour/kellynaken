@@ -368,7 +368,7 @@
     const nods = { ken: -9, kel: -9 }, heard = {};                    // a hero who taps on (read it) nods: at once on their phone, on the other when the room says so
     // For the story screen (draw): the lines on which a grown-up shows something (their act: Sami holds out his plans,
     // Žofia points at the kerb, Alan plays, Mamka reads out the jobs), and Žofia's line giving out the crane jobs.
-    const SHOWS = /^(Navrhl jsem|Seznam máte|V Sydney lidi|Nejdřív zkouška|Trefujte noty|Umýt, ostříhat)/;
+    const SHOWS = /^(Navrhl jsem|Seznam máte|V Sydney lidi|Nejdřív zkouška|Trefujte noty|Bubny nechte mně|Naše písnička|Umýt, ostříhat)/;
     const crane = sc.play === 'tower' ? sc.talk.findIndex((l) => /řídit jeřáb/.test(l[1])) : -1;
     // The crane's remote held at the hands (a yellow box, its stick on top, an antenna with a blinking tip, as in the
     // tower game), and Kellyn's button on a post (a grey post, a yellow cap at her hands).
