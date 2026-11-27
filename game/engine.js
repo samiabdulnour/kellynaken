@@ -175,7 +175,8 @@ const K = (() => {
   }
 
   // ---- scenes and the loop ----
-  let scene = null, last = 0, down = null;
+  let scene = null, last = 0;
+  const down = new Map();                                   // the fingers on the picture, each where it went down and last was
   function go(next) {
     if (scene && scene.leave) scene.leave();
     ui.innerHTML = '';
@@ -193,21 +194,23 @@ const K = (() => {
   // ---- input, in screen pixels ----
   // A scene may also hear the finger lift (`up`, with whether it was only a tap), for things dragged and let go. The
   // canvas keeps the finger while it is down, so a drag over the bar or out of the picture still ends here.
+  // Every finger is followed on its own (the last argument says which), so a second finger or a resting palm neither
+  // moves nor lets go of what the first one drags; a scene that does not care simply ignores it.
   const at = (e) => { const r = canvas.getBoundingClientRect(); return { x: ((e.clientX - r.left) / r.width) * W, y: ((e.clientY - r.top) / r.height) * H }; };
   canvas.addEventListener('pointerdown', (e) => {
-    down = at(e); down.px = down.x; down.py = down.y;
+    const f = at(e); f.px = f.x; f.py = f.y; down.set(e.pointerId, f);
     try { canvas.setPointerCapture(e.pointerId); } catch (x) { /* not every browser */ }
-    if (scene && scene.down) scene.down(down.x, down.y);
+    if (scene && scene.down) scene.down(f.x, f.y, e.pointerId);
   });
-  canvas.addEventListener('pointermove', (e) => { if (!down) return; const p = at(e); if (scene && scene.move) scene.move(p.x, p.y, p.x - down.px); down.px = p.x; down.py = p.y; });
+  canvas.addEventListener('pointermove', (e) => { const f = down.get(e.pointerId); if (!f) return; const p = at(e); if (scene && scene.move) scene.move(p.x, p.y, p.x - f.px, e.pointerId); f.px = p.x; f.py = p.y; });
   const lift = (e) => {
-    if (!down) return; const p = at(e), tapped = Math.hypot(p.x - down.x, p.y - down.y) < 5;
+    const f = down.get(e.pointerId); if (!f) return; down.delete(e.pointerId);
+    const p = at(e), tapped = Math.hypot(p.x - f.x, p.y - f.y) < 5;
     if (tapped && scene && scene.tap) scene.tap(p.x, p.y);
-    if (scene && scene.up) scene.up(p.x, p.y, tapped);
-    down = null;
+    if (scene && scene.up) scene.up(p.x, p.y, tapped, e.pointerId);
   };
   canvas.addEventListener('pointerup', lift);
-  canvas.addEventListener('pointercancel', () => { if (down && scene && scene.up) scene.up(down.px, down.py, false); down = null; });
+  canvas.addEventListener('pointercancel', (e) => { const f = down.get(e.pointerId); if (!f) return; down.delete(e.pointerId); if (scene && scene.up) scene.up(f.px, f.py, false, e.pointerId); });
 
   // ---- the UI layer: real text and buttons on top of the pixels ----
   function add(html) { const t = document.createElement('template'); t.innerHTML = html.trim(); const el = t.content.firstElementChild; ui.appendChild(el); return el; }

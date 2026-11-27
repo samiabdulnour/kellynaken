@@ -405,20 +405,21 @@
         if (sn.stage === 'pull' && m.e === 'pull' && now() >= sn.pullAt) { sn.pull += clamp(m.n | 0, 0, 12); if (sn.pull >= sn.needPull) sn.phase = 'won'; }
       }
       // Moving in: a piece is taken (a free one, one at a time; the phone says so every second or so while it holds it),
-      // let go (back to the heap, or left standing at its place when it is the wrong way round, for anyone to turn) or
-      // put in. The room checks the place, the facing and the order; a refusal says why, for the phone that asked.
+      // let go (back to the heap, or, when the phone says `park`, left standing at its place the wrong way round, for
+      // anyone to turn) or put in. The room checks the place, the facing and the order; a refusal says why, for the
+      // phone that asked. What the other one holds is theirs: taking or putting it in is refused as 'taken'.
       if (kind === 'flat') {
         const id = m.id | 0, p = sn.pieces[id], spec = course.flat(sn.seed, sc).pieces[id];
         if (!p || p.done) return;
         const f = m.f === -1 ? -1 : 1, near = Math.abs(m.x - spec.x) <= 30 && Math.abs(m.y - spec.y) <= 30;      // no x at all is never near
         const no = (why) => { sn.no = { id, why, who, n: (sn.no ? sn.no.n : 0) + 1 }; };
+        if (p.by && p.by !== who) return m.e === 'drop' ? undefined : no('taken');
         if (m.e === 'grab') {
-          if (p.by && p.by !== who) return no('taken');
           for (const q of sn.pieces) if (q.by === who && q !== p) q.by = null;
           p.by = who; p.till = now() + 4000;
         }
-        if (m.e === 'drop' && p.by === who) { p.by = null; p.f = f; p.rest = near && spec.face && spec.face !== f ? [spec.x, spec.y] : null; }
-        if (m.e === 'place' && (!p.by || p.by === who)) {
+        if (m.e === 'drop') { p.by = null; p.f = f; p.rest = m.park && near && spec.face && spec.face !== f ? [spec.x, spec.y] : null; }
+        if (m.e === 'place') {
           const why = !near ? 'far' : spec.after >= 0 && !sn.pieces[spec.after].done ? 'order' : spec.face && spec.face !== f ? 'face' : null;
           p.by = null; p.f = f; p.rest = why === 'face' ? [spec.x, spec.y] : null;
           if (why) no(why);
@@ -447,6 +448,7 @@
       if (!m || (who !== 'ken' && who !== 'kel')) return;
       if (m.type === 'fx') return emit(who === 'ken' ? 'kel' : 'ken', { ...m, type: 'fx', from: who });
       const sn = S.scene, sc = sn && place().scenes[sn.index];
+      if (m.type === 'pause' && sn && sn.pieces && sn.phase === 'play' && !sn.paused) for (const p of sn.pieces) p.by = null;   // moving in: a pause lets go of what is held
       // A pause stops the game's clock: on carrying on, every moment the game keeps is moved on by the pause.
       if (m.type === 'pause') { if (sn && sn.phase === 'play' && !sn.paused) { sn.paused = now(); sn.pausedBy = who; } }
       else if (m.type === 'resume') {

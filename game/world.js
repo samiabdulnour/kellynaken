@@ -240,7 +240,7 @@ window.WORLD = {
             places: [['bed', 50, 114, 0.62, 1], ['shelf', 104, 100, 0.55, 0], ['chair', 153, 124, 0.42, 0],
               ['rugroll', 98, 251, 0.62, 0], ['sofa', 98, 239, 0.45, 0, 'rugroll'], ['table', 98, 252, 0.4, 0, 'rugroll'],
               ['lamp', 62, 236, 0.42, 0], ['armchair', 141, 247, 0.42, 0], ['plant', 25, 254, 0.36, -1]] },
-          talk: [['zofia', 'Všechno máme! Teď to rychle nastěhovat, než se setmí.'], ['', 'Táhni věci na jejich místo. Klepnutím je otočíš.']] },
+          talk: [['zofia', 'Všechno máme! Teď to rychle nastěhovat, než se setmí.'], ['', 'Táhni věci na svá místa. Klepnutím je otočíš.']] },
       ],
       done: [['sami', 'Díky! Dům stojí a byt je zařízený. Sám bych to nikdy nezvládl.'], ['zofia', 'Juchůů! Zachránili jste nás, postavili mrakodrap a ještě nás nastěhovali!']],
     },
