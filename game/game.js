@@ -4627,10 +4627,10 @@
         rect(v.x - hw, v.y - 1, 2 * hw, 3, COL[by]); rect(v.x - hw + 2, v.y - 2, 2 * hw - 4, 5, COL[by]);
       }
       const un = ease(v.at.unroll, 0.45);
-      if (p.k === 'rugroll' && isIn && un < 1) {                                                                          // the rug unrolls from the left
-        const [w, h] = FLAT.size('rugroll', true), rw = w * p.size, x0 = p.x - rw / 2, edge = Math.round(x0 + rw * un);
-        ctx.save(); ctx.beginPath(); ctx.rect(x0 - 1, p.y - h * p.size - 2, edge - x0 + 1, h * p.size + 4); ctx.clip(); FLAT.draw(p.k, true, p.x, p.y, p.size, v.f); ctx.restore();
-        rect(edge - 2, p.y - h * p.size - 1, 4, h * p.size + 1, '#A4302A'); rect(edge - 1, p.y - h * p.size, 1, h * p.size - 1, '#D9564A');
+      if (p.k === 'rugroll' && isIn && un < 1) {                                                                          // the rug unrolls from the end it was pushed from
+        const [w, h] = FLAT.size('rugroll', true), rw = w * p.size, dir = v.unroll || 1, x0 = p.x - dir * rw / 2, edge = Math.round(x0 + dir * rw * un);
+        ctx.save(); ctx.beginPath(); ctx.rect(Math.min(x0 - 1, edge), p.y - h * p.size - 2, Math.abs(edge - x0) + 1, h * p.size + 4); ctx.clip(); FLAT.draw(p.k, true, p.x, p.y, p.size, v.f); ctx.restore();
+        rect(edge - 2, p.y - h * p.size - 1, 4, h * p.size + 1, '#A4302A'); rect(edge - (dir > 0 ? 1 : 0), p.y - h * p.size, 1, h * p.size - 1, '#D9564A');
         return;
       }
       FLAT.draw(p.k, isIn, v.x + dx, v.y + dy, v.k, v.f, sx, sy);
@@ -4645,7 +4645,8 @@
       plus('+1', p.x, p.y - ph * p.size - 4, COL[w] || '#FFD43A');
       if (id === LAMP) { s.lampAt = s.t; beep(1319); }
       const k = kids[w], A = k && k.act, side = p.k === 'bed' && v.park ? v.f : A && A.name === 'grab' && A.id === id ? A.side : k && k.side;   // the waiting bed: patted at its foot
-      if (k && !s.over) act(k, 'drop', { id, side });                                                 // whoever put it in nudges it and cheers
+      v.unroll = side > 0 ? -1 : 1;                                                                   // the rug unrolls away from whoever pushes it
+      if (k && !s.over) act(k, 'drop', { id, side });                                               // whoever put it in nudges it and cheers
       const n = done(); if (n === 1) cheer('Super!'); else if (n === 5) cheer('Paráda!');
       paint();
     }
@@ -4708,12 +4709,14 @@
     // piece that is in gets a pat, the partner's a tug. The partner's hero does the same here, from what their phone
     // sends (fx 'move' and 'act') and from the room (a piece of theirs going in).
     const SIZE = 0.4, FLOORS = [[98, 136], [229, 282]], DOOR = { ken: 178, kel: 166 }, DOORY = 252, BLANKET = 258;
+    const DOORAT = { ken: DOORY - 4, kel: DOORY + 3 };                                   // in the doorway, Kendrick a step behind his sister
+    const aloft = (y) => y > FLOORS[0][1] + 1 && y < FLOORS[1][0] - 1;                    // between the floors: in mid-leap (or holding something up)
     const floorOf = (y) => (y < ROOMS ? 0 : 1), onFloor = (y) => clamp(y, ...FLOORS[floorOf(y)]);
     const reach = (w) => Math.max(-K.hand(w, 'lift', 0, false, SIZE).y, 35);             // the raised hands (Kellyn's load goes over her head)
     const halfOf = (id, k = V[id].k) => FLAT.size(P[id].k, placed(id))[0] * k / 2;
     const bump = (e, h) => -Math.round(Math.sin(clamp(e, 0, 1) * Math.PI) * h);          // a hop h px high, e from 0 to 1
     const WHAT = ['.ooo.', 'o...o', '....o', '..oo.', '..o..', '.....', '..o..'];
-    const kid = (w, i) => ({ w, x: DOOR[w], y: DOORY, face: -1, side: 1, dir: 1, push: 0, px: 0, step: 0, fl: 1, floorAt: -99, act: null, look: null, carry: null, left: null, leftAt: -99, near: false, hopAt: -99, restAt: -99, lag: i * 0.7 });
+    const kid = (w, i) => ({ w, x: DOOR[w], y: DOORAT[w], face: -1, side: 1, dir: 1, push: 0, px: 0, step: 0, act: null, look: null, carry: null, left: null, leftAt: -99, near: false, hopAt: -99, restAt: -99, back: null, lag: i * 0.7 });
     const kids = { [who]: kid(who, 0), [mate()]: kid(mate(), 1) }, my = kids[who], their = kids[mate()];
     // beside a piece (its feet at `at`, `k` its size), on `side` of it (-1: left), or the other side at a wall
     function beside(id, side, at = V[id], k = V[id].k) {
@@ -4721,34 +4724,46 @@
       return { x: clamp(at.x + side * d, 6, 186), y: onFloor(at.y), side };
     }
     const look = (a, pose, f, o) => { a.look = { pose, f, ...o }; };
-    const act = (a, name, o = {}) => { a.y = onFloor(a.y); a.act = { name, at: s.t, x0: a.x, y0: a.y, ...o }; if (['drop', 'shrug', 'park', 'turn'].includes(name)) { a.left = o.id; a.leftAt = s.t; } };
+    // an act starts on the floor: from mid-air (what was held up let go of) the hero first drops onto it
+    const act = (a, name, o = {}) => {
+      const fy = onFloor(a.y), fall = Math.abs(fy - a.y) > 2 ? clamp(Math.abs(fy - a.y) / 300, 0.08, 0.2) : 0;
+      a.act = { name, at: s.t + fall, x0: a.x, y0: fy, fall, ya: a.y, ...o }; if (!fall) a.y = fy;
+      if (['drop', 'shrug', 'park', 'turn'].includes(name)) { a.left = o.id; a.leftAt = s.t; }
+    };
     // this phone's hero acts at once, and the partner's phone is told (an fx is passed on as it is)
     const acts = (name, o) => { act(my, name, o); if (mateHere()) Net.send({ type: 'fx', k: 'act', a: name, ...o }); };
-    // Getting to T for an act: a quick run of `go` s, or, far away or on the other floor, a little hop straight in.
-    // Returns the time since arriving (negative while still on the way).
+    // Getting to T for an act: a quick run of `go` s (a little longer when far), or, on the other floor, a leap there in
+    // an arc. Returns the time since arriving (negative while still on the way).
     function arrive(a, A, T, u, go = 0.15) {
-      if (A.go === undefined) { const d = Math.hypot(T.x - A.x0, T.y - A.y0); A.go = d < 3 ? 0 : go; A.far = d > 80 || floorOf(T.y) !== floorOf(A.y0); }
+      if (A.go === undefined) { const d = Math.hypot(T.x - A.x0, T.y - A.y0); A.leap = floorOf(T.y) !== floorOf(A.y0); A.go = d < 3 ? 0 : A.leap || d > 80 ? go + 0.08 : go; A.h = Math.min(12, 3 + d / 16); }
       if (u >= A.go) { a.x = T.x; a.y = T.y; return u - A.go; }
-      const e = u / A.go, m = 1 - (1 - e) * (1 - e);
-      if (A.far) { a.x = T.x; a.y = T.y; look(a, 'run', K.frame(1), { dy: bump(e, 2) }); }
-      else { a.x = A.x0 + (T.x - A.x0) * m; a.y = A.y0 + (T.y - A.y0) * m; a.face = Math.sign(T.x - A.x0) || a.face; look(a, 'run', u * 1.6); }
+      const e = u / A.go, m = A.leap ? e * e * (3 - 2 * e) : 1 - (1 - e) * (1 - e);
+      a.x = A.x0 + (T.x - A.x0) * m; a.y = A.y0 + (T.y - A.y0) * m; a.face = Math.sign(T.x - A.x0) || a.face;
+      if (A.leap) look(a, 'jump', 0, { dy: bump(e, A.h) }); else look(a, 'run', u * 1.6);
       return u - A.go;
+    }
+    // Beside a piece for a grip, a nudge or a turn: close by (a step or two), a shuffle there while the act already plays;
+    // further, a run (or a leap) there first, so nobody slides across a piece in a frozen pose.
+    function come(a, A, T, u) {
+      if (A.d === undefined) A.d = Math.hypot(T.x - A.x0, T.y - A.y0);
+      if (A.d > 16) return arrive(a, A, T, u);
+      const e = clamp(u / 0.1, 0, 1); a.x = A.x0 + (T.x - A.x0) * e; a.y = A.y0 + (T.y - A.y0) * e; return u;
     }
     function ended(a) { const A = a.act; a.act = null; a.restAt = s.t; if (A.then !== undefined) act(a, 'point', { id: A.then }); }
     // an act, frame by frame: where the hero is, which way round, and the pose
     function acting(a) {
       const A = a.act, u = s.t - A.at, w = a.w;
+      if (u < 0) { const e = 1 + u / A.fall; a.y = A.ya + (A.y0 - A.ya) * e * e; return look(a, 'jump', 0); }   // down onto the floor first
+      if (A.fall) { a.y = A.y0; A.fall = 0; }
       if (A.name === 'grab') {                        // to the piece, on the side the hero is on, and the grip: crouched, a little squashed
-        const T = beside(A.id, A.side), g = arrive(a, A, T, u); if (g < 0) return;
+        const T = beside(A.id, A.side), g = come(a, A, T, u); if (g < 0) return;
         a.face = -T.side; a.side = T.side;
         if (g < 0.12) { const b = Math.sin((g / 0.12) * Math.PI); return look(a, 'heave', K.frame(0), { sy: 1 - 0.1 * b, sx: 1 + 0.04 * b }); }
         return ended(a);
       }
       if (A.name === 'turn') {                        // round with the piece: narrowing and opening the other way as it does, with a hop
-        const T = beside(A.id, A.side), e = clamp(u / 0.2, 0, 1);
-        if (A.go === undefined) { A.go = Math.hypot(T.x - A.x0, T.y - A.y0) > 80 || floorOf(T.y) !== floorOf(A.y0) ? 0 : 0.2; }
-        const m = A.go ? 1 - (1 - e) * (1 - e) : 1;
-        a.x = A.x0 + (T.x - A.x0) * m; a.y = A.y0 + (T.y - A.y0) * m; a.side = T.side; a.face = -T.side;
+        const T = beside(A.id, A.side), g = come(a, A, T, u); if (g < 0) return;
+        const e = clamp(g / 0.2, 0, 1); a.side = T.side; a.face = -T.side;
         if (e < 1) return look(a, 'heave', K.frame(0), { sx: 1 - 2 * e, dy: bump(e, 2) });
         a.face = T.side; return ended(a);
       }
@@ -4776,10 +4791,14 @@
         if (u < 0.6) return look(a, 'point', K.frame(1));
         return ended(a);
       }
-      if (A.name === 'shrug' || A.name === 'park') {  // not here: a shrug, then a trot back to the heap beside it (or, waiting at its place for a tap, a shrug beside it)
-        if (A.name === 'park') { const p = P[A.id], T = beside(A.id, A.side, p, p.size), e = clamp(u / 0.1, 0, 1); a.x = A.x0 + (T.x - A.x0) * e; a.y = A.y0 + (T.y - A.y0) * e; a.face = -T.side; a.side = T.side; }
+      if (A.name === 'park') {                        // waiting at its place for a tap: a shrug beside it
+        const p = P[A.id], T = beside(A.id, A.side, p, p.size), g = come(a, A, T, u); if (g < 0) return;
+        a.face = -T.side; a.side = T.side;
+        if (g < 0.3) return look(a, 'shrug', 0);
+        return ended(a);
+      }
+      if (A.name === 'shrug') {                       // not here: a shrug, then a trot back to the heap beside it
         if (u < 0.3) return look(a, 'shrug', 0);
-        if (A.name === 'park') return ended(a);
         const h = heap[A.id], side = Math.sign(A.x0 - h.x) || 1, T = { x: clamp(h.x + side * 6, 6, 186), y: BLANKET }, e = clamp((u - 0.3) / 0.4, 0, 1), m = e * (2 - e);
         a.x = A.x0 + (T.x - A.x0) * m; a.y = A.y0 + (T.y - A.y0) * m; if (Math.abs(T.x - A.x0) > 2) a.face = Math.sign(T.x - A.x0);
         if (e < 1) return look(a, a.y > FLOORS[0][1] + 1 && a.y < FLOORS[1][0] - 1 ? 'jump' : 'run', u * 1.4);
@@ -4787,16 +4806,16 @@
       }
       if (A.name === 'drop') {                        // in: a nudge with a lean into it, then a cheer with a hop
         const p = P[A.id];
-        if (p.k === 'rugroll') {                      // the rug: crouched, pushing the roll open along the floor
-          const rw = FLAT.size('rugroll', true)[0] * p.size, edge = p.x - rw / 2 + rw * clamp(u / 0.45, 0, 1), off = Math.max(4, K.hand(w, 'heave', 0, false, SIZE).x) + 2;
-          const e = clamp(u / 0.08, 0, 1); a.x = A.x0 + (edge - off - A.x0) * e; a.y = A.y0 + (onFloor(p.y) - A.y0) * e; a.face = 1; a.side = 1;
+        if (p.k === 'rugroll') {                      // the rug: crouched, pushing the roll open along the floor, from the end the hero is at
+          const dir = V[A.id].unroll || 1, rw = FLAT.size('rugroll', true)[0] * p.size, edge = p.x - dir * rw / 2 + dir * rw * clamp(u / 0.45, 0, 1), off = Math.max(4, K.hand(w, 'heave', 0, false, SIZE).x) + 2;
+          const e = clamp(u / 0.08, 0, 1); a.x = A.x0 + (edge - dir * off - A.x0) * e; a.y = A.y0 + (onFloor(p.y) - A.y0) * e; a.face = dir; a.side = dir;
           if (u < 0.45) return look(a, 'heave', K.frame(0));
           if (u < 0.95) return look(a, 'cheer', 0, { dy: bump((u - 0.45) / 0.5, 4) });
           return ended(a);
         }
-        const T = beside(A.id, A.side, p, p.size), e = clamp(u / 0.1, 0, 1);
-        a.x = A.x0 + (T.x - A.x0) * e; a.y = A.y0 + (T.y - A.y0) * e; a.face = -T.side; a.side = T.side;
-        let g = u;
+        const T = beside(A.id, A.side, p, p.size), g0 = come(a, A, T, u); if (g0 < 0) return;
+        a.face = -T.side; a.side = T.side;
+        let g = g0;
         if (g < 0.15) return look(a, 'tap', K.frame(1), { dx: -T.side });
         g -= 0.15;
         if (p.k === 'lamp') { if (g < 0.3) return look(a, 'point', K.frame(0)); g -= 0.3; }   // it lights up: pointed up at
@@ -4804,33 +4823,37 @@
         return ended(a);
       }
       if (A.name === 'night') {                       // night fell first: to the door, and down on the floor, sleepy
-        const g = arrive(a, A, { x: DOOR[w], y: DOORY }, u, 0.3); if (g < 0) return;
+        const g = arrive(a, A, { x: DOOR[w], y: DOORAT[w] }, u, 0.3); if (g < 0) return;
         a.face = -1; return look(a, 'dizzy', 0);
       }
       ended(a);
     }
     // carrying: along the floor, ahead of it, facing it, pulling it hand over hand (a step every 6 px); held higher (between
-    // the rooms, lifted), under its near edge with the hands at its underside, facing where it goes (a step every 4 px);
-    // a leap between the floors; a hop when its place turns green
+    // the rooms, lifted), under its near edge with the hands at its underside, still facing it (a step every 4 px), and
+    // up off the floor with it when it goes up between the rooms (climbing with it over the head); otherwise a leap
+    // between the floors; a hop when its place turns green
     function carrying(a, id, dt) {
       const v = V[id], [lo, hi] = FLOORS[floorOf(v.y)], low = v.y >= lo - 16;
       a.push = clamp(a.push + v.x - a.px, -12, 12); a.px = v.x; if (Math.abs(a.push) >= 12) a.dir = Math.sign(a.push);   // which way it goes, with some slack
       let tx, ty, pose, k;
       if (low) { const T = beside(id, a.dir); tx = T.x; ty = clamp(v.y, lo, hi); a.side = T.side; a.face = -T.side; pose = 'heave'; k = (1 + Math.floor(a.step / 6)) % 2; }
-      else { const side = Math.sign(a.x - v.x) || a.side; tx = clamp(v.x + side * halfOf(id) / 2, 6, 186); ty = clamp(v.y + reach(a.w), lo, hi); a.side = side; a.face = a.dir; pose = 'lift'; k = Math.floor(a.step / 4) % 2; }
-      const e = 1 - Math.exp(-dt * 18), nx = a.x + (tx - a.x) * e, ny = a.y + (ty - a.y) * e;
+      else { const side = Math.sign(a.x - v.x) || a.side; tx = clamp(v.x + side * halfOf(id) / 2, 6, 186); ty = clamp(v.y + reach(a.w), FLOORS[0][0], FLOORS[1][1]); a.side = side; a.face = -side; pose = 'lift'; k = Math.floor(a.step / 4) % 2; }
+      const e = 1 - Math.exp(-dt * (low ? 18 : 40)), nx = a.x + (tx - a.x) * e, ny = a.y + (ty - a.y) * e;   // what is held up goes where the hands go
       a.step += Math.abs(nx - a.x) + Math.abs(ny - a.y) * 0.3; a.x = nx; a.y = ny;
-      if (floorOf(ty) !== a.fl) { a.fl = floorOf(ty); a.floorAt = s.t; }
       const near = mine(id) ? ready(id) && close(s.hold) && fits(id, v.f) : ready(id) && fits(id, v.f) && Math.hypot(v.x - P[id].x, v.y - P[id].y) <= SNAP;
       if (near && !a.near) a.hopAt = s.t; a.near = near;
-      if (s.t - a.floorAt < 0.15 || (a.y > FLOORS[0][1] + 1 && a.y < FLOORS[1][0] - 1)) return look(a, 'jump', 0);
+      if (aloft(a.y) && (low || Math.abs(ty - a.y) > 12)) return look(a, 'jump', 0);
       look(a, pose, K.frame(k), { dy: bump((s.t - a.hopAt) / 0.2, 2) });
     }
     // resting where the last thing was done (off the moving blanket, so the heap stays in sight), breathing; facing the
     // piece the other one carries, the hand that shows what to do, or the next piece; at dusk a glance at the window
     function resting(a, dt, other, tip, hand) {
       const fy = onFloor(a.y); if (Math.abs(fy - a.y) > 1) { a.y += (fy - a.y) * (1 - Math.exp(-dt * 18)); return look(a, 'jump', 0); }   // let go of in mid-leap: down onto the floor
-      if (a.y > BLANKET + 1) { a.y = Math.max(BLANKET, a.y - 70 * dt); return look(a, 'run', s.t * 1.2); }
+      if (a.y > BLANKET + 1) {                                                                // a little hop back off the blanket
+        if (!a.back || a.back.at !== a.restAt || a.y > a.back.y0) a.back = { at: a.restAt, y0: a.y };
+        a.y = Math.max(BLANKET, a.y - 130 * dt);
+        return look(a, 'jump', 0, { dy: bump((a.back.y0 - a.y) / Math.max(1, a.back.y0 - BLANKET), 4) });
+      }
       const o = a === my ? their : my, away = Math.sign(a.x - o.x) || (a.w === 'ken' ? 1 : -1);    // standing in the other one: a step aside
       if (mateHere() && Math.abs(o.x - a.x) < 12 && Math.abs(o.y - a.y) < 16 && a.x + away * 2 > 6 && a.x + away * 2 < 186) { a.x += away * 40 * dt; a.face = away; return look(a, 'run', s.t); }
       const at = other !== null ? V[other].x : hand ? hintX(tip) : tip !== undefined ? V[tip].x : null;
@@ -4969,7 +4992,7 @@
         // Held still for long (a finger resting), or with two kept from the other for long: after a tremble it goes home
         // with a soft sound (not a mistake), its place blinks and the hand shows the way, so nobody blocks the other.
         if (s.hold && !s.over && (s.t - s.hold.still > STILL || (mateHere() && s.t - s.hold.at > LONG))) {
-          const id = s.hold.id; s.hold = null; letGo(id, false); pulse(id); s.prefer = { id, at: s.t }; s.quiet = 99; beep(392, 523);
+          const id = s.hold.id; s.hold = null; letGo(id, false); pulse(id); s.prefer = { id, at: s.t }; s.quiet = 99; beep(392, 523); acts('shrug', { id });   // the hero shrugs and goes back with it
         }
         if (s.hold && !s.over) {                                                                                       // still holding it: the room hears so now and then
           if (s.t - s.keepAt > 1.2) { s.keepAt = s.t; Net.send({ type: 'ev', e: 'grab', id: s.hold.id }); }
