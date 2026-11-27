@@ -273,7 +273,7 @@
       if (sn.phase === 'stub') return 3;
       const k = sc.play, by = (bad, two) => (bad <= 0 ? 3 : bad <= two ? 2 : 1);            // bad: what went wrong; two: how much still earns two stars
       if (k === 'platform') return Math.min(by(sn.hurts || 0, sn.two ? 3 : 2), sn.outs ? 2 : 3);
-      if (k === 'memory') return by((sn.before || 0) + sn.misses - Math.floor(sn.maxMiss * 0.4), Math.floor(sn.maxMiss * 0.3));   // wrong pairs of a lost go count too
+      if (k === 'memory') return Math.min(by(sn.misses - Math.floor(sn.maxMiss * 0.4), Math.floor(sn.maxMiss * 0.3)), sn.before ? 2 : 3);   // after a lost go (its pairs kept) two at most
       if (k === 'find') { const u = (now() - sn.startAt) / 1000 / sc.find.seconds; return u <= 0.6 ? 3 : u <= 0.85 ? 2 : 1; }
       if (k === 'drums') { const r = sn.hits / Math.max(1, sn.need); return r >= 1.25 ? 3 : r >= 1.1 ? 2 : 1; }
       if (sn.maxLives) return by(sn.maxLives - sn.lives, Math.floor(sn.maxLives / 2));

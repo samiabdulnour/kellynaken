@@ -1552,7 +1552,7 @@
   function Memory(sc, place, sn) {
     const cfg = sc.memory, who = me(), COLS = 4, CW = 40, CH = 50, GAP = 6, X0 = Math.round((W - (COLS * CW + (COLS - 1) * GAP)) / 2), Y0 = 36;
     const FLIP = 0.26;                                                                 // seconds a card takes to turn over
-    const s = { t: 0, over: false, lost: false, keyAt: null, endIn: 0, pend: [], bits: [], later: [], seen: new Set(), hint: null, hintAt: -9, note: '', noteTill: 0, could: false, wave: -9, tipWas: null, hudWas: null, deal: clock(sn) < -0.6 };
+    const s = { t: 0, over: false, lost: false, keyAt: null, endIn: 0, pend: [], bits: [], later: [], seen: new Set(), hint: null, hintAt: -9, xs: sn.misses, xsAt: -9, note: '', noteTill: 0, could: false, wave: -9, tipWas: null, hudWas: null, deal: clock(sn) < -0.6 };
     let live = sn;
     const card = sn.deck.map((f, i) => ({ up: sn.done.includes(i) || sn.open.includes(i), at: -9, pop: -9, bad: -9, wob: -9 }));
     for (const i of sn.done) s.seen.add('p' + sn.deck[i]);                            // pairs found before (a go after a lost one): no fuss over them again
@@ -1562,7 +1562,10 @@
     const finish = (won) => view.end(won, won ? 'Všechny dvojice!' : 'Moc chyb!', won ? (cfg.won || 'Výborná paměť!') : live.done.length ? `Nalezené dvojice ${two() ? 'vám' : 'ti'} zůstanou.` : `${two() ? 'Zkuste' : 'Zkus'} to ještě jednou.`);
     const spot = (i) => ({ x: X0 + (i % COLS) * (CW + GAP), y: Y0 + Math.floor(i / COLS) * (CH + GAP) });
     const cardAt = (x, y) => live.deck.findIndex((f, i) => { const p = spot(i); return x >= p.x && x < p.x + CW && y >= p.y && y < p.y + CH; });
-    const mine = () => !live.turn || live.turn === who;
+    // With two, each turns one card and the turn passes on. This phone knows it the moment its first card is tapped, before the room says so.
+    const passed = () => two() && live.turn === who && !live.open.length && s.pend.length > 0;
+    const turn = () => (passed() ? mate() : live.turn);
+    const mine = () => !live.turn || turn() === who;
     const started = () => clock(live) >= 0;
     // The cards up on this phone: those the room has up, and those just tapped here that it has not answered yet.
     const opened = () => [...live.open, ...s.pend.map((p) => p.i).filter((i) => !live.open.includes(i) && !live.done.includes(i))];
@@ -1577,18 +1580,20 @@
       for (let k = 0; k < 14; k++) { const a = k / 14 * Math.PI * 2 + Math.random() * 0.4, v = 60 + Math.random() * 50; s.bits.push({ x: p.x + CW / 2, y: p.y + CH / 2, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 50, t: s.t, life: 0.5 + Math.random() * 0.3, c: k % 3 ? '#FFD43A' : '#FFF8E7' }); }
     }
     // Judged the moment the second card is tapped, on the phone that turned it; the other phone when the room says so.
-    // `seen` keeps either from making the fuss twice. It shows once the card has finished turning, so it is seen first.
+    // `seen` keeps either from making the fuss twice. It shows once the card has finished turning, so it is seen first,
+    // and once the room has taken the flip: one it refused must not cheer or shake, nor use up the fuss of the real one.
     function judge(a, b, misses) {
-      const then = (fn) => s.later.push({ at: s.t + FLIP, fn });
-      if (live.deck[a] === live.deck[b]) {
-        const k = 'p' + live.deck[a]; if (s.seen.has(k)) return; s.seen.add(k);
-        const name = cfg.faces[live.deck[a]][2];
-        card[a].hold = card[b].hold = true;                                          // not green until it is seen to be a pair
-        then(() => { card[a].pop = card[b].pop = s.t; card[a].hold = card[b].hold = false; burst(a); burst(b); beep(660, 880, 1100); if (name) cheer(name + '!'); });
-      } else {
-        const k = 'm' + misses; if (s.seen.has(k)) return; s.seen.add(k);
-        then(() => { card[a].bad = card[b].bad = s.t; beep(200, 160); if (live.maxMiss - misses === 1) say('Pozor, poslední šance!'); });
-      }
+      const pair = live.deck[a] === live.deck[b], k = pair ? 'p' + live.deck[a] : 'm' + misses;
+      if (s.seen.has(k)) return; s.seen.add(k);
+      const name = cfg.faces[live.deck[a]][2];
+      const ok = () => (pair ? live.done.includes(a) && live.done.includes(b) : live.open.includes(a) && live.open.includes(b));
+      const show = pair
+        ? () => { card[a].pop = card[b].pop = s.t; card[a].hold = card[b].hold = false; hud(); burst(a); burst(b); beep(660, 880, 1100); if (name) cheer(name + '!'); }
+        : () => { card[a].bad = card[b].bad = s.t; s.xs = Math.max(s.xs, misses); hud(); beep(200, 160); if (live.maxMiss - misses === 1) say('Pozor, poslední šance!'); };
+      const drop = () => { s.seen.delete(k); card[a].hold = card[b].hold = false; };
+      const then = (at) => s.later.push({ at, fn: () => (ok() ? show() : s.pend.some((p) => p.i === a || p.i === b) ? then(s.t) : drop()) });   // no answer yet: look again next frame
+      if (pair) card[a].hold = card[b].hold = true;                                  // not green until it is seen to be a pair
+      then(s.t + FLIP);
     }
     // A partner's "Tady!": a hand taps on the card, with the word over it, on both phones; the line below says who.
     function hintOn(i, from, note) {
@@ -1599,13 +1604,14 @@
     }
     function hintOff() { if (s.hint) { s.hint.el.remove(); if (s.note === s.hint.note) s.noteTill = 0; } s.hint = null; }
     // Pairs found as a number; the wrong pairs as boxes filling up with red crosses, the empty ones what is left.
+    // Both count what the cards have shown: a pair once it has popped, a cross once the wrong pair shakes.
     function hud() {
-      const key = `${live.done.length}/${live.misses}/${live.maxMiss}`; if (key === s.hudWas) return;
-      const fresh = s.hudWas !== null && live.misses > +s.hudWas.split('/')[1]; s.hudWas = key;
-      view.hud.querySelector('.count').innerHTML = `<i class="dvojice"></i>${live.done.length / 2}/${live.deck.length / 2}`;
+      const got = live.done.filter((i) => !card[i].hold).length, m = Math.min(live.misses, s.xs), key = `${got}/${m}/${live.maxMiss}`; if (key === s.hudWas) return;
+      const fresh = s.hudWas !== null && m > +s.hudWas.split('/')[1]; s.hudWas = key;
+      view.hud.querySelector('.count').innerHTML = `<i class="dvojice"></i>${got / 2}/${live.deck.length / 2}`;
       const el = view.hud.querySelector('.chyby');
-      el.classList.toggle('warn', live.maxMiss - live.misses <= 2);
-      el.innerHTML = '<span>Chyby</span>' + Array.from({ length: live.maxMiss }, (_, k) => `<i class="${k < live.misses ? 'x' : ''}${fresh && k === live.misses - 1 ? ' new' : ''}"></i>`).join('');
+      el.classList.toggle('warn', live.maxMiss - m <= 2);
+      el.innerHTML = '<span>Chyby</span>' + Array.from({ length: live.maxMiss }, (_, k) => `<i class="${k < m ? 'x' : ''}${fresh && k === m - 1 ? ' new' : ''}"></i>`).join('');
     }
     // What to do now, in a few words: whose turn it is (with their face), and what the cards on the table ask for.
     function tip() {
@@ -1613,11 +1619,11 @@
       if (s.over) html = '';
       else if (s.t < s.noteTill) html = s.note;
       else {
-        const open = opened(), name = two() ? esc(heroName(live.turn)) : '';
+        const open = opened(), whose = turn(), name = two() ? esc(heroName(whose)) : '';
         if (open.length === 2) html = live.deck[open[0]] !== live.deck[open[1]] ? 'Zapamatuj si je!' : s.tipWas;
         else if (!two()) html = open.length ? 'Najdi k ní dvojici!' : 'Otoč kartičku.';
         else if (mine()) html = face(who, 3, 1) + (open.length ? 'Najdi k ní dvojici!' : 'Tvůj tah! Otoč kartičku.');
-        else html = face(live.turn, 3, 1) + (open.length ? `${name} hledá. Ukaž ${live.turn === 'kel' ? 'jí' : 'mu'}, kde je!` : `Otáčí ${name}, pak ty.`);
+        else html = face(whose, 3, 1) + (open.length ? `${name} hledá. Ukaž ${whose === 'kel' ? 'jí' : 'mu'}, kde je!` : `Otáčí ${name}, pak ty.`);
       }
       if (html !== s.tipWas) { s.tipWas = html; view.tip.innerHTML = html; }
     }
@@ -1692,7 +1698,7 @@
         s.pend = s.pend.filter((p) => !n.open.includes(p.i) && !n.done.includes(p.i));    // answered
         const was = live; live = n;
         for (const i of n.done) if (!was.done.includes(i)) judge(i, n.done.find((j) => j !== i && n.deck[j] === n.deck[i]), n.misses);   // turned on the other phone
-        if (n.misses > was.misses && n.open.length === 2) judge(n.open[0], n.open[1], n.misses);
+        if (n.misses > was.misses) { s.xsAt = s.t; if (n.open.length === 2) judge(n.open[0], n.open[1], n.misses); }
         hud();
       },
       over(won) {
@@ -1705,8 +1711,9 @@
       down(x, y) {
         const i = cardAt(x, y); if (s.over || i < 0) return;
         const c = card[i];
-        if (!started()) { c.wob = s.t; return; }                                       // still being dealt
+        if (!started()) { c.wob = s.t; beep(180); return; }                            // still being dealt
         if (!mine()) {                                                                 // the partner's turn: point at a card for them
+          if (passed()) { c.wob = s.t; beep(180); return say(face(mate(), 3, 1) + `Teď hledá ${esc(heroName(mate()))}.`, 1.5); }   // one card each: the second is the partner's
           if (isUp(i) || s.t - s.hintAt < 0.5) { c.wob = s.t; beep(180); return; }
           s.hintAt = s.t; beep(880, 1175); Net.send({ type: 'fx', k: 'hint', i });
           return hintOn(i, who, `${esc(heroName(mate()))} to uvidí.`);
@@ -1720,7 +1727,7 @@
         hintOff();
       },
       fx(m) {
-        if (m.k !== 'hint' || s.over || !WORLD.heroes[m.from]) return;
+        if (m.k !== 'hint' || s.over || !WORLD.heroes[m.from] || !mine()) return;      // given for a turn that is over already: no use now
         const i = m.i | 0; if (i < 0 || i >= live.deck.length || isUp(i)) return;
         hintOn(i, m.from, face(m.from, 3, 1) + `${esc(heroName(m.from))} radí: tady!`); beep(1320, 990);
       },
@@ -1732,7 +1739,9 @@
         const due = s.later.filter((l) => s.t >= l.at); if (due.length) { s.later = s.later.filter((l) => !due.includes(l)); due.forEach((l) => l.fn()); }
         for (const b of s.bits) { b.x += b.vx * dt; b.y += b.vy * dt; b.vy += 240 * dt; }
         s.bits = s.bits.filter((b) => s.t - b.t < b.life);
-        if (s.hint && (s.t - s.hint.at > 3.5 || isUp(s.hint.i))) hintOff();
+        if (s.hint && (s.t - s.hint.at > 3.5 || isUp(s.hint.i) || (s.hint.from === who) === mine())) hintOff();   // a hint lasts the turn it was given for
+        if (live.misses > s.xs && s.t - s.xsAt > FLIP + 0.5) s.xs = live.misses;      // a cross whose shake was missed (a phone asleep) still shows
+        hud();
         const can = canAct();                                                          // your turn now: the cards ripple, and with two, a chime
         if (can && !s.could) { s.wave = s.t; if (two() && clock(live) > 0.5) beep(660, 990); }
         s.could = can;
