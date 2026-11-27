@@ -1613,13 +1613,18 @@
     const QUEUE = [[14, 284], [42, 284], [70, 284]], CUST = 0.55;                // three chairs in a row along the bottom, by the door
     const home = (w) => (w === who ? { x: 96, y: 236 } : { x: 120, y: 250 });
     const s = { t: 0, over: false, lost: false, me: { ...home(who), to: null, go: null, walked: [] }, mate: { ...home(mate()), to: null }, shout: 0, seenNo: {}, no: null, tipTill: 0, pops: [],
-      strays: [], hold: false, tick: 0, syncT: 0, seen: {}, emit: {}, bits: [], taps: [], cash: sn.coins, took: false, hintAt: -9, helpAt: null, joy: -9, wasBusy: false, taught: 0 };
+      strays: [], hold: false, tick: 0, syncT: 0, seen: {}, emit: {}, bits: [], taps: [], cash: sn.coins, took: false, hintAt: -9, helpAt: null, rescue: null, joy: -9, wasBusy: false, taught: 0 };
     let live = sn;
     const view = stage('<span class="lives"></span><span class="count"></span><span class="cash"><i></i><b></b></span><span class="clock"></span><span class="meter"><i></i></span>', 'Klepni na zákazníka!');
     const say = (text, secs = 2.6) => { view.tip.textContent = text; s.tipTill = s.t + secs; };   // a tip, for a moment (the first one stays till it is done)
     const shout = add('<p class="shout" hidden>NELÍTEJTE!</p>');
     const help = add('<p class="pomoz" hidden>Pomoz!</p>');                                    // over the partner, when a second pair of hands would help
-    help.addEventListener('pointerdown', (e) => { e.preventDefault(); if (s.over || s.helpAt === null) return; ripple(s.mate.x, s.mate.y - 20, true); beep(520, 660); const p = spotFor(s.helpAt); walk(p.x, p.y, { st: s.helpAt }); });
+    help.addEventListener('pointerdown', (e) => {
+      e.preventDefault(); if (s.over || (s.helpAt === null && s.rescue === null)) return; ripple(s.mate.x, s.mate.y - 20, true); beep(520, 660);
+      const q = s.rescue !== null && live.cust.find((c) => c.id === s.rescue);
+      if (q) { const p = where(q); return walk(p.x + 12, p.y + 2, { take: q.id }); }               // to take over the one about to walk out
+      if (s.helpAt !== null) { const p = spotFor(s.helpAt); walk(p.x, p.y, { st: s.helpAt }); }
+    });
     // Pustit, while leading someone who cannot go where they want yet: they wait on a chair by the door again. It sits on
     // the left, by those chairs and away from Pracuj, so a thumb busy with the work never lets go of anyone by mistake.
     // Pracuj, held down while working at a place, makes the work go half as fast again; let go, it goes on as before.
@@ -1641,7 +1646,7 @@
       if (s.me.to && s.me.go && s.me.go.st !== undefined) return beep(520);                   // on the way to a place: it counts once there
       nope('work'); s.hintAt = s.t;
       const c = leading(who);
-      say(c ? `Chce ${NAME[c.order[c.step]]}. Klepni tam.` : s.helpAt !== null ? 'Běž pomoct!' : 'Klepni na zákazníka.');
+      say(c ? `Chce ${NAME[c.order[c.step]]}. Klepni tam.` : s.helpAt !== null || s.rescue !== null ? 'Běž pomoct!' : 'Klepni na zákazníka.');
     }
     const spot = (i, far) => { const d = ST[i].side || 13; return { x: ST[i].x + d + (far ? Math.sign(d) * 16 : 0), y: ST[i].y + 18 + (far ? 8 : 0) }; };   // where a hairdresser stands to work there
     const spotFor = (i) => { const a = spot(i), m = s.mate.to || s.mate; return mateHere() && Math.hypot(m.x - a.x, m.y - a.y) < 8 ? spot(i, true) : a; };   // the partner there already: a step further out
@@ -1681,6 +1686,8 @@
     const quick = (w) => (w === who ? s.hold : !!(live.hold && live.hold[w]));                // Pracuj held (one's own at once, the partner's as the room says)
     const hands = (i) => ['ken', 'kel'].filter((w) => live.workers[w] === i);
     const tended = (c) => worked(c) && hands(c.at).length > 0;                                 // being worked on just now: happy, no patience lost
+    const fedUp = (c) => c.pat <= c.max / 4;                                                   // the cross face: the partner may take them out of the other's hand
+    const stuck = (c) => c.by && c.by !== who && fedUp(c) && !body(c.by).to;                     // ... while the other stands about with them
     const rate = (i) => hands(i).reduce((a, w) => a + (quick(w) ? 1.5 : 1), 0);              // how fast the work goes there, as in the room
     // How far the work on someone has got: moved on smoothly between the room's messages at the speed of the hands
     // there (one's own button counting at once), and never back.
@@ -1721,14 +1728,14 @@
       const m = s.me;
       if (live.workers[who] !== null && live.workers[who] !== undefined) Net.send({ type: 'ev', e: 'at', st: -1 });   // leaving one's place
       m.to = { x: clamp(x, 10, W - 10), y: clamp(y, 150, H - 4) }; m.go = go;
-      if (!go) s.strays.push(s.t);                                                              // off across the bare floor, for nothing
+      m.stray = !go && !leading(who); if (m.stray) s.strays.push(s.t);                          // off across the bare floor, for nothing (with someone by the hand it is looking for the place)
       Net.send({ type: 'fx', k: 'walk', x: m.to.x, y: m.to.y });
     }
     function arrive() {
       const go = s.me.go; s.me.go = null; if (!go) return;
       if (go.take !== undefined) {
         const c = live.cust.find((q) => q.id === go.take);
-        if (c && c.by && c.by !== who) { beep(180); return say(`${heroName(c.by)} byl${c.by === 'kel' ? 'a' : ''} rychlejší.`); }   // the partner was quicker
+        if (c && c.by && c.by !== who && !fedUp(c)) { beep(180); return say(`${heroName(c.by)} byl${c.by === 'kel' ? 'a' : ''} rychlejší.`); }   // the partner was quicker
         Net.send({ type: 'ev', e: 'take', c: go.take });
       }
       if (go.st !== undefined) {
@@ -1798,12 +1805,13 @@
       s, kind: 'salon',
       peek: () => ({ me: { x: s.me.x, y: s.me.y, walking: !!s.me.to }, mine: leading(who) && leading(who).id, workers: live.workers, stations: ST.map((st, i) => ({ k: st.k, i, x: st.x, y: st.y, busy: live.cust.some((c) => c.at === i) })),
         cust: live.cust.map((c) => ({ id: c.id, at: c.at, by: c.by, want: c.order[c.step], work: c.work, pat: c.pat / c.max, ...where(c) })),
-        working: busyAt(who), hold: s.hold, help: s.helpAt, shout: s.shout, coins: live.coins, shown: Math.round(s.cash), tip: view.tip.textContent }),
+        working: busyAt(who), hold: s.hold, help: s.helpAt, rescue: s.rescue, shout: s.shout, coins: live.coins, shown: Math.round(s.cash), tip: view.tip.textContent }),
       sync(n) {
         for (const c of n.cust) {
           const was = live.cust.find((q) => q.id === c.id);
           if (was && c.step > was.step && was.at >= 0) { const h = head(was, where(was)); burst(h.x, h.y); }    // a job done: a burst of stars
           if (c.by === who && was && was.at >= 0 && was.by !== who) { beep(660, 880); say(`Hotovo! Teď chce ${NAME[c.order[c.step]]}.`); }
+          if (was && was.by === who && c.by && c.by !== who) { beep(520, 660); say(`${heroName(c.by)} ti pomáhá.`); }   // nearly out of patience in this one's hand: the other took them on
         }
         for (const c of n.cust) if (c.no && c.no !== s.seenNo[c.id]) {
           s.seenNo[c.id] = c.no;
@@ -1822,6 +1830,7 @@
           for (const c of gone) { const p = where(c); s.pops.push({ coin: false, x: p.x, y: p.y - 50, at: s.t }); }
           const el = view.hud.firstElementChild; el.classList.remove('hit'); void el.offsetWidth; el.classList.add('hit'); beep(220, 160);
         }
+        if (live.paused && !n.paused && s.hold) Net.send({ type: 'ev', e: 'hold', on: true });   // back from a pause with a finger still on Pracuj (the room let go of it)
         live = n; s.syncT = s.t; paint(); keys.show('drop', !s.over && !!leading(who));
       },
       fx(m) { if (m.k === 'walk') s.mate.to = { x: m.x, y: m.y }; },
@@ -1833,7 +1842,7 @@
         if (s.over || y < 22) return;
         if (s.t < 0) return ripple(x, y, false);                                                   // not yet: 2, 1, Start!
         const mineNow = leading(who);
-        const hit = live.cust.filter((q) => !q.by).map((q) => ({ q, p: where(q) })).find(({ p }) => Math.abs(p.cx - x) < 14 && y > p.top - 26 && y < p.y + 3);
+        const hit = live.cust.filter((q) => !q.by || stuck(q)).map((q) => ({ q, p: where(q) })).find(({ p }) => Math.abs(p.cx - x) < 14 && y > p.top - 26 && y < p.y + 3);
         const no = (text) => { ripple(x, y, false); beep(180); s.no = { id: mineNow.id, at: s.t }; s.hintAt = s.t; say(text); };
         if (mineNow) {
           const i = hit && hit.q.at >= 0 ? hit.q.at : ST.findIndex((st) => Math.abs(st.x - x) < 18 && y > st.y - 48 && y < st.y + 28);
@@ -1867,10 +1876,11 @@
           if (!b.to) continue;
           const dx = b.to.x - b.x, dy = b.to.y - b.y, d = Math.hypot(dx, dy), step = SPEED * dt;
           if (d <= step) { b.x = b.to.x; b.y = b.to.y; b.to = null; if (b === s.me) arrive(); }
-          else { b.x += dx / d * step; b.y += dy / d * step; if (b === s.me && !s.me.go) s.me.walked.push([s.t, step]); }
+          else { b.x += dx / d * step; b.y += dy / d * step; if (b === s.me && s.me.stray) s.me.walked.push([s.t, step]); }
         }
         // Mamka does not like running about her salon. Only real running about counts: to and fro over the bare floor, four
-        // times or more and most of six seconds on end. Walking to customers and places never does.
+        // times or more and most of six seconds on end. Walking to customers and places never does, nor looking for the
+        // place with a customer by the hand.
         s.me.walked = s.me.walked.filter(([t]) => s.t - t < 6); s.strays = s.strays.filter((t) => s.t - t < 6);
         if (sc.cast && s.me.walked.reduce((a, [, d]) => a + d, 0) > 380 && s.strays.length >= 4 && (!s.shout || s.t - s.shout > 15)) { s.shout = s.t; beep(300, 300); }
         if (s.tipTill && s.t > s.tipTill) { view.tip.textContent = ''; s.tipTill = 0; }
@@ -1891,10 +1901,18 @@
         const free = !leading(who) && !busyAt(who) && live.workers[who] !== at && !(s.me.go && s.me.go.st === at);
         const left = c ? cfg.work[ST[at].k] * (1 - progress(c)) / Math.max(1, rate(at)) : 0;
         s.helpAt = c && free && left > (s.helpAt === at ? 0.8 : 1.6) ? at : null;
-        help.hidden = s.helpAt === null;
-        if (s.helpAt !== null) { const pos = pinAt([clamp(Math.round(s.mate.x), 24, W - 24), Math.round(s.mate.y) - 54]); if (help.dataset.at !== pos) { help.dataset.at = pos; help.style.cssText = pos; } }
-        const busy = busyAt(who);
-        if (busy && !s.wasBusy && !s.hold && s.taught < 2) { s.taught++; say('Drž Pracuj, půjde to rychleji!', 3); }   // the first jobs: how to hurry them
+        // or the partner leads someone about to walk out: come and take them on (first, as it matters more)
+        const lost = mateHere() && !leading(who) ? live.cust.find(stuck) : null;
+        s.rescue = lost && !(s.me.go && s.me.go.take === lost.id) ? lost.id : null;
+        help.hidden = s.helpAt === null && s.rescue === null;
+        if (!help.hidden) { const pos = pinAt([clamp(Math.round(s.mate.x), 24, W - 24), Math.round(s.mate.y) - 54]); if (help.dataset.at !== pos) { help.dataset.at = pos; help.style.cssText = pos; } }
+        // Starting work, what was said before is done with. The first jobs say how to hurry them (not the quick one at
+        // the till), and that goes with the job.
+        const busy = busyAt(who), TEACH = 'Drž Pracuj, půjde to rychleji!';
+        if (busy && !s.wasBusy) {
+          view.tip.textContent = ''; s.tipTill = 0;
+          if (!s.hold && s.taught < 2 && ST[live.workers[who]].k !== 'pay') { s.taught++; say(TEACH, 3); }
+        } else if (!busy && s.wasBusy && view.tip.textContent === TEACH) { view.tip.textContent = ''; s.tipTill = 0; }
         s.wasBusy = busy; keys.mark('work', busy && !s.hold);                                   // the button blinks while there is work to hurry
         paint();
       },
