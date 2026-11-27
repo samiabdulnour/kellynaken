@@ -1186,10 +1186,12 @@
     const myNext = () => live.pattern.findIndex((p, i) => !done(i) && owner(i) === who);
     // How long a stroke waits before its drum lights up as a hint: as the room counts it for whoever plays it, and
     // half that on the other one's phone, so the older can tell the younger first. After one of them slipped, the
-    // other sees their drums at once while the rhythm is tried again, to talk them through it.
+    // other sees their drums at once while the rhythm is tried again, to talk them through it; so does Kellyn, the
+    // younger, on her own phone after her own slip, so a hasty tap does not go wrong again and again.
+    const retry = (o) => s.help && s.help.who === o && s.help.attempt === live.attempt;
     const hintIn = (i) => {
       const o = owner(i);
-      if (o !== who && s.help && s.help.who === o && s.help.attempt === live.attempt) return 0;
+      if (retry(o) && (o !== who || o === 'kel')) return 0;
       return (live.round ? cfg.hint[o] : cfg.hint.first) * (o === who ? 1000 : 500);
     };
     const hinted = (i) => i >= 0 && !listening() && !s.block && Net.now() - Math.max(live.since, live.listenAt, s.tapAt) > hintIn(i);
@@ -1227,9 +1229,10 @@
       const won = !s.lost, two = mateHere();
       view.end(won, won ? 'Sedí to!' : two ? 'Rozhodilo vás to.' : 'Rozhodilo tě to.', won ? (two ? 'Rytmus máte v ruce.' : 'Rytmus máš v ruce.') : two ? 'Zkuste to ještě jednou.' : 'Zkus to ještě jednou.');
     };
-    // A little arrow pointing down, its tip at (x, y): whose turn, and which drum.
-    const arrow = (x, y, c) => {
-      const rows = [[-1, 3], [-1, 3], [-1, 3], [-4, 9], [-3, 7], [-2, 5], [-1, 3], [0, 1]];
+    // An arrow pointing down, its tip at (x, y): a little one over whose turn it is, a big one on the drum to strike.
+    const ARROW = [[-1, 3], [-1, 3], [-1, 3], [-4, 9], [-3, 7], [-2, 5], [-1, 3], [0, 1]];
+    const BIG = [[-2, 5], [-2, 5], [-2, 5], [-6, 13], [-5, 11], [-4, 9], [-3, 7], [-2, 5], [-1, 3], [0, 1]];
+    const arrow = (x, y, c, rows = ARROW) => {
       x = Math.round(x); y = Math.round(y) - rows.length;
       rows.forEach(([l, w], j) => rect(x + l - 1, y + j - 1, w + 2, 3, INK));
       rows.forEach(([l, w], j) => rect(x + l, y + j, w, 1, c));
@@ -1270,9 +1273,9 @@
         }
         const p = clamp(Math.floor(x / PW), 0, 3);
         if (listening() || s.block) return refuse(p, 'Nejdřív poslouchej!');
-        if (!mine(p)) return refuse(p, `To hraje ${heroName(padOwner(p))}`);
+        if (!mine(p)) return refuse(p, `Ten má ${heroName(padOwner(p))}`);
         const i = myNext();
-        if (i < 0 || nextUp() !== i) return refuse(p, mateHere() ? `Teď hraje ${heroName(mate())}` : 'Počkej chvilku');
+        if (i < 0 || nextUp() !== i) return refuse(p, nextUp() >= 0 && mateHere() ? `Teď hraje ${heroName(mate())}` : 'Počkej chvilku');   // all played: the room is about to answer
         strike(p); s.myHit = s.t;
         Net.send({ type: 'ev', e: 'pad', p, i, a: live.attempt, at: Net.now() });           // which stroke it is meant for, so the order it arrives in does not matter
         if (p === live.pattern[i]) { s.sent.set(i, s.t); s.tapAt = Net.now(); }
@@ -1339,22 +1342,23 @@
           // struck: down for a moment, then up a little past where it was and back; "your turn": a ripple along the drums
           const press = a >= 0 && a < 0.07 ? 2 : 0, pop = a >= 0.07 && a < 0.37 ? Math.round(3 * Math.sin((a - 0.07) / 0.3 * Math.PI)) : 0;
           const wv = s.t - s.wave - p * 0.07, lift = wv >= 0 && wv < 0.28 ? Math.round(3 * Math.sin(wv / 0.28 * Math.PI)) : 0;
-          const x = x0 + shake, y = TOP + press - pop - lift, h = PH - press;
+          const beckon = hint === p ? Math.max(0, Math.sin(s.t * 7)) : 0;                     // the hinted drum hops and glows, as if it called
+          const x = x0 + shake, y = TOP + press - pop - lift - Math.round(beckon * 3), h = PH - press;
           rect(x0, TOP + 3, w, PH - 3, 'rgba(43,31,26,.7)');                                 // its shadow
           rect(x, y, w, h, INK);
           rect(x + 2, y + 2, w - 4, h - 4, PADS[p].dark);                                      // the front edge
           rect(x + 2, y + 2, w - 4, h - 9, PADS[p].c);                                         // the top
           rect(x + 3, y + 3, w - 6, 1, 'rgba(255,248,231,.45)');
+          if (hint === p) rect(x + 2, y + 2, w - 4, h - 9, `rgba(255,248,231,${(0.12 + 0.3 * beckon).toFixed(2)})`);
           art(p, x + w / 2, y + h - 10, a);
           if (!mine(p)) rect(x + 2, y + 2, w - 4, h - 4, 'rgba(43,31,26,.5)');                 // the other one's drums are dimmed
           if (a >= 0 && a < 0.3) rect(x + 2, y + 2, w - 4, h - 4, `rgba(255,248,231,${(0.75 * (1 - a / 0.3)).toFixed(2)})`);
           if (p === s.badPad && s.t - s.bad < 0.6) rect(x + 2, y + 2, w - 4, h - 4, 'rgba(204,34,51,.55)');
           const ring = (k, c) => { rect(x - k, y - k, w + 2 * k, k, c); rect(x - k, y + h, w + 2 * k, k, c); rect(x - k, y, k, h, c); rect(x + w, y, k, h, c); };
-          if (turn === o) ring(1, OWN[o]);                                                     // whose turn: their drums ringed in their colour
-          if (hint === p) {                                                                    // taking long: the drum to strike pulses, with an arrow
-            const on = Math.sin(s.t * 9) > -0.3;
-            if (on) { ring(2, OWN[o]); rect(x + 2, y + 2, w - 4, h - 9, 'rgba(255,248,231,.3)'); }
-            arrow(x + w / 2, y - 2 - Math.round(Math.abs(Math.sin(s.t * 6)) * 3), OWN[o]);
+          if (turn === o && hint !== p) ring(Math.sin(s.t * 6) > 0 ? 2 : 1, OWN[o]);            // whose turn: their drums ringed in their colour, pulsing
+          if (hint === p) {                                                                    // taking long: the drum to strike, with a big arrow on it
+            ring(3, OWN[o]);
+            arrow(x + w / 2, y + 11 + Math.round(beckon * 2), OWN[o], BIG);
           }
           if (s.spark && s.spark.p === p && s.t - s.spark.t < 0.8) {                           // sparkles round the drum that is new this round
             const u = s.t - s.spark.t;

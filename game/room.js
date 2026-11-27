@@ -194,7 +194,7 @@
     // The echo game: a rhythm to repeat, Simon-style. `tune` makes the whole rhythm once; each round plays one stroke
     // more of it, so a round only ever asks for one new stroke. Never three of a kind in a row and the first two
     // strokes differ; with two, both play from the first round, turns change often (never three running for one),
-    // and Kellyn, the younger, never has more strokes than Kendrick.
+    // and in no round (2 strokes and longer) does Kellyn, the younger, have more strokes than Kendrick.
     function tune(len, two) {
       for (;;) {
         const pat = [];
@@ -205,7 +205,7 @@
           pat.push(p);
         }
         if (!two) return pat;
-        const fair = pat.every((_, i) => pat.slice(0, i + 1).filter((p) => owner(p) === 'kel').length <= Math.ceil((i + 1) / 2));
+        const fair = pat.every((_, i) => i < 1 || pat.slice(0, i + 1).filter((p) => owner(p) === 'kel').length <= Math.floor((i + 1) / 2));
         if (owner(pat[0]) !== owner(pat[1]) && fair) return pat;
       }
     }
@@ -407,7 +407,8 @@
         sn.last = { p, ok, n: ++sn.n, who, i };                                        // so both devices can show and sound the stroke
         if (!ok) {                                                                     // a slip: the same rhythm is played once more; the first in a round is free
           sn.misses++;
-          if (sn.slips++ > 0) sn.lives--;
+          // with two, Kellyn's slip never takes the last heart: the younger is never the only reason they lose
+          if (sn.slips++ > 0 && !(two && who === 'kel' && sn.lives === 1)) sn.lives--;
           if (sn.lives <= 0) sn.phase = 'lost'; else teach(sn.pattern.length, 1400);
           return;
         }
