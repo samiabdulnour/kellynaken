@@ -22,6 +22,25 @@
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const rng = (seed) => { let s = (seed >>> 0) || 1; return () => { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; return s / 4294967296; }; };
 
+  // A song's parts, as written in world.js. A lead sheet ('A4:2 C5 ...': a note and its octave, then its length in
+  // beats when it is not one; the bars between | are only there to read it by) becomes [beat, midi, length], one
+  // note after another. A drum tab (bar by bar: where in the bar and what is hit there, '0:kh 1:sh') becomes [beat, kind].
+  const STEP = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 }, KIT = { k: 'kick', s: 'snare', h: 'hat', t: 'tom', c: 'cymbal' };
+  function sheet(text) {
+    const out = []; let b = 0;
+    for (const tok of text.split(/[\s|]+/)) {
+      const m = /^([A-G])(#?)(\d)(?::([\d.]+))?$/.exec(tok); if (!m) continue;
+      const len = m[4] ? +m[4] : 1;
+      out.push([b, 12 * (+m[3] + 1) + STEP[m[1]] + (m[2] ? 1 : 0), len]); b += len;
+    }
+    return out;
+  }
+  function tab(text) {
+    const out = [];
+    text.split('|').forEach((bar, i) => { for (const tok of bar.trim().split(/\s+/)) { const [at, what] = tok.split(':'); if (what) for (const k of what) if (KIT[k]) out.push([i * 4 + +at, KIT[k]]); } });
+    return out.sort((x, y) => x[0] - y[0]);
+  }
+
   // What a scene throws at the players, made from a seed so both devices get exactly the same.
   const course = {
     // `at` is when a thing reaches the surfer. A gentle start to learn on: three far apart (a fin, a fin, a parrot).
@@ -107,31 +126,43 @@
       const warn = cfg.warn[k ? 1 : 0];
       return { k, at, warn, u: t - at, f: t - at - warn, next: at + cfg.every[Math.min(k, cfg.every.length - 1)] };
     },
-    // The song at the concert. As "Start!" goes, four clicks count it in; then four gentle bars (beats one and three
-    // only), the rest of the first half on the beat, a busier second half (notes between the beats too), two bars of
-    // fill and one big beat to end on. With two, Kendrick has the kick and the snare (left and middle lanes) and
-    // Kellyn the cymbal (right), on the beat only: once a bar, then twice, then every beat. A note's `who` says whose
-    // it is (null: one playing alone has all of them).
-    drums(seed, sc, two) {
-      const cfg = sc.drums, beat = 60 / cfg.bpm, r = rng(seed), notes = [], n = cfg.beats, half = n / 2, fill = n - 8;
-      const start = 0.6 + 4 * beat, end = start + n * beat;
-      const add = (at, lane, big) => notes.push({ at, lane, who: two ? (lane === 2 ? 'kel' : 'ken') : null, big: !!big });
-      const run = (k) => (two ? k % 2 : [0, 1, 2, 1][k % 4]);                              // the fill runs round the drums
-      for (let b = 0; b < n; b++) {
-        const at = start + b * beat, q = b % 4;
-        if (b >= fill) { add(at, run(2 * b)); add(at + beat / 2, run(2 * b + 1)); }
-        else {
-          // kick on one, snare on two; on three and four, with two, now and then the other way round; alone, often the cymbal
-          if (b >= 16 || q % 2 === 0) add(at, q === 0 ? 0 : q === 1 ? 1 : two ? (r() < 0.3 ? 3 - q : q - 2) : r() < 0.4 ? q - 2 : 2);
-          if (b >= half && r() < (cfg.busy || 0.3)) add(at + beat / 2, Math.floor(r() * (two ? 2 : 3)));
+    // The song at the concert (world.js: the scene's drums.song). As "Start!" goes, Alan counts it in with four clicks
+    // of his sticks; then the band plays it. Every note keeps its pitch, its length and its part ('guitar' or 'bass').
+    // With two, Kendrick plays the guitar on the left two lanes and Kellyn the easy bass on the right one; alone
+    // (`lead`: who it is), you play your own instrument on all three lanes and the other one's part comes back as
+    // `auto`, for the game to play. Kellyn alone plays the full bass, but a quick note played twice in a row (two
+    // eighths of the same pitch) is one longer note for her to play: she is six. The lane follows the tune: within
+    // each phrase of two bars the lowest notes go left and the highest right. The last note is big (alone, down the
+    // middle). A note's `who` says whose it is (null: one playing alone has all of them). `kit` is Alan's drums, the
+    // count-in first.
+    drums(seed, sc, two, lead) {
+      const song = sc.drums.song, beat = 60 / song.bpm, n = song.beats, start = 0.6 + 4 * beat, end = start + n * beat;
+      const at = (b) => start + b * beat, last = Math.ceil(n / 8) - 1;
+      const notes = [], auto = [];
+      // a part on lanes first .. first + k - 1, by pitch within its phrase
+      const lay = (part, name, who, first, k, calm) => {
+        const list = sheet(song[name]).reduce((out, q) => { const p = out[out.length - 1];                  // calm: the same note twice, quickly, played once
+          if (calm && p && p[2] === 0.5 && q[2] === 0.5 && p[1] === q[1] && p[0] % 1 === 0) p[2] = 1; else out.push(q.slice()); return out; }, []);
+        const phrase = (b) => Math.min(Math.floor(b / 8), last);
+        for (const [b, midi, len] of list) {
+          const tune = [...new Set(list.filter((q) => phrase(q[0]) === phrase(b)).map((q) => q[1]))].sort((x, y) => x - y);
+          const lane = first + Math.min(k - 1, Math.floor((tune.indexOf(midi) + 0.5) * k / tune.length)), big = b >= n;
+          notes.push({ at: at(b), lane: big && !two ? 1 : lane, who, big, part, midi, len: len * beat, beat: b });
         }
-        if (two && (b < 16 ? q === 0 : b < half ? q % 2 === 0 : true)) add(at, 2);    // Kellyn's cymbal
+      };
+      if (two) { lay('guitar', 'guitar', 'ken', 0, 2); lay('bass', 'easy', 'kel', 2, 1); }
+      else {
+        const mine = lead === 'kel' ? 'bass' : 'guitar', theirs = mine === 'bass' ? 'guitar' : 'bass';
+        lay(mine, mine, null, 0, 3, mine === 'bass');
+        for (const [b, midi, len] of sheet(song[theirs])) auto.push({ at: at(b), part: theirs, midi, len: len * beat, beat: b });
       }
-      if (two) { add(end, 0, true); add(end, 2, true); } else add(end, 1, true);      // the last beat: with two, both strike together
-      notes.sort((a, b) => a.at - b.at);
-      // the pick-up falls between two beats, about a third of the way in: down the middle, or with two down Kellyn's lane
-      return { notes, beat, start, end, half: start + half * beat, fill: start + fill * beat,
-        pick: sc.pickup ? { lane: two ? 2 : 1, at: start + (Math.floor(n * 0.3) + 0.5) * beat } : null };
+      notes.sort((a, b) => a.at - b.at || a.lane - b.lane);
+      const kit = [0, 1, 2, 3].map((k) => ({ at: at(k - 4), kind: 'stick', count: k + 1 }));
+      for (const [b, kind] of tab(song.drums)) kit.push({ at: at(b), kind, beat: b });
+      const sections = song.sections.map(([b, name, cheer]) => ({ at: at(b), beat: b, name, cheer: cheer || '' }));
+      // the pick-up falls between two notes, about a third of the way in: down the middle, or with two down Kellyn's lane
+      return { notes, auto, kit, sections, beat, start, end, title: song.title, big: at(song.big || n),
+        pick: sc.pickup ? { lane: two ? 2 : 1, at: at(Math.floor(n * 0.3) + 0.5) } : null };
     },
     // Koalas in the trees: which of the scene's hiding places are used (as many as are to be found), and when each
     // one peeks out.
@@ -296,7 +327,8 @@
       // she misses them all, and every note she does hit still helps. `by`: what each has drummed; `notes`: how many.
       // `marks`: how many hits win (one star), and earn two and three stars: most of the whole song, the two of them.
       if (sc.play === 'drums') {
-        const song = course.drums(sn.seed, sc, two), all = song.notes.length, hers = song.notes.filter((q) => q.who === 'kel').length, need = Math.ceil((all - hers * 2 / 3) * (sc.drums.pass || 0.6));
+        sn.lead = two ? null : S.online.kel && !S.online.ken ? 'kel' : 'ken';              // alone: whose instrument is played (see course.drums)
+        const song = course.drums(sn.seed, sc, two, sn.lead), all = song.notes.length, hers = song.notes.filter((q) => q.who === 'kel').length, need = Math.ceil((all - hers * 2 / 3) * ((sn.lead === 'kel' && sc.drums.passKel) || sc.drums.pass || 0.6));   // Kellyn alone (she is six) may need a little less
         Object.assign(sn, { two, hits: 0, by: { ken: 0, kel: 0 }, notes: all, need, marks: [need, Math.max(need + 1, Math.ceil(all * 0.68)), Math.max(need + 2, Math.ceil(all * 0.8))] });
       }
       if (sn.lives !== undefined) sn.maxLives = sn.lives;                                   // for the stars: how many they started with
@@ -429,7 +461,7 @@
       const sn = S.scene; if (!sn || sn.phase !== 'play' || sn.paused) return;
       const sc = place().scenes[sn.index], kind = sc.play;
       if (m.e === 'pick' && sc.pickup && !sn.picked) {                                  // one grabs it, both get it
-        sn.picked = true;
+        sn.picked = true; sn.caughtAt = now();                                         // when it was caught, the same moment for both
         if (kind === 'shoot') sn.item = sc.pickup; else sn.power = now() + 5000;
       }
       // The surf: `i` is which obstacle. Out of hearts, one rides on the other's board until that one has passed three
@@ -652,7 +684,7 @@
       // A pause stops the game's clock: on carrying on, every moment the game keeps is moved on by the pause.
       if (m.type === 'pause') { if (sn && sn.phase === 'play' && !sn.paused) { sn.paused = now(); sn.pausedBy = who; } }
       else if (m.type === 'resume') {
-        if (sn && sn.paused) { const d = now() - sn.paused; for (const k of ['startAt', 'busyUntil', 'hideAt', 'pullAt', 'pullT', 'power', 'showAt', 'listenAt', 'endAt', 'finAt']) if (sn[k]) sn[k] += d; sn.paused = 0; }
+        if (sn && sn.paused) { const d = now() - sn.paused; for (const k of ['startAt', 'busyUntil', 'hideAt', 'pullAt', 'pullT', 'power', 'caughtAt', 'showAt', 'listenAt', 'endAt', 'finAt']) if (sn[k]) sn[k] += d; sn.paused = 0; }
       }
       // A save code typed in (see game.js): how far they had got, added to what is here.
       else if (m.type === 'load' && m.places && typeof m.places === 'object') merge({ places: m.places, round: S.save.round });
