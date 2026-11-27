@@ -32,6 +32,8 @@
 //           let it go; with two, one drives the crane and the other works the hook
 //   shoot   padlocks appear on the `spots` of the picture and slip away: tap one to shoot at it (with two, each has their own colour). Kendrick fires a puck with his hockey stick,
 //           Kellyn throws her white bunny
+//   flat    moving in: drag the furniture from the heap to its silhouette in the rooms, tap a piece to turn it round,
+//           before the sun goes down in the windows
 //   stub    not built yet: shows a card and lets you carry on
 //
 // `pickup` puts one of the `items` into a scene, to grab like a power-up: jump into it in a dash, hit it in a shot,
@@ -249,9 +251,17 @@ window.WORLD = {
           talk: [['sami', 'Dům stojí, jenže náš nový byt je úplně prázdný.'], ['zofia', 'V Sydney lidi dávají nábytek, který už nechtějí, ven na chodník. Kdo chce, ten si ho vezme!'],
             ['sami', 'Seznam máte nahoře. Najděte všechno, co na něm je.'], ['', 'Pozor na ibisy a straky!']] },
         // Moving in before night: the flat seen like a dollhouse, two rooms; drag every piece to its place (play 'flat').
-        { id: 'sydney-flat', name: 'Byt', at: [80, 240], label: 'below', bg: 'sydney-flat', play: 'flat', code: 'BYT', cast: ['sami', 'zofia'],
-          flat: { seconds: 120 },
-          talk: [['zofia', 'Všechno máme! Teď to rychle nastěhovat, než se setmí.'], ['', 'Táhni věci na jejich místo. Klepnutím je otočíš.']] },
+        // A place is [piece, x, y, size, facing, after]: where the piece's feet stand on the picture (the bedroom floor is
+        // y 98-136, the living room's 229-282; the heap lies along the bottom, so nothing stands below 256 there), how big
+        // it is drawn (of its picture in the furniture or kerb sheet), which way round it must stand (1 as drawn, -1
+        // turned round, 0 either way; shown by its silhouette) and which piece must be down first. The rug ('rugroll',
+        // rolled up in the heap) lies flat; the sofa and the coffee table stand on it. Two get a fifth more time.
+        { id: 'sydney-flat', name: 'Byt', at: [80, 240], label: 'below', bg: 'sydney-flat', play: 'flat', code: 'BYT', cast: ['sami', 'zofia'], ground: 274,
+          flat: { seconds: 120,
+            places: [['bed', 50, 114, 0.62, 1], ['shelf', 104, 100, 0.55, 0], ['chair', 153, 124, 0.42, 0],
+              ['rugroll', 98, 251, 0.62, 0], ['sofa', 98, 239, 0.45, 0, 'rugroll'], ['table', 98, 252, 0.4, 0, 'rugroll'],
+              ['lamp', 62, 236, 0.42, 0], ['armchair', 141, 247, 0.42, 0], ['plant', 25, 254, 0.36, -1]] },
+          talk: [['zofia', 'Všechno máme! Teď to rychle nastěhovat, než se setmí.'], ['', 'Táhni věci na svá místa. Klepnutím je otočíš.']] },
       ],
       done: [['sami', 'Díky! Dům stojí a byt je zařízený. Sám bych to nikdy nezvládl.'], ['zofia', 'Juchůů! Zachránili jste nás, postavili mrakodrap a ještě nás nastěhovali!']],
     },

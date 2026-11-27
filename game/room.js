@@ -11,7 +11,7 @@
 //   play {place, index} start a level from its pin on a region's map
 //   next                the next line of the story               done             leave a scene that has no game yet
 //   ev {e, ...}         something that counts: hurt, hit, miss, pick, finish, pad, find, flip, grab, sting, pull, crane, drop (a storey, or a salon customer let go),
-//                       beat (an enemy), got (a coin, a clue or a piece on the list), revive (a partner out of their bubble)
+//                       beat (an enemy), got (a coin, a clue or a piece on the list), revive (a partner out of their bubble), place (a piece of furniture put in)
 //   fx {...}            something only to show on the other device (a jump, a shot, a drum tap)
 //   cont / retry        after a scene is won / lost              home             back to the map after a rescue
 //   back                up one level: from a level to its map, from a region's map to the map around it
@@ -125,11 +125,21 @@
       }
       return { targets };
     },
+    // Moving into the flat: each piece with its place (world.js) and the piece that must be down before it (`after`,
+    // an index, or -1); which way round it waits in the heap (the bed always the wrong way, so turning is learnt on
+    // it; the others as it falls); and the order the heap lies in, left to right.
+    flat(seed, sc) {
+      const r = rng(seed), list = sc.flat.places;
+      const pieces = list.map(([k, x, y, size, face, after], id) => ({ id, k, x, y, size, face: face || 0, after: after ? list.findIndex((q) => q[0] === after) : -1 }));
+      for (const p of pieces) p.f = p.face ? (p.k === 'bed' || r() < 0.5 ? -p.face : p.face) : r() < 0.5 ? 1 : -1;
+      const order = pieces.map((p) => [p.id, r()]).sort((a, b) => a[1] - b[1]).map((o) => o[0]);
+      return { pieces, order };
+    },
   };
 
   // `open`: every level may be played in any order (the version for trying levels out).
   function create({ world, solo, now, emit, open }) {
-    const places = world.places, GAMES = ['run', 'platform', 'drums', 'shoot', 'echo', 'find', 'salon', 'memory', 'collect', 'rescue', 'tower'];
+    const places = world.places, GAMES = ['run', 'platform', 'drums', 'shoot', 'echo', 'find', 'salon', 'memory', 'collect', 'rescue', 'tower', 'flat'];
     const owner = (pad) => (pad < 2 ? 'ken' : 'kel');                                 // in the echo game each of them has two of the four drums
     const S = { online: { ken: false, kel: false }, save: { places: {}, album: [], round: 0, stars: {} }, where: { screen: 'map' }, scene: null };
     let serial = 0;
@@ -192,6 +202,9 @@
       if (sc.play === 'tower') Object.assign(sn, { floors: [96], crane: 96, need: Math.round(sc.tower.need * (two ? 1.3 : 1)), lives: two ? 5 : 4, n: 0, last: null, busyUntil: 0, endAt: 0, endPhase: null, holding: false, lifts: 0 });
       if (sc.play === 'rescue') Object.assign(sn, { stage: 'throw', hits: 0, needHits: sc.rescue.hits * (two ? 2 : 1), lives: two ? 4 : 3, pull: 0, needPull: Math.round(sc.rescue.pull * (two ? 2 : 1)), pullAt: 0 });
       if (sc.play === 'salon') Object.assign(sn, { lives: two ? 4 : 3, need: Math.round(sc.salon.need * (two ? 1.6 : 1)), served: 0, coins: 0, cust: [], next: 0, tt: 0, workers: { ken: null, kel: null } });
+      // the flat: every piece in the heap, nobody holding anything; two get a fifth more time before night
+      if (sc.play === 'flat') Object.assign(sn, { seconds: Math.round(sc.flat.seconds * (two ? 1.2 : 1)), no: null, wonAt: 0,
+        pieces: course.flat(sn.seed, sc).pieces.map((p) => ({ f: p.f, by: null, till: 0, rest: null, done: false, who: null })) });
       if (sc.play === 'echo') { Object.assign(sn, { lives: two ? 4 : 3, round: 0, rounds: sc.echo.rounds, n: 0, last: null }); teach(sc.echo.first, 1600); }
       if (sc.play === 'platform') Object.assign(sn, { hurts: 0, outs: 0 });
       if (sc.play === 'drums') Object.assign(sn, { hits: 0, need: Math.ceil(course.drums(sn.seed, sc).notes.length * (sc.drums.pass || 0.6) * (two ? 1.8 : 1)) });    // two need more than one could drum alone, but not so much that one must carry the other
@@ -257,6 +270,12 @@
       }
       if (sc.play === 'rescue' && sn.stage === 'pull' && now() > sn.pullAt + sc.rescue.seconds * 1000) { sn.phase = 'lost'; return true; }
       if (sc.play === 'tower' && sn.endAt && now() >= sn.endAt) { sn.phase = sn.endPhase; return true; }   // once the last storey has landed (or fallen)
+      if (sc.play === 'flat') {
+        if (now() >= sn.startAt + sn.seconds * 1000) { sn.phase = 'lost'; return true; }   // night fell first
+        let freed = false;
+        for (const p of sn.pieces) if (p.by && now() > p.till) { p.by = null; freed = true; }   // a phone that went quiet lets go of what it held
+        return freed;
+      }
       return false;
     }
     // A level counts the moment it is won (not when they tap on), so closing the game on the card loses nothing.
@@ -282,6 +301,7 @@
       if (k === 'memory') return by(sn.misses - Math.floor(sn.maxMiss * 0.4), Math.floor(sn.maxMiss * 0.3));
       if (k === 'find') { const u = (now() - sn.startAt) / 1000 / sc.find.seconds; return u <= 0.6 ? 3 : u <= 0.85 ? 2 : 1; }
       if (k === 'drums') { const r = sn.hits / Math.max(1, sn.need); return r >= 1.25 ? 3 : r >= 1.1 ? 2 : 1; }
+      if (k === 'flat') { const u = ((sn.wonAt || now()) - sn.startAt) / 1000 / sn.seconds; return u <= 0.5 ? 3 : u <= 0.8 ? 2 : 1; }   // how much daylight was left
       if (sn.maxLives) return by(sn.maxLives - sn.lives, Math.floor(sn.maxLives / 2));
       return 3;
     }
@@ -391,6 +411,28 @@
         if (sn.stage === 'throw' && m.e === 'miss') { if (--sn.lives <= 0) sn.phase = 'lost'; }
         if (sn.stage === 'pull' && m.e === 'pull' && now() >= sn.pullAt) { sn.pull += clamp(m.n | 0, 0, 12); if (sn.pull >= sn.needPull) sn.phase = 'won'; }
       }
+      // Moving in: a piece is taken (a free one, one at a time; the phone says so every second or so while it holds it),
+      // let go (back to the heap, or, when the phone says `park`, left standing at its place the wrong way round, for
+      // anyone to turn) or put in. The room checks the place, the facing and the order; a refusal says why, for the
+      // phone that asked. What the other one holds is theirs: taking or putting it in is refused as 'taken'.
+      if (kind === 'flat') {
+        const id = m.id | 0, p = sn.pieces[id], spec = course.flat(sn.seed, sc).pieces[id];
+        if (!p || p.done) return;
+        const f = m.f === -1 ? -1 : 1, near = Math.abs(m.x - spec.x) <= 30 && Math.abs(m.y - spec.y) <= 30;      // no x at all is never near
+        const no = (why) => { sn.no = { id, why, who, n: (sn.no ? sn.no.n : 0) + 1 }; };
+        if (p.by && p.by !== who) return m.e === 'drop' ? undefined : no('taken');
+        if (m.e === 'grab') {
+          for (const q of sn.pieces) if (q.by === who && q !== p) q.by = null;
+          p.by = who; p.till = now() + 4000;
+        }
+        if (m.e === 'drop') { p.by = null; p.f = f; p.rest = m.park && near && spec.face && spec.face !== f ? [spec.x, spec.y] : null; }
+        if (m.e === 'place') {
+          const why = !near ? 'far' : spec.after >= 0 && !sn.pieces[spec.after].done ? 'order' : spec.face && spec.face !== f ? 'face' : null;
+          p.by = null; p.f = f; p.rest = why === 'face' ? [spec.x, spec.y] : null;
+          if (why) no(why);
+          else { p.done = true; p.who = who; if (sn.pieces.every((q) => q.done)) { sn.phase = 'won'; sn.wonAt = now(); } }
+        }
+      }
       if (kind === 'echo' && m.e === 'pad') {
         const p = m.p | 0;
         if (now() < sn.listenAt || p < 0 || p > 3 || (!solo && both() && owner(p) !== who)) return;     // still being shown, or not this one's drum
@@ -413,6 +455,7 @@
       if (!m || (who !== 'ken' && who !== 'kel')) return;
       if (m.type === 'fx') return emit(who === 'ken' ? 'kel' : 'ken', { ...m, type: 'fx', from: who });
       const sn = S.scene, sc = sn && place().scenes[sn.index];
+      if (m.type === 'pause' && sn && sn.pieces && sn.phase === 'play' && !sn.paused) for (const p of sn.pieces) p.by = null;   // moving in: a pause lets go of what is held
       // A pause stops the game's clock: on carrying on, every moment the game keeps is moved on by the pause.
       if (m.type === 'pause') { if (sn && sn.phase === 'play' && !sn.paused) { sn.paused = now(); sn.pausedBy = who; } }
       else if (m.type === 'resume') {

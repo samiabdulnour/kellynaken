@@ -168,3 +168,14 @@ button{font:inherit;color:inherit}
 #ui:has(.list) .plus{font-size:1.3em;text-shadow:.07em .07em 0 var(--ink),-.07em -.07em 0 var(--ink),.07em -.07em 0 var(--ink),-.07em .07em 0 var(--ink)}
 .lives.hit{animation:shake .45s steps(4)}
 @keyframes shake{25%{transform:translateX(-.3em)}75%{transform:translateX(.3em)}}
+/* Moving in (Byt): a square for every piece, green once it stands in its place; and the evening as a strip of sky from
+   day to night with the sun on it, which turns into the moon and blinks when night is close. */
+.dots{display:flex;gap:.2em}
+.dots i{width:.7em;height:.7em;background:var(--ink-soft)}
+.dots i.on{background:var(--green);box-shadow:0 0 0 .1em var(--paper)}
+.sky{position:relative;flex:1;max-width:9em;height:.75em;margin:0 .6em;border:.17em solid var(--paper);
+  background:linear-gradient(90deg,#8FD3F4 0 38%,#F6A55B 58%,#7A4B8F 78%,#141A3C 95%)}
+.sky i{position:absolute;top:50%;width:1.25em;height:1.25em;margin:-.625em 0 0 -.625em;background:var(--yellow);
+  clip-path:polygon(30% 0,70% 0,100% 30%,100% 70%,70% 100%,30% 100%,0 70%,0 30%)}
+.sky i.moon{background:var(--paper)}
+.sky.late i{animation:blink .5s steps(2,jump-none) infinite}
