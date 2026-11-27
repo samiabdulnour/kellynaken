@@ -268,7 +268,7 @@
       // `lives` is all of them together. The pull: `tugs` counts each one's taps, `pull` how far the raft has come by `pullT`.
       if (sc.play === 'rescue') { const n = sc.rescue.lives[two ? 1 : 0]; Object.assign(sn, { two, stage: 'throw', hits: 0, needHits: Math.round(sc.rescue.hits * (two ? 1.5 : 1)), left: { ken: n, kel: n }, lives: two ? 2 * n : n, misses: 0,
         pull: 0, pullAt: 0, pullT: 0, needPull: Math.round(sc.rescue.pull * (two ? 1.8 : 1)), tugs: { ken: 0, kel: 0 }, tugAt: { ken: 0, kel: 0 }, lastTug: null, lastTugAt: 0, turns: 0, combo: 0, comboAt: 0 }); }
-      if (sc.play === 'salon') Object.assign(sn, { lives: two ? 4 : 3, need: Math.round(sc.salon.need * (two ? 1.6 : 1)), served: 0, coins: 0, cust: [], next: 0, tt: 0, workers: { ken: null, kel: null } });
+      if (sc.play === 'salon') Object.assign(sn, { lives: two ? 4 : 3, need: Math.round(sc.salon.need * (two ? 1.6 : 1)), served: 0, coins: 0, cust: [], next: 0, tt: 0, workers: { ken: null, kel: null }, hold: { ken: false, kel: false } });
       // the flat: every piece in the heap, nobody holding anything; two get a fifth more time before night
       if (sc.play === 'flat') Object.assign(sn, { seconds: Math.round(sc.flat.seconds * (two ? 1.2 : 1)), no: null, wonAt: 0,
         pieces: course.flat(sn.seed, sc).pieces.map((p) => ({ f: p.f, by: null, till: 0, rest: null, done: false, who: null })) });
@@ -311,6 +311,8 @@
       sn.listenAt = sn.since = sn.showAt + len * sn.beat * 1000 + 300;                // `since`: from when the next stroke is waited for (for the hints)
     }
     // The salon runs on its own between messages: customers come in, work gets done where someone stands, patience runs out.
+    // Each pair of hands at a place works at speed 1, or 1.5 while its owner holds the Pracuj button down; someone
+    // being worked on is happy and loses no patience.
     const QUEUE = 3, AWAY = -1, WAITING = -2;                                       // three chairs to wait on by the door
     function salonTick() {
       const sn = S.scene; if (!sn || sn.phase !== 'play') return false;
@@ -323,21 +325,24 @@
         sn.cust.push({ ...p, step: 0, work: 0, at: WAITING, by: null, pat: max, max, no: 0 });
       }
       for (const c of sn.cust) {
+        let tended = false;
         if (c.at >= 0) {
-          const st = cfg.stations[c.at], k = ['ken', 'kel'].filter((w) => sn.workers[w] === c.at).length;
-          if (st.k === c.order[c.step] && k) {
-            c.work += dt * k;
+          const st = cfg.stations[c.at], hands = ['ken', 'kel'].filter((w) => sn.workers[w] === c.at);
+          if (st.k === c.order[c.step] && hands.length) {
+            tended = true;
+            c.work += dt * hands.reduce((a, w) => a + (sn.hold && sn.hold[w] ? 1.5 : 1), 0);
             if (c.work >= cfg.work[st.k]) {
               c.work = 0; c.step++; c.pat = Math.min(c.max, c.pat + 8);
               if (c.step >= c.order.length) { c.gone = 'happy'; sn.served++; sn.coins += 50 + c.order.length * 30; }
               else {                                                                    // done here: whoever did it takes them by the hand, on to the next thing
-                const w = ['ken', 'kel'].find((q) => sn.workers[q] === c.at && !sn.cust.some((o) => o.by === q));
+                // (with two at it, the one who brought them here: a helper does not walk off with the other's customer)
+                const w = [c.led, 'ken', 'kel'].find((q) => q && sn.workers[q] === c.at && !sn.cust.some((o) => o.by === q));
                 if (w) { c.by = w; c.at = AWAY; sn.workers[w] = null; }
               }
             }
           }
         }
-        if (!c.gone && (c.pat -= dt) <= 0) { c.gone = 'angry'; sn.lives--; }
+        if (!c.gone && !tended && (c.pat -= dt) <= 0) { c.gone = 'angry'; sn.lives--; }
       }
       sn.cust = sn.cust.filter((c) => !c.gone);
       if (sn.served >= sn.need) sn.phase = 'won';
@@ -479,12 +484,14 @@
       if (kind === 'salon') {
         const cfg = sc.salon, c = sn.cust.find((q) => q.id === (m.c | 0)), st = m.st | 0;
         if (m.e === 'at') sn.workers[who] = Number.isInteger(m.st) && st >= 0 && st < cfg.stations.length ? st : null;   // where this one stands and works
+        if (m.e === 'hold') sn.hold[who] = !!m.on;                                       // the Pracuj button held down: quicker work
         const busy = (q) => q.at >= 0 && cfg.stations[q.at].k === q.order[q.step];          // sitting where their next thing is done: not to be pulled away
-        if (m.e === 'take' && c && !c.by && !busy(c) && !sn.cust.some((q) => q.by === who)) { c.by = who; c.at = AWAY; c.work = 0; }    // leading a customer by the hand
+        // leading a customer by the hand; one nearly out of patience in the other's hand may be taken over, to save them
+        if (m.e === 'take' && c && (!c.by || (c.by !== who && c.pat <= c.max / 4)) && !busy(c) && !sn.cust.some((q) => q.by === who)) { c.by = who; c.at = AWAY; c.work = 0; }
         if (m.e === 'drop' && c && c.by === who && sn.cust.filter((q) => q.at === WAITING).length < QUEUE) { c.by = null; c.at = WAITING; c.work = 0; }   // let go: back to a chair by the door, if one is free
         if (m.e === 'lead' && c && c.by === who) {
           const there = cfg.stations[st];
-          if (there && there.k === c.order[c.step] && !sn.cust.some((q) => q.at === st)) { c.at = st; c.by = null; c.work = 0; sn.workers[who] = st; }
+          if (there && there.k === c.order[c.step] && !sn.cust.some((q) => q.at === st)) { c.at = st; c.by = null; c.work = 0; c.led = who; sn.workers[who] = st; }
           else c.no++;                                                                  // not what they want next, or taken: a shake of the head
         }
       }
@@ -630,6 +637,7 @@
       if (m.type === 'fx') return emit(who === 'ken' ? 'kel' : 'ken', { ...m, type: 'fx', from: who });
       const sn = S.scene, sc = sn && place().scenes[sn.index];
       if (m.type === 'pause' && sn && sn.pieces && sn.phase === 'play' && !sn.paused) for (const p of sn.pieces) p.by = null;   // moving in: a pause lets go of what is held
+      if (m.type === 'pause' && sn && sn.hold) sn.hold = { ken: false, kel: false };            // the salon: Pracuj lets go for the pause (a finger still on it says so again after)
       // A pause stops the game's clock: on carrying on, every moment the game keeps is moved on by the pause.
       if (m.type === 'pause') { if (sn && sn.phase === 'play' && !sn.paused) { sn.paused = now(); sn.pausedBy = who; } }
       else if (m.type === 'resume') {
