@@ -20,7 +20,7 @@
     function take(m) {
       if (m.type === 'state') {
         off = off === null ? m.now - Date.now() : Math.max(off, m.now - Date.now());   // the room's clock, as near as the fastest message shows
-        state = m; save.places = m.save.places; save.album = m.save.album; save.round = m.save.round | 0; write();     // each device remembers too, in case the server forgets
+        state = m; save.places = m.save.places; save.album = m.save.album; save.round = m.save.round | 0; save.stars = m.save.stars || {}; write();     // each device remembers too, in case the server forgets
         hear.state(m);
       } else if (m.type === 'fx') hear.fx(m);
       else if (m.type === 'taken') { leave(); hear.taken(); }
@@ -29,14 +29,14 @@
     // The stream to the server. If it breaks (a tunnel, a sleeping server) it is opened afresh, bringing along what this
     // device remembers, so a server that has just woken up with an empty memory is told how far they had got.
     function listen() {
-      const mine = { places: save.places, album: save.album, round: save.round | 0 };
+      const mine = { places: save.places, album: save.album, round: save.round | 0, stars: save.stars || {} };
       es = new EventSource(`${base}/v2/api/stream?who=${who}&id=${save.id}&save=${encodeURIComponent(JSON.stringify(mine))}`);
       es.onmessage = (e) => { let m = null; try { m = JSON.parse(e.data); } catch (err) {} if (m) take(m); };
       es.onerror = () => { if (!es) return; es.close(); es = null; if (who) again = setTimeout(listen, 1500); };
     }
     function join(w) {
       leave(); who = w;
-      const mine = { places: save.places, album: save.album, round: save.round | 0 };
+      const mine = { places: save.places, album: save.album, round: save.round | 0, stars: save.stars || {} };
       if (solo) {
         const r = Room.create({ world: WORLD, solo: true, open: INSPECT, now: () => Date.now(), emit: (to, m) => { if (to === 'all' || to === who) { const copy = JSON.parse(JSON.stringify(m)); setTimeout(() => { if (room === r) take(copy); }, 0); } } });
         room = r; clearInterval(ticker); ticker = setInterval(() => { if (room === r) r.tick(); }, 250);
@@ -83,6 +83,12 @@
     rect(x - 2, y - 9 + bob, 4, 4, lit ? '#FFD43A' : '#B8ADA6');
   };
   const pinAt = ([x, y]) => `left:${(x / W) * 100}%;top:${(y / H) * 100}%`;    // a name next to its pin, in the UI layer
+  // Praise in big letters across the middle of the screen for a moment ("Perfektní!"), or a little "+1" rising from a
+  // spot in the picture: for every game to cheer with.
+  const cheer = (text) => { const p = add(`<p class="praise">${esc(text)}</p>`); setTimeout(() => p.remove(), 900); };
+  const plus = (text, x, y, color) => { const p = add(`<p class="plus" style="${pinAt([x, y])}${color ? `;color:${color}` : ''}">${esc(text)}</p>`); setTimeout(() => p.remove(), 800); };
+  // Stars, 1 to 3, as text: filled ones and empty ones.
+  const starText = (n) => '★'.repeat(n) + '☆'.repeat(3 - n);
   // Arriving on a map: it grows into place for a moment, as if zooming in.
   const zoomIn = (t, draw) => {
     const e = Math.min(1, t / 0.35), k = 0.55 + 0.45 * (1 - (1 - e) ** 3);
@@ -310,7 +316,8 @@
     }
     function labels() {
       K.ui.querySelectorAll('.pin').forEach((el) => el.remove());
-      for (const pin of pins) add(`<button class="pin ${pin.label || 'below'} ${state(pin)}" data-id="${pin.key}" style="${pinAt(pin.at)}">${esc(name(pin))}</button>`).addEventListener('click', () => pick(pin));
+      const best = (st() && st().save.stars) || {};                                       // stars next to the levels won, the best each time
+      for (const pin of pins) add(`<button class="pin ${pin.label || 'below'} ${state(pin)}" data-id="${pin.key}" style="${pinAt(pin.at)}">${esc(name(pin))}${state(pin) === 'done' && best[pin.key] ? `<b class="st">${starText(best[pin.key])}</b>` : ''}</button>`).addEventListener('click', () => pick(pin));
     }
     return {
       where(key) { const pin = pins.find((q) => q.key === key); return { x: pin.at[0], y: pin.at[1] }; },
@@ -463,7 +470,8 @@
       hud, tip,
       end(won, title, text) {
         tip.remove(); quit.remove(); K.ui.querySelectorAll('.pad, .card.pause').forEach((p) => p.remove());
-        const card = add(`<div class="card"><h2>${esc(title)}</h2><p>${esc(text)}</p>${won ? '<p class="saved">✓ Uloženo</p>' : ''}<div class="two"><button class="btn" data-a="${won ? 'cont' : 'retry'}">${won ? 'Dál' : 'Znovu'}</button>${won ? '' : '<button class="btn" data-a="map">Mapa</button>'}</div></div>`);
+        const stars = won && st() && st().scene && st().scene.stars;                       // how well it went, from the room
+        const card = add(`<div class="card"><h2>${esc(title)}</h2>${stars ? `<p class="stars" aria-label="${stars} ${stars === 1 ? 'hvězda' : 'hvězdy'} ze 3">${starText(stars)}</p>` : ''}<p>${esc(text)}</p>${won ? '<p class="saved">✓ Uloženo</p>' : ''}<div class="two"><button class="btn" data-a="${won ? 'cont' : 'retry'}">${won ? 'Dál' : 'Znovu'}</button>${won ? '' : '<button class="btn" data-a="map">Mapa</button>'}</div></div>`);
         card.addEventListener('click', (e) => { const b = e.target.closest('[data-a]'); if (!b) return; beep(520, 660); Net.send({ type: b.dataset.a === 'map' ? 'back' : b.dataset.a }); });
         beep(...(won ? [520, 660, 780, 1040] : [220, 160]));
       },
@@ -1810,7 +1818,7 @@
         if (n.last && n.last.n !== s.seen) {                           // a storey has been let go: show it falling
           s.seen = n.last.n; if (!s.over) view.tip.textContent = '';
           s.fall = { x: n.last.x, ok: n.last.ok, perfect: n.last.perfect, at: s.t, i: n.last.ok ? n.floors.length - 1 : -1, from: JIB + CABLE - s.cam };
-          if (n.last.perfect && !s.over) { const p = add('<p class="praise">Perfektní!</p>'); setTimeout(() => p.remove(), 900); }
+          if (n.last.perfect && !s.over) cheer('Perfektní!');
           // a new stage of the climb: say what gets harder
           const built = n.floors.length - 1, said = { 5: 'Výš se to víc houpe. Pouštěj, když je patro přesně nad domem!', 7: 'Fouká vítr! Jeřáb musí vítr dorovnávat.', 11: 'Už jsme skoro nahoře. Opatrně!' }[built];
           if (said && n.last.ok && !s.over) { view.tip.textContent = said; s.toldAt = s.t; }

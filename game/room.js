@@ -125,7 +125,7 @@
   function create({ world, solo, now, emit, open }) {
     const places = world.places, GAMES = ['run', 'platform', 'drums', 'shoot', 'echo', 'find', 'salon', 'memory', 'collect', 'rescue', 'tower'];
     const owner = (pad) => (pad < 2 ? 'ken' : 'kel');                                 // in the echo game each of them has two of the four drums
-    const S = { online: { ken: false, kel: false }, save: { places: {}, album: [], round: 0 }, where: { screen: 'map' }, scene: null };
+    const S = { online: { ken: false, kel: false }, save: { places: {}, album: [], round: 0, stars: {} }, where: { screen: 'map' }, scene: null };
     let serial = 0;
     const prog = (id) => (S.save.places[id] = S.save.places[id] || { scene: 0, done: false });
     const isOpen = (p) => { const i = places.indexOf(p); return !!open || i === 0 || (i > 0 && prog(places[i - 1].id).done); };
@@ -151,7 +151,7 @@
       if (!save || typeof save !== 'object') return;
       const round = Math.max(0, save.round | 0), ours = S.save.round | 0;
       if (round < ours) return;
-      if (round > ours) S.save = { places: {}, album: [], round };
+      if (round > ours) S.save = { places: {}, album: [], round, stars: {} };
       const saved = upgrade(save.places);
       for (const p of places) {
         const theirs = saved && saved[p.id];
@@ -161,6 +161,9 @@
         mine.done = mine.done || !!theirs.done;
       }
       for (const p of places) if (prog(p.id).done) for (const s of p.saves) if (!S.save.album.includes(s.id)) S.save.album.push(s.id);
+      S.save.stars = S.save.stars || {};                                                 // the best stars each level has been won with
+      for (const [key, n] of Object.entries((save.stars && typeof save.stars === 'object') ? save.stars : {}))
+        if (/^[a-z0-9]+:\d+$/.test(key) && (n | 0) >= 1 && (n | 0) <= 3) S.save.stars[key] = Math.max(S.save.stars[key] || 0, n | 0);
     }
 
     function start(index, skipTalk) {
@@ -184,7 +187,9 @@
       if (sc.play === 'rescue') Object.assign(sn, { stage: 'throw', hits: 0, needHits: sc.rescue.hits * (two ? 2 : 1), lives: two ? 4 : 3, pull: 0, needPull: Math.round(sc.rescue.pull * (two ? 2 : 1)), pullAt: 0 });
       if (sc.play === 'salon') Object.assign(sn, { lives: two ? 4 : 3, need: Math.round(sc.salon.need * (two ? 1.6 : 1)), served: 0, coins: 0, cust: [], next: 0, tt: 0, workers: { ken: null, kel: null } });
       if (sc.play === 'echo') { Object.assign(sn, { lives: two ? 4 : 3, round: 0, rounds: sc.echo.rounds, n: 0, last: null }); teach(sc.echo.first, 1600); }
+      if (sc.play === 'platform') Object.assign(sn, { hurts: 0, outs: 0 });
       if (sc.play === 'drums') Object.assign(sn, { hits: 0, need: Math.ceil(course.drums(sn.seed, sc).notes.length * (sc.drums.pass || 0.6) * (two ? 1.8 : 1)) });    // two need more than one could drum alone, but not so much that one must carry the other
+      if (sn.lives !== undefined) sn.maxLives = sn.lives;                                   // for the stars: how many they started with
     }
     // The echo game: a rhythm to repeat. `teach` makes one of the given length (or plays the same one again) and sets
     // when it is shown and from when the players may answer.
@@ -252,13 +257,27 @@
     function record() {
       const sn = S.scene;
       if (!sn || sn.saved || (sn.phase !== 'won' && sn.phase !== 'stub')) return;
-      const p = place(), pr = prog(p.id);
+      const p = place(), pr = prog(p.id), key = p.id + ':' + sn.index;
       sn.saved = true;
+      sn.stars = starsFor(sn, p.scenes[sn.index]);
+      S.save.stars = S.save.stars || {}; S.save.stars[key] = Math.max(S.save.stars[key] || 0, sn.stars);
       if (!pr.done && sn.index >= pr.scene) pr.scene = sn.index + 1;
       if (pr.scene >= p.scenes.length && !pr.done) {
         pr.done = true; sn.rescued = true;                                          // the last level of the place: they are saved
         for (const s of p.saves) if (!S.save.album.includes(s.id)) S.save.album.push(s.id);
       }
+    }
+    // How well a level went: 1 to 3 stars. Every win earns at least one; the third is for doing it cleanly, so a level
+    // is worth playing again. Each kind of game is measured by what goes wrong in it.
+    function starsFor(sn, sc) {
+      if (sn.phase === 'stub') return 3;
+      const k = sc.play, by = (bad, two) => (bad <= 0 ? 3 : bad <= two ? 2 : 1);            // bad: what went wrong; two: how much still earns two stars
+      if (k === 'platform') return Math.min(by(sn.hurts || 0, sn.two ? 3 : 2), sn.outs ? 2 : 3);
+      if (k === 'memory') return by(sn.misses - Math.floor(sn.maxMiss * 0.4), Math.floor(sn.maxMiss * 0.3));
+      if (k === 'find') { const u = (now() - sn.startAt) / 1000 / sc.find.seconds; return u <= 0.6 ? 3 : u <= 0.85 ? 2 : 1; }
+      if (k === 'drums') { const r = sn.hits / Math.max(1, sn.need); return r >= 1.25 ? 3 : r >= 1.1 ? 2 : 1; }
+      if (sn.maxLives) return by(sn.maxLives - sn.lives, Math.floor(sn.maxLives / 2));
+      return 3;
     }
     function complete() {
       record();
@@ -281,8 +300,9 @@
       }
       if (kind === 'platform') {
         const team = sn.two ? ['ken', 'kel'] : [who], other = who === 'ken' ? 'kel' : 'ken';
+        if (m.e === 'hurt' && !sn.out[who] && !sn.fin[who]) sn.hurts++;
         if (m.e === 'hurt' && !sn.out[who] && !sn.fin[who] && --sn.hp[who] <= 0) {
-          sn.out[who] = true;                                                          // out of hearts: floating in a bubble
+          sn.out[who] = true; sn.outs++;                                               // out of hearts: floating in a bubble
           if (team.every((w) => sn.out[w])) sn.phase = 'lost';                         // nobody left walking
         }
         if (m.e === 'revive' && sn.two && sn.out[other] && !sn.out[who]) { sn.out[other] = false; sn.hp[other] = 2; }   // the partner jumped into the bubble
@@ -394,7 +414,7 @@
       // A save code typed in (see game.js): how far they had got, added to what is here.
       else if (m.type === 'load' && m.places && typeof m.places === 'object') merge({ places: m.places, round: S.save.round });
       // A new game: everything played is forgotten, on both phones.
-      else if (m.type === 'restart' && S.where.screen !== 'scene') { S.save = { places: {}, album: [], round: (S.save.round | 0) + 1 }; S.scene = null; S.where = { screen: 'map' }; }
+      else if (m.type === 'restart' && S.where.screen !== 'scene') { S.save = { places: {}, album: [], round: (S.save.round | 0) + 1, stars: {} }; S.scene = null; S.where = { screen: 'map' }; }
       else if (m.type === 'back') {
         if (S.where.screen === 'scene' || S.where.screen === 'rescued') { S.scene = null; S.where = regionOf(place()); }
         else if (S.where.screen === 'region') S.where = { screen: world.regions[S.where.region].up };
