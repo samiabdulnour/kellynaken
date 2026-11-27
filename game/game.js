@@ -4582,9 +4582,14 @@
     // The pile stands on a platform always this high on the screen: on the ground at first; once the camera rises with
     // the house, a hoist carries it up beside the house, so the pile and the hook fetching from it stay in sight.
     const PILE = GY + 2, pileY = (k) => PILE - k * SH * 0.8;
+    const DECK = 95, KX = 50, LX = 78;                                              // the deck's far end; where Kendrick and Kellyn stand on it
     const s = { t: 0, over: false, lost: false, crane: sn.crane, cv: 0, mateCrane: sn.crane, cx: sn.crane, px: sn.crane, v: 0, amp: CALM, lag: 0, lagV: 0,
       sent: 0, told: 0, fxAt: 0, cam: 0, fall: null, seen: sn.last ? sn.last.n : 0, target: null, lifts: sn.lifts, liftAt: -9, grabbed: true, pend: null,
-      bits: [], bump: -9, knock: -9, shake: -9, openAt: -9, flagAt: -9, flagK: 0, litLast: -9, litX: 0, said: '', saidUntil: 0, saidIn: '', state: '', stateAt: 0, painted: '' };
+      bits: [], bump: -9, knock: -9, shake: -9, openAt: -9, flagAt: -9, flagK: 0, litLast: -9, litX: 0, said: '', saidUntil: 0, saidIn: '', state: '', stateAt: 0, painted: '',
+      // the two of them acting it out (see draw): the arrow held, which way the crane goes, a finger pointed at, the
+      // button pressed (or refused), the hook's clunk, a landing, a perfect one, the roof, the end; which way each faces
+      arrow: 0, dir: 1, driving: false, driveAt: -9, relAt: -9, pointAt: -9, pointX: 0, pressAt: -9, noAt: -9, noPoint: false, clunkAt: -9,
+      hopAt: -9, joyAt: -9, roof: false, overAt: -9, lit: false, face: { ken: false, kel: false } };
     let live = sn;
     const view = stage('<span class="lives"></span><span class="count"></span><span class="meter flags"><i></i></span>', '');
     view.tip.classList.add('low');
@@ -4628,16 +4633,21 @@
     const role = () => (!two() ? 'solo' : steers() ? 'drive' : 'hook');
     const tipFor = (state) => { const t = TIPS[role()][state]; return typeof t === 'function' ? t() : t || ''; };
     // The hook cannot do that now: the button shakes, a low beep, and (when there is one) why.
-    function no(text) {
+    // Whoever works the hook shakes her head with the button, and (`point`: it is the crane that is in the wrong place)
+    // points at Kendrick to drive, on his phone too (alone: at the pile, or at the house).
+    function no(text, point) {
       beep(180);
       const b = K.ui.querySelector('.key[data-k="drop"]');
       if (b) { again(b, 'no'); clearTimeout(s.noT); s.noT = setTimeout(() => b.classList.remove('no'), 400); }   // shaken once, it can turn green again
       if (text) say(text, 2.5, s.state);
+      if (!text && s.t - s.pressAt < 0.4) return;                                  // a second tap on a slam still going: the slam plays on
+      s.noAt = s.t; s.noPoint = !!point;
+      if (two()) Net.send({ type: 'fx', k: 'no', p: point ? 1 : 0 });
     }
     paint();
     if (live.from) { say('Stavíte dál od vlajky!', 3); s.flagAt = clock(live); s.flagK = live.from; }   // the flag pops up now, in the countdown
     // The arrows for whoever drives the crane, the big button for whoever works the hook (alone: both).
-    const hold = (to) => ({ press: () => { if (!s.over) s.target = to; }, release: () => { s.target = null; } });
+    const hold = (to) => ({ press: () => { if (!s.over) { s.target = to; s.arrow = to < 96 ? -1 : 1; } }, release: () => { s.target = null; s.arrow = 0; } });
     const keys = pad([...(steers() ? [{ id: 'left', side: 'left', ...hold(12) }, { id: 'right', side: 'left', ...hold(168) }] : []), ...(drops() ? [{ id: 'drop', label: 'Zvedni', big: true, press: () => hookIt() }] : [])], 'tower');
     function hookIt() {
       if (s.over) return;
@@ -4645,8 +4655,9 @@
       return holding() ? dropIt() : pickIt();
     }
     function pickIt() {
-      if (!overStack()) return no(steers() ? 'Nejdřív jeď nad hromádku.' : `Počkej, až ${mateName()} dojede nad hromádku.`);
+      if (!overStack()) return no(steers() ? 'Nejdřív jeď nad hromádku.' : `Počkej, až ${mateName()} dojede nad hromádku.`, true);
       beep(440, 520); s.liftAt = s.t; s.grabbed = false; s.pend = { k: 'pick', at: s.t }; s.litLast = -9;   // down it goes, right away
+      s.pressAt = s.t;                                                              // and the button is slammed
       Net.send({ type: 'ev', e: 'pick', x: crane() });
     }
     function dropIt() {
@@ -4654,9 +4665,9 @@
       // a few pixels, as it falls)
       const now = hook(), late = s.t - s.litLast <= LATE && Math.abs(now - top()) > slack();
       const x = late ? now + clamp(s.litX - now, -10, 10) : now, off = x - top(), ok = Math.abs(off) <= slack();
-      if (!ok && !overHouse()) return no(steers() ? 'Nejdřív jeď nad dům.' : `Počkej, až ${mateName()} dojede nad dům.`);
+      if (!ok && !overHouse()) return no(steers() ? 'Nejdřív jeď nad dům.' : `Počkej, až ${mateName()} dojede nad dům.`, true);
       if (!ok && Math.abs(off) > slack() * 1.8) return no('Ještě ne! Počkej na zelenou.');   // nowhere near: not a storey thrown away
-      beep(330); s.openAt = s.t; s.pend = { k: 'drop', at: s.t }; s.litLast = -9;
+      beep(330); s.openAt = s.t; s.pend = { k: 'drop', at: s.t }; s.litLast = -9; s.pressAt = s.t;
       fall({ x, x0: now, ok, perfect: ok && Math.abs(off) <= 2.5 }, false);
       Net.send({ type: 'ev', e: 'drop', x, x0: now });
     }
@@ -4677,7 +4688,7 @@
     // The storey has landed (or gone past the top of the house): the thud, the dust, and what it means.
     function landed(f) {
       const y = GY - f.i * SH, x = Math.round(f.x);
-      s.bump = s.t;
+      s.bump = s.t; s.hopAt = s.t; if (f.perfect) s.joyAt = s.t; if (f.i >= live.need - 1) s.roof = true;   // they hop (a perfect one: cheer; the roof: for good)
       dust(x - SW / 2, y, 6, ['#E9E2D6', '#CFC6B8']); dust(x + SW / 2, y, 6, ['#E9E2D6', '#CFC6B8']);
       if (f.perfect) { cheer('Perfektní!'); beep(660, 880, 1100); dust(x, y - SH, 10, ['#FFD43A', '#FFF1A8', '#FFFFFF'], true); }
       else beep(392, 523);
@@ -4711,6 +4722,84 @@
     }
     const easeInOut = (u) => (u < 0.5 ? 2 * u * u : 1 - 2 * (1 - u) * (1 - u));
     const easeOut = (u) => 1 - (1 - u) * (1 - u) * (1 - u);
+    // The crane's remote, centred on (x, y), drawn in the heroes' finer pixels (half a pixel of the picture) so that it
+    // sits in their hands: a yellow box with two little buttons, its stick (pushed the way it drives), an antenna with a
+    // tip that blinks (fast while it drives); alone, with the hook's big button on top as well (green when it is the
+    // moment, white and down when it is slammed).
+    const fine = (x, y, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(x / 2, y / 2, w / 2, h / 2); };
+    function remote(x, y, face, push, big, hit) {
+      const X = Math.round(x * 2), Y = Math.round(y * 2), w = big ? 18 : 14, l = X - w / 2, sx = big ? X - face * 6 : X, ax = face < 0 ? l + 1 : l + w - 2;
+      fine(l, Y - 4, w, 10, INK); fine(l + 1, Y - 3, w - 2, 8, '#FFD43A'); fine(l + 1, Y - 3, w - 2, 1, '#FFF1A8'); fine(l + 1, Y + 4, w - 2, 1, '#D9A520');
+      fine(X - 3, Y, 2, 2, '#CC2233'); fine(X + 1, Y, 2, 2, '#3E7BD6');
+      fine(ax, Y - 12, 1, 8, '#B8C0CC'); fine(ax - 1, Y - 14, 3, 3, Math.floor(s.t * (push ? 10 : 3)) % 2 ? '#7CE07C' : '#FFFFFF');   // light on Kendrick's black shirt
+      for (let k = 0; k < 3; k++) fine(sx - 1 + k * push, Y - 5 - k, 2, 1, '#B8C0CC');   // the stick, tilted the way it drives
+      fine(sx - 2 + 3 * push, Y - 10, 4, 4, INK); fine(sx - 1 + 3 * push, Y - 10, 2, 3, '#CC2233'); fine(sx - 1 + 3 * push, Y - 10, 1, 1, '#FF8A8A');
+      if (big) { const bx = X + face * 3, d = hit ? 1 : 0; fine(bx - 4, Y - 8 + d, 8, 4 - d, INK); fine(bx - 3, Y - 8 + d, 6, 3 - d, hit ? '#FFFFFF' : s.lit ? '#7CE07C' : '#FF6B5A'); fine(bx - 2, Y - 8 + d, 2, 1, hit ? '#FFFFFF' : s.lit ? '#CFF5C8' : '#FFB0A6'); }
+    }
+    // Kellyn's button on a post in front of her: a grey post, a mushroom cap at her fist, yellow (green when it is the
+    // moment); slammed, it goes down a pixel and flashes white.
+    function post(x, y, hit, down) {
+      const c = y - 20 + (down ? 1 : 0), fill = hit ? '#FFFFFF' : s.lit ? '#7CE07C' : '#FFD43A', shine = hit ? '#FFFFFF' : s.lit ? '#CFF5C8' : '#FFF1A8';
+      rect(x - 1, y - 16, 2, 16, '#7A6F6A'); rect(x, y - 16, 1, 16, '#5B524E'); rect(x - 3, y - 1, 6, 1, '#5B524E');
+      rect(x - 3, c, 6, 1, INK); rect(x - 4, c + 1, 8, 3, INK); rect(x - 3, c + 1, 6, 2, fill); rect(x - 2, c + 1, 2, 1, shine);
+    }
+    // One of the two on the deck, acting out what goes on (newest wins): the end; a storey falling past (a duck, then a
+    // shake); Kendrick at the remote (points at a finger, leans into the drive, sways back when he lets go, a jolt at the
+    // end of the arm); Kellyn at her button (the fist up with a squash, slammed down, a bounce; a hop when the hook
+    // clunks; refused: a shake of the head, then pointing at him); a landing (a hop; a perfect one: a cheer). Otherwise
+    // they rest, breathing, turned to the hook.
+    function kid(w, hx) {
+      const x = two() && w === 'kel' ? LX : KX, op = !two() || w === 'ken', hk = !two() || w === 'kel';
+      const held = hk && s.t - s.pressAt < 0.4 && s.noAt < s.pressAt;                    // in a slam: turned as it began (alone, the drive may end in it)
+      if (!held) { if (hx < x - 4) s.face[w] = true; else if (hx > x + 4) s.face[w] = false; }
+      // (the breath on a clock that is never below 0: in the countdown a two-frame pose would have no frame to show)
+      let pose = 'stand', f = K.loop((s.t % 60) + 60 + (w === 'kel' ? 0.3 : 0), 1.5), dx = 0, dy = 0, lean = 0, squash = false, push = 0, hit = false, down = false;
+      const u = s.t - s.pressAt, n = s.t - s.noAt, m = s.t - s.shake, joy = s.t - s.joyAt, hop = s.t - s.hopAt, clunk = s.t - s.clunkAt;
+      if (s.over && s.lost) { if (s.t - s.overAt < 1) { pose = 'dizzy'; f = s.t; } }
+      else if (s.over || s.roof) { pose = 'cheer'; f = 0; dy = -Math.round(Math.abs(Math.sin(s.t * 6)) * 6); }
+      else if (m < 0.35) { pose = 'jump'; f = 0; dy = 2; }                                // drawn at the deck: a crouch
+      else {
+        if (m < 0.65) dx = Math.floor(m * 50) % 2 ? 1 : -1;
+        if (op) {
+          const p = s.t - s.pointAt, d = s.t - Math.max(s.driveAt, s.pointAt + 0.2), r = s.t - s.relAt, driving = s.driving && !s.over;
+          if ((driving || r < 0.12) && !held) s.face[w] = s.dir < 0;                         // facing the way it goes
+          if (p < 0.2) { pose = 'point'; f = K.frame(0); if (!held) s.face[w] = s.pointX < x; }
+          else if (driving) lean = d < 0.08 ? -0.04 : d < 0.16 ? -0.04 + ((d - 0.08) / 0.08) * 0.12 : 0.08;   // a pixel back, then into it (2 at the chest, 4 at the head)
+          else if (r < 0.12) lean = -0.03;                                                  // the load swings past: he sways back a pixel
+          if (driving) push = s.dir;
+          if (s.t - s.knock < 0.08) dy += 1;
+        }
+        if (hk) {
+          if (n < u) {
+            if (n < 0.3) dx += Math.floor(n / 0.075) % 2 ? 1 : -1;                         // in step with the button's shake
+            else if (n < 0.7 && s.noPoint) { pose = 'point'; f = K.frame(1); s.face[w] = (two() ? KX : holding() ? top() : STACK) < x; }
+          } else if (u < 0.4) {
+            if (two()) s.face[w] = false;                                                   // facing her button
+            if (u < 0.06) { if (op) pose = 'stand'; else { pose = 'tap'; f = K.frame(0); } squash = true; }   // (alone: still holding the remote)
+            else if (u < 0.26) { pose = 'tap'; f = K.frame(1); down = true; hit = u < 0.16; }
+            else if (u < 0.32) dy -= 1;
+          }
+          if (clunk < 0.2) dy -= Math.round(Math.sin((clunk / 0.2) * Math.PI) * 2);
+        }
+        if (joy < 0.6) { pose = 'cheer'; f = 0; if (joy < 0.4) dy -= Math.round(Math.sin((joy / 0.4) * Math.PI) * 6); }
+        else if (hop < 0.2) dy -= Math.round(Math.sin((hop / 0.2) * Math.PI) * 3);
+      }
+      const flip = s.face[w], F = flip ? -1 : 1, X = x + dx, Y = PILE + dy, k = -lean * F;    // k: the lean, as a skew about the feet
+      if (w === 'kel' && two()) post(LX + 12, PILE, hit, down);
+      ctx.save(); ctx.translate(X, Y);
+      if (k) ctx.transform(1, 0, k, 1, 0, 0);
+      if (squash) ctx.scale(1.04, 0.92);
+      K.hero(w, 0, 0, pose, f, flip);
+      ctx.restore();
+      if (!op) return null;
+      // the remote, where the hands are in this pose (waved in the fist away from Kellyn; fallen out of them when
+      // dizzy), drawn once both of them are (so that she never hides it)
+      const at = (p, i, ox = 0, oy = 0) => { const h = K.hand(w, p, i, flip); return [h.x + ox * F, h.y + oy]; };
+      const up = [at('cheer', 0, -3, -2), at('cheer', 1, 4, -2)].sort((a, b) => a[0] - b[0])[0];
+      const [rx, ry] = pose === 'tap' ? at('tap', 1, -2, 5) : pose === 'point' ? [-5 * F, w === 'kel' ? -20 : -23] : pose === 'cheer' ? up
+        : pose === 'jump' ? [6 * F, -17] : pose === 'dizzy' ? [-14 * F, -3] : at('stand', 0);
+      return () => remote(X + rx + k * ry, Y + ry * (squash ? 0.92 : 1), F, push, !two(), hit);
+    }
     return {
       s, kind: 'tower',
       peek: () => ({ steers: steers(), drops: drops(), crane: crane(), hook: hook(), top: top(), busy: busy(), floors: live.floors.length, need: live.need, holding: holding(), stack: STACK,
@@ -4719,28 +4808,31 @@
       sync(n) {
         if (n.lifts !== s.lifts) {                                                   // a storey picked up: on this phone already, or now
           s.lifts = n.lifts;
-          if (s.pend && s.pend.k === 'pick') s.pend = null; else { s.liftAt = s.t; s.grabbed = false; beep(300, 400); }
+          if (s.pend && s.pend.k === 'pick') s.pend = null; else { s.liftAt = s.t; s.grabbed = false; beep(300, 400); if (s.t - s.pressAt > 0.6) s.pressAt = s.t; }   // she slammed her button
         }
         if (n.last && n.last.n !== s.seen) {                                         // a storey let go
           s.seen = n.last.n;
           if (s.pend && s.pend.k === 'drop' && s.fall && !s.fall.sure) {             // this phone's own: the room has the last word
             Object.assign(s.fall, { ok: n.last.ok, perfect: n.last.perfect, back: !!n.last.back, x: n.last.x, sure: true });
             heartBack(s.fall);
-          } else { s.openAt = s.t; beep(330); fall(n.last, true); }                    // the other phone let it go
+          } else { s.openAt = s.t; beep(330); fall(n.last, true); if (s.t - s.pressAt > 0.6) s.pressAt = s.t; }   // the other phone let it go
           if (s.pend && s.pend.k === 'drop') s.pend = null;
         }
         if (!steers() && Net.now() - s.fxAt > 300) s.mateCrane = n.crane;             // the room hears the crane less often than the phone does
         live = n; paint();
       },
-      fx(m) { if (m.k === 'crane' && !steers()) { s.mateCrane = m.x; s.fxAt = Net.now(); } },
+      fx(m) {
+        if (m.k === 'crane' && !steers()) { s.mateCrane = m.x; s.fxAt = Net.now(); }
+        if (m.k === 'no') { s.noAt = s.t; s.noPoint = !!m.p; }                         // she could not: she shakes her head (and points at him) here too
+      },
       over(won) {
-        s.over = true; s.lost = !won; paint(); keys.mark('drop', false);
+        s.over = true; s.lost = !won; s.overAt = s.t; s.lit = false; paint(); keys.mark('drop', false);
         view.end(won, won ? 'Dům stojí!' : 'Spadlo to.', won ? 'Sydney má nový mrakodrap.' : live.check ? `Stavíte dál od ${live.check}. patra.` : 'Zkuste to ještě jednou.');
       },
       down(x, y) {
         if (s.over || y < 22) return;
         if (drops() && !steers()) return hookIt();                                   // Kellyn: a tap anywhere works the hook
-        if (steers()) s.target = x;                                                  // Kendrick: the crane heads for the finger
+        if (steers()) { s.target = x; s.pointAt = s.t; s.pointX = x; }               // Kendrick: the crane heads for the finger (he points at it)
       },
       move(x, y) { if (!s.over && steers()) s.target = x; },
       update(dt) {
@@ -4762,9 +4854,21 @@
           else s.amp = CALM + (s.amp - CALM) * Math.exp(-dt / 1.6);
           s.lagV += ((-s.v * 0.1 - s.lag) * 40 - s.lagV * 6) * dt; s.lag += s.lagV * dt;
           if (s.pend && s.t - s.pend.at > 1.5) s.pend = null;                        // the room never took it: go by what it says
-          // the hook's button: Zvedni over the pile, Pusť! with a storey; green when it is the moment
+          // Kendrick at the remote drives while an arrow is held or the crane heads for a finger; on the other phone,
+          // while the partner's crane is seen moving (the last pixel or so it rolls in by itself, not driven)
+          // (rolled a pixel past the finger counts as there: he does not turn round for the crane settling back; a slow
+          // drag drives too, the crane a little behind the finger and going its way)
+          const err = s.target === null ? 0 : clamp(s.target, 12, 168) - s.crane;
+          const rolling = s.target === null || (s.driving ? err * s.dir <= 0 || (Math.abs(err) < 1.5 && Math.abs(s.cv) < 5)
+            : Math.abs(err) < 4 && !(Math.abs(err) >= 2 && err * s.cv > 0 && Math.abs(s.cv) > 8));
+          const go = steers() ? s.arrow || (rolling ? 0 : Math.sign(err) || s.dir) : Math.abs(s.v) > (s.driving ? 5 : 8) ? Math.sign(s.v) : 0;
+          if (go && !s.driving) { s.driving = true; s.driveAt = s.t; }
+          if (!go && s.driving) { s.driving = false; s.relAt = s.t; }
+          if (go) s.dir = go;
+          // the hook's button: Zvedni over the pile, Pusť! with a storey; green when it is the moment (and so is the one
+          // in the picture, on both phones)
+          const g = s.lit = lit();
           if (drops()) {
-            const g = lit();
             keys.label('drop', holding() ? 'Pusť!' : 'Zvedni'); keys.mark('drop', g);
             if (g && holding()) { s.litLast = s.t; s.litX = hook(); }
           }
@@ -4791,7 +4895,7 @@
         }
         // the lift: the hook reaches the pile (a clunk), then it comes up with a storey that starts to swing
         if (!s.grabbed && s.t - s.liftAt >= LIFT * 0.4) {
-          s.grabbed = true; beep(140); s.amp = Math.max(s.amp, 0.65);
+          s.grabbed = true; beep(140); s.amp = Math.max(s.amp, 0.65); s.clunkAt = s.t;
           dust(STACK, pileY(Math.max(0, Math.min(3, live.need - live.floors.length) - 1)) - SH * 0.8 - Math.round(s.cam), 4, ['#E9E2D6', '#CFC6B8']);
         }
         for (const b of s.bits) { b.x += b.vx * dt; b.y += b.vy * dt; b.vy += 90 * dt; }
@@ -4838,11 +4942,24 @@
           rect(STACK - 12, PILE + 2, 1, ground - PILE - 2, '#B8860B'); rect(STACK + 11, PILE + 2, 1, ground - PILE - 2, '#B8860B');
           for (let y = PILE + 6; y < ground; y += 6) rect(STACK - 11, y, 22, 1, '#F2C94C');
         }
-        rect(STACK - 15, PILE - 1, 30, 3, INK); rect(STACK - 14, PILE - 1, 28, 1, '#F2C94C');
+        // the deck runs on to where the two of them stand (so they ride up with the pile), on a strut once it is raised
+        if (ground > PILE + 16) line(STACK + 11, PILE + 16, KX + 16, PILE + 2, '#B8860B');
+        rect(STACK - 15, PILE - 1, DECK - STACK + 16, 3, INK); rect(STACK - 14, PILE - 1, DECK - STACK + 14, 1, '#F2C94C');
         for (let k = 0; k < pileN; k++) if (K.has('storeys', 'floor')) K.figure('storeys', STACK, pileY(k), POSES[(live.floors.length + k + 1) % 3], 0, false, 0.4);
-        (sc.cast || []).forEach((id, i) => K.figure(id, 150 + i * 24, sy(GY + 4), 'three', s.t, true));
-        if (mateHere()) K.hero(mate(), 66, sy(GY + 6), 'stand', s.t + 0.3);
-        K.hero(who, 50, sy(GY + 6), s.lost ? 'dizzy' : 'stand', s.t);
+        // Sami and Žofia watch from the quay (at the bottom of the picture once it has gone down out of it), turning to
+        // us and back now and then: Sami jumps for joy at a perfect storey, Žofia at a flag, and gasps at one that falls
+        const gy = Math.min(sy(GY + 4), H - 2), party = s.over ? !s.lost : s.roof;
+        (sc.cast || []).forEach((id, i) => {
+          let pose = Math.floor((s.t + i * 1.3) / (3 + i * 0.6)) % 2 ? 'front' : 'three', dy = 0;
+          if (s.over && s.lost) { pose = id === 'zofia' ? 'act' : 'three'; dy = id === 'zofia' ? 0 : 1; }
+          else if (party) pose = Math.floor(s.t * 2.5 + i) % 2 ? 'joy' : 'cheer';
+          else if (id === 'sami' && s.t - s.joyAt < 0.5) pose = 'joy';
+          else if (id === 'zofia' && s.t - s.shake < 0.6) pose = 'act';
+          else if (id === 'zofia' && s.t - s.flagAt < 0.6) pose = 'joy';
+          K.figure(id, 150 + i * 24, gy + dy, pose, s.t, true);
+        });
+        const hookX = holding() ? hook() : crane();                                              // they turn to look at it
+        (two() ? ['kel', 'ken'] : [who]).map((w) => kid(w, hookX)).forEach((hands) => hands && hands());   // he is in front: his arm pointing her way stays seen
         const wnd = wind();
         if (Math.abs(wnd) > 1) for (let k = 0; k < 7; k++) {                                      // the wind, as streaks blowing across the sky
           const dir = Math.sign(Math.cos(s.t * 0.35 + 1)) || 1, sp = 40 + Math.abs(wnd) * 6, y = 44 + ((k * 37) % 150);
