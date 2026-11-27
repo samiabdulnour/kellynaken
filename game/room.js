@@ -107,15 +107,20 @@
     wind(t, n) { return n >= 7 ? (n - 6) * 2.4 * Math.sin(t * 0.35 + 1) : 0; },
     slack(base, n) { return Math.max(8, base - n * 0.5); },
     // Padlocks: on the picture's spots, never two on one spot at the same time (or anywhere, for a picture without spots).
-    shoot(seed, sc, every) {
-      const r = rng(seed), targets = [], spots = sc.shoot.spots, stay = sc.shoot.stay;
+    // The first two come slowly; then they come quicker (from `every` to `fast` seconds apart, over the padlocks it takes
+    // to win) and sway a little more. With two, every other one is Kellyn's, and hers stay a little longer: she is
+    // the younger, and the team must not lose only because she is slower.
+    shoot(seed, sc, every, need, two) {
+      const cfg = sc.shoot, r = rng(seed), targets = [], spots = cfg.spots, fast = (cfg.fast || cfg.every) / cfg.every;
       for (let at = 1.2, id = 0; id < 160; id++) {
+        const k = Math.min(1, id / Math.max(1, need || 16)), owner = two ? (id % 2 ? 'kel' : 'ken') : null;
+        const t = { id, born: at, owner, stay: cfg.stay * (owner === 'kel' ? 1.2 : 1), sway: (cfg.sway || 0) * (1 + 0.5 * k) };
         if (spots) {
-          const busy = new Set(targets.filter((t) => t.born + stay + 0.3 > at).map((t) => t.spot));
+          const busy = new Set(targets.filter((o) => o.born + o.stay + 0.3 > at).map((o) => o.spot));
           const free = spots.map((p, i) => i).filter((i) => !busy.has(i)), i = free.length ? free[Math.floor(r() * free.length)] : Math.floor(r() * spots.length);
-          targets.push({ id, born: at, x: spots[i][0], y: spots[i][1], spot: i, phase: r() * 6 });
-        } else targets.push({ id, born: at, x: 74 + r() * 100, y: 56 + r() * 130, phase: r() * 6 });
-        at += every * (0.8 + r() * 0.4);
+          targets.push({ ...t, x: spots[i][0], y: spots[i][1], spot: i, phase: r() * 6 });
+        } else targets.push({ ...t, x: 74 + r() * 100, y: 56 + r() * 130, phase: r() * 6 });
+        at += every * (1 - (1 - fast) * k) * (0.8 + r() * 0.4) + (id < 2 ? every * 0.5 : 0);
       }
       return { targets };
     },
@@ -179,7 +184,7 @@
       Object.assign(sn, { phase: 'play', startAt: now() + 1600, fin: {}, picked: false, power: 0 });
       if (sc.play === 'run') sn.lives = two ? 5 : 3;
       if (sc.play === 'platform') Object.assign(sn, { two, hp: { ken: 3, kel: 3 }, max: 3, out: {}, beaten: [], got: [] });   // hearts of one's own; out of them, a bubble
-      if (sc.play === 'shoot') Object.assign(sn, { lives: two ? 4 : 3, hits: 0, need: Math.round(sc.shoot.need * (two ? 1.6 : 1)), every: sc.shoot.every / (two ? 1.4 : 1), hit: [], missed: [], item: null });
+      if (sc.play === 'shoot') Object.assign(sn, { lives: two ? 4 : 3, hits: 0, need: Math.round(sc.shoot.need * (two ? 1.6 : 1)), every: sc.shoot.every / (two ? 1.4 : 1), two, hit: [], missed: [], item: null, gold: null });
       if (sc.play === 'find') Object.assign(sn, { found: [], need: sc.find.need });
       if (sc.play === 'memory') { const first = two ? (Math.random() < 0.5 ? 'ken' : 'kel') : null; Object.assign(sn, { deck: course.memory(sn.seed, sc), open: [], done: [], misses: 0, maxMiss: sc.memory.miss + (two ? 2 : 0), first, turn: first, hideAt: 0 }); }
       if (sc.play === 'collect') Object.assign(sn, { got: [], stung: [], need: Math.round(sc.collect.need * (two ? 1.5 : 1)), lives: two ? 4 : 3 });
@@ -319,8 +324,18 @@
         }
       }
       if (kind === 'shoot') {
-        const id = m.id | 0, fresh = !sn.hit.includes(id) && !sn.missed.includes(id);
-        if (m.e === 'hit' && fresh) { sn.hit.push(id); if (++sn.hits >= sn.need) sn.phase = 'won'; }
+        const id = m.id | 0, fresh = !sn.hit.includes(id) && !sn.missed.includes(id), t = (now() - sn.startAt) / 1000;
+        // Enough padlocks open: the big golden one comes down (`gold.at`, seconds into the game). Two open it by both
+        // hitting it within a second of each other (each phone says when its shot landed), one by hitting it three times.
+        // Nothing can be lost any more by then.
+        if (sn.gold) {
+          if (m.e !== 'gold') return;
+          const at = clamp(Number.isFinite(+m.at) ? +m.at : t, t - 2, t), g = sn.gold;
+          g.n++; g[who] = at;
+          if (sn.two ? g.ken !== undefined && g.kel !== undefined && Math.abs(g.ken - g.kel) <= 1 : g.n >= 3) sn.phase = 'won';
+          return;
+        }
+        if (m.e === 'hit' && fresh) { sn.hit.push(id); if (++sn.hits >= sn.need) sn.gold = { at: t, n: 0 }; }
         if (m.e === 'miss' && fresh) { sn.missed.push(id); if (--sn.lives <= 0) sn.phase = 'lost'; }
       }
       if (kind === 'find') {

@@ -94,6 +94,7 @@ button{font:inherit;color:inherit}
 .face{display:inline-block;flex:none;background-repeat:no-repeat;image-rendering:pixelated;image-rendering:crisp-edges}
 .btn .face{display:block;margin:0 auto .35em}
 .say .face{float:left;margin:0 .75em .25em 0}
+.tip .face{vertical-align:-.3em;margin-right:.2em}
 .card .line{display:flex;align-items:center;gap:.6em;text-align:left}
 .album .face{display:block;margin:.2em auto .5em}
 .power{color:var(--yellow)}

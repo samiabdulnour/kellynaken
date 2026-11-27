@@ -31,7 +31,8 @@
 //   tower   build a house storey by storey: drive the crane to the stack, pick a storey up, bring it over the house and
 //           let it go; with two, one drives the crane and the other works the hook
 //   shoot   padlocks appear on the `spots` of the picture and slip away: tap one to shoot at it (with two, each has their own colour). Kendrick fires a puck with his hockey stick,
-//           Kellyn throws her white bunny
+//           Kellyn throws her white bunny. One that blinks may be saved by either. They come from `every` to `fast` seconds
+//           apart; after `need` a big golden padlock comes down at `gold` [x, y], to be hit by both at once
 //   stub    not built yet: shows a card and lets you carry on
 //
 // `pickup` puts one of the `items` into a scene, to grab like a power-up: jump into it in a dash, hit it in a shot,
@@ -93,7 +94,7 @@ window.WORLD = {
       look: { sky: '#8FD3F4', far: '#F2C078', far2: '#E7A6B5', ground: '#A39B96', line: '#7A6F6A' },
       scenes: [
         { id: 'praha-home', name: 'Doma', at: [22, 234], label: 'below', bg: 'praha-home', play: 'shoot', code: 'ZAMEK',
-          shoot: { need: 16, every: 1.5, stay: 3.4, sway: 2, target: 'zámek',                 // padlocks on the lamp, the three portraits, the shelves and baskets, the sofa, the TV and its cabinet
+          shoot: { need: 16, every: 1.5, fast: 1.0, stay: 3.4, sway: 2, gold: [96, 104], target: 'zámek',   // padlocks on the lamp, the three portraits, the shelves and baskets, the sofa, the TV and its cabinet
             spots: [[96, 30], [60, 76], [94, 76], [128, 76], [9, 46], [8, 112], [70, 138], [126, 142], [176, 110], [168, 42], [180, 74], [178, 162]] },
           talk: [['', 'Doma je divné ticho. Někdo tu chybí…'], ['', 'A někdo vás zamkl! Na dveřích, na skříních, všude visí zámky.'], ['hero', 'Ty zámky sestřelím!']] },
         // A walk down the street to the salon (play 'platform', see Room.course.platform): ◀ ▶ walk, Skok, Hoď.
@@ -172,7 +173,7 @@ window.WORLD = {
               ['note', 2345, 36], ['note', 2460, 36], ['note', 2500, 12]] },
           talk: [['', 'Z kopce nad městem někdo volá o pomoc.'], ['', 'Nahoru se musí pěšky. Pozor na šišky a vrány!'], ['', 'Když najdeš paličku, chvíli smeteš všechno v cestě.']] },
         { id: 'strahov-gate', name: 'Brána stadionu', at: [62, 149], label: 'below', bg: 'strahov-gate', play: 'shoot', code: 'BRANA',
-          shoot: { need: 16, every: 1.3, stay: 3.2, sway: 3, target: 'zámek',                 // padlocks on the gates under the stands, the stair railing and the rail above
+          shoot: { need: 16, every: 1.3, fast: 0.85, stay: 3.2, sway: 3, gold: [96, 132], target: 'zámek',   // padlocks on the gates under the stands, the stair railing and the rail above
             spots: [[52, 186], [70, 186], [88, 186], [106, 186], [124, 186], [140, 186], [164, 160], [180, 150], [120, 150], [96, 152]] },
           talk: [['', 'Velký strahovský stadion. Všechny vchody jsou zavřené a na mřížích visí zámky.']] },
         // From here on he is found: he shows the rhythm, and at the concert he plays along.
