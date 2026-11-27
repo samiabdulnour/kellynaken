@@ -625,9 +625,13 @@
     const taken = new Set(), seen = new Set(sn.got || []);    // taken: found on this phone (the room hears of it a moment later); seen: shown as found
     // cfg.later: a piece that a neighbour puts out only once another is found; until then it is not on the kerb.
     const LATER = cfg.later || {}, there = (it) => !LATER[it.kind] || pieces.some((o) => o.kind === LATER[it.kind] && found(o));
-    const s = { t: 0, over: false, lost: false, me: { x: who === 'kel' && mateHere() ? 18 : 36, y: 0, vy: 0, face: 1, ground: true, inv: 0, hurt: -9, cool: 0, sent: 0, done: false },
-      mate: { x: who === 'kel' ? 36 : 18, y: 0, face: 1, pose: 'stand', tx: null, ty: 0 }, dir: 0, held: { left: false, right: false }, jumpHeld: false,
-      shots: [], cam: 0, pops: [], whack: -9, told: false, freed: -9, sw: {}, flying: {}, sent: {}, hunt: false, bumpAt: -9, allAt: 0, quake: -9, stuck: 0,
+    // Acting it out (see acting()), for each of them: the act a press started ({ name, at, ... }), when they last did
+    // anything, started or stopped walking, took off, landed (squashed by k), bounced off something, and a piece
+    // they hold up before it flies off into the list (`load`).
+    const poses = () => ({ act: null, busyAt: 0, walkAt: -9, skidAt: -9, upAt: -9, upK: 1, landAt: -9, landK: 1, stompAt: -9, load: null, backAt: -9 });
+    const s = { t: 0, over: false, lost: false, me: { x: who === 'kel' && mateHere() ? 18 : 36, y: 0, vy: 0, face: 1, ground: true, inv: 0, hurt: -9, cool: 0, sent: 0, done: false, ...poses() },
+      mate: { x: who === 'kel' ? 36 : 18, y: 0, face: 1, pose: 'idle', tx: null, ty: 0, ...poses() }, dir: 0, held: { left: false, right: false }, jumpHeld: false,
+      shots: [], cam: 0, pops: [], back: [], popped: new Set(), mateWave: -9, mateBump: -9, told: false, freed: -9, sw: {}, flying: {}, sent: {}, hunt: false, bumpAt: -9, allAt: 0, quake: -9, stuck: 0,
       born: {}, news: null, short: 0, holdTold: -99,
       steal: {}, dropped: {}, leave: {}, cried: {}, said: {}, wave0: null, waveSent: -9, warned: -1, rushed: -1, soaked: -1, wetAt: -99, mateWet: -99, noteFly: {}, openAt: 0, corked: false, endIn: 0 };
     let live = sn;
@@ -639,8 +643,8 @@
     if (LIST || NOTE) s.tipAt = 1.5;                                                             // the advice goes once the walk is under way
     const steer = () => { s.dir = (s.held.right ? 1 : 0) - (s.held.left ? 1 : 0); };
     const keys = pad([
-      { id: 'left', side: 'left', press: () => { s.held.left = true; steer(); if (SOFT && out(who) && !s.over) blub(); }, release: () => { s.held.left = false; steer(); } },
-      { id: 'right', side: 'left', press: () => { s.held.right = true; steer(); if (SOFT && out(who) && !s.over) blub(); }, release: () => { s.held.right = false; steer(); } },
+      { id: 'left', side: 'left', press: () => { s.held.left = true; steer(); s.me.busyAt = s.t; if (out(who) && !s.over) blub(); }, release: () => { s.held.left = false; steer(); } },
+      { id: 'right', side: 'left', press: () => { s.held.right = true; steer(); s.me.busyAt = s.t; if (out(who) && !s.over) blub(); }, release: () => { s.held.right = false; steer(); } },
       { id: 'throw', label: 'Hoď', press: () => throwIt() },
       { id: 'jump', label: 'Skok', big: true, press: () => { s.jumpKey = true; jump(); }, release: () => { s.jumpKey = false; cut(); } },
     ], 'walk');                                                                                  // big arrows: walking is most of the game here
@@ -692,31 +696,46 @@
     // The waves: standing lower than DEEP, the water reaches you. The safe places are everything at least this high.
     const DEEP = 8, SAFE = L.blocks.filter((b) => b.kind !== 'part' && b.h >= DEEP + 2);
     const BOTTLE = L.goal + 20;                                                                 // where the bottle lies, just past the goal
-    const SPOT = { ken: L.goal - 7, kel: L.goal + 7 };                                          // with two, where each stands at it, side by side
+    const SPOT = { kel: L.goal - 2, ken: L.goal + 24 };                                        // with two, where each stands at it, facing each other: she at its belly, he at its raised neck (he is the taller)
+    const WALKS = ['carry', 'run'], AIRS = ['airgear', 'jump'];                                 // the other phone's word for how they stand: walking, in the air
+    // How long each act lasts (a throw says its own), and the fist a drumstick is held in while jumping (no hand is measured for 'jump').
+    const ACT = { twitch: 0.12, look: 0.15, whack: 0.25, pick: 0.4, lift: 0.5, grab: 0.3, swat: 0.25, knock: 1 }, JUMPFIST = { ken: [7, -20], kel: [12, -17] };
     paint();
     function jump() {
-      const m = s.me; if (SOFT && out(who) && !s.over) return blub();
+      const m = s.me; m.busyAt = s.t; if (out(who) && !s.over) return blub();
       if (s.over || s.t < 0 || out(who) || m.done) return;
       // forgiving: a moment after stepping off an edge still jumps, and a press just before landing is kept for it
       if (!m.ground && !(SOFT && m.vy <= 0 && s.t - (m.left || -9) < 0.1)) { if (SOFT) m.want = s.t; return; }
       m.vy = JUMP; m.ground = false; s.jumpHeld = true; m.want = 0; m.left = -9; s.stuck = 0; m.from = m.y; m.short = false; beep(520);
+      m.upAt = s.t; m.upK = 1; tell('jump');                                                   // the take-off stretch, here and on the other phone
     }
     function cut() { s.jumpHeld = false; if (s.me.vy > 90) { s.me.vy = 90; s.me.short = true; } }   // let go early: a little hop
-    function blub() {                                                                          // forgiving: in a bubble a press wobbles it, and says who can help
+    function blub() {                                                                          // in a bubble a press wobbles it (on both phones), and says who can help
       if (s.t - (s.wobble || -9) < 0.35) return;
-      s.wobble = s.t; beep(330, 440);
+      s.wobble = s.t; beep(330, 440); if (mateHere()) Net.send({ type: 'fx', k: 'wave' });
       say(mateHere() && !out(mate()) ? `${heroName(mate())} pro tebe vyskočí.` : 'Došla srdíčka.');
     }
+    // Hoď: the hero winds up at once and lets go a moment later (see acting()). The puck or the bunny is on its way
+    // from the press, as it always was, but shows only from the release on, leaving the hand (see the drawing of s.shots).
+    // Pressed too soon, it is thrown the moment it can be, and a twitch shows the press.
     function throwIt() {
-      const m = s.me; if (SOFT && out(who) && !s.over) return blub();
+      const m = s.me; m.busyAt = s.t; if (out(who) && !s.over) return blub();
       if (s.over || s.t < 0 || out(who) || m.done) return;
-      if (m.cool > 0) { if (SOFT) m.wantThrow = true; return; }                                  // forgiving: pressed too soon, thrown the moment it can be
+      if (m.cool > 0) {
+        m.wantThrow = true;
+        if (s.t - (m.twitchAt || -9) > 0.12) { m.twitchAt = s.t; if (!m.act || m.act.name === 'twitch' || s.t - m.act.at > (m.act.rel || 0) + 0.1) { m.act = { name: 'twitch', at: s.t }; tell('twitch'); } }
+        return;
+      }
       m.cool = 0.45;
+      const air = !m.ground, rel = powered() || air || m.walking ? 0.06 : 0.09;               // walking or in the air: quicker, so the run is hardly cut
+      m.act = throwing(s.t, rel, air, !!m.walking);
       const shot = shoot(who, m.x + m.face * 8, m.y + 28, m.face, true);
       if (who === 'kel') aim(shot);
-      s.shots.push(shot); beep(who === 'ken' ? 330 : 660);
-      Net.send({ type: 'fx', k: 'throw', x: Math.round(shot.x), y: Math.round(m.y + 28), f: m.face, vy: Math.round(shot.vy) });   // the hand, as shoot() takes it; vy: the arc
+      shot.rel = s.t + rel; s.shots.push(shot); beep(who === 'ken' ? 330 : 660);
+      Net.send({ type: 'fx', k: 'throw', x: Math.round(shot.x), y: Math.round(m.y + 28), f: m.face, vy: Math.round(shot.vy), rel });   // the hand, as shoot() takes it; vy: the arc
     }
+    // A throw: wound up until `rel` seconds in, then let go and followed through (shorter walking, in the air, or with the drumstick).
+    function throwing(at, rel, air, walk) { return { name: 'throw', at, rel, end: rel + (rel < 0.08 && !air ? 0.16 : air ? 0.25 : 0.28), walk, air }; }
     // Kellyn's bunny goes up in an arc, over anything as low as a crab: with a crab in front of her, it hops lower
     // and comes down on it (where the crab will be by then).
     function aim(sh) {
@@ -767,7 +786,7 @@
     const kindOf = (id) => L.foes[parseInt(id, 10)].kind;
     function beat(p, how) {
       if (beaten(p.id)) return;
-      live.beaten.push(p.id);                                                                  // gone here at once; the room tells the other phone
+      live.beaten.push(p.id); s.popped.add(p.id);                                              // gone here at once; the room tells the other phone
       Net.send({ type: 'ev', e: 'beat', id: p.id });
       s.pops.push({ x: p.x, y: p.y + 10, at: s.t, kind: kindOf(p.id), dir: p.dir || 1, away: p.x >= s.me.x ? 1 : -1, how });
       beep(how === 'stomp' ? 700 : 300, 900);
@@ -787,15 +806,15 @@
     function drift(dt) {
       const someone = out(who) ? who : mateHere() && out(mate()) ? mate() : null;
       if (!someone) { s.bub = null; return; }
-      const walker = someone === who ? s.mate : s.me, moving = someone === who ? s.mate.pose === 'run' : s.dir !== 0;
+      const walker = someone === who ? s.mate : s.me, moving = someone === who ? WALKS.includes(s.mate.pose) : s.dir !== 0;
       const to = { x: walker.x - walker.face * (moving ? 22 : 0), y: walker.y + 62 };
       if (!s.bub) s.bub = someone === who ? { x: s.me.x, y: s.me.y + 62 } : { x: s.mate.x, y: s.mate.y + 62 };
       s.bub.x += (to.x - s.bub.x) * Math.min(1, dt * 3); s.bub.y += (to.y - s.bub.y) * Math.min(1, dt * 3);
     }
     function move(dt) {
       const m = s.me;
-      if (m.done) return settle(dt);
-      const wasAir = !m.ground;
+      if (m.done) { m.walking = false; return settle(dt); }
+      const wasAir = !m.ground, x0 = m.x, wasWalking = m.walking;
       // walking, and the things in the way: a low step is walked up, anything taller stops you
       const walk = (SOFT && s.t - m.hurt < 0.3) || s.t - s.wetAt < 0.5 ? 0 : s.dir;            // forgiving: a knock (or a wave) stops you for a moment
       let pushed = m.x + (m.push || 0) * dt;
@@ -814,6 +833,11 @@
       if (LIST && nx > L.goal - 26 && missing().length) { nx = L.goal - 26; if (s.dir > 0) knock(); }   // the door (at the goal) stays shut until the list is complete
       if (NOTE && nx > L.goal - 12 && missing().length) { nx = L.goal - 12; if (s.dir > 0) knock(); }   // and the bottle until the message is
       m.x = clamp(nx, 8, LEN - 8);
+      // walking is getting somewhere: pushing against a wall or the shut door is standing (facing it), never running on the spot
+      m.walking = walk !== 0 && (m.x - x0) * walk > 0.01;
+      if (m.walking && !wasWalking) m.walkAt = s.t;
+      if (!m.walking && wasWalking && !s.dir && m.ground) { m.skidAt = s.t; s.pops.push({ x: m.x + m.face * 3, y: m.y, at: s.t, dust: true }); }   // let go: a skid
+      if (m.walking) m.busyAt = s.t;
       const floor = L.top(m.x, HALF - 2);
       if (m.ground && floor > m.y && floor - m.y <= STEP) m.y = floor;                         // up a step
       if (m.ground && floor < m.y) m.ground = false;                                           // off an edge
@@ -822,9 +846,8 @@
         m.y += m.vy * dt;
         for (const sp of L.springs) if (m.vy < 0 && floor < sp.h && Math.abs(m.x - sp.x - sp.w / 2) < sp.w / 2 && m.y <= sp.h && m.y - m.vy * dt >= sp.h - 0.5) bounce(sp);
         if (m.y <= floor && m.vy <= 0) {
-          const fall = m.vy;
           m.y = floor; m.vy = 0; m.ground = true; if (wasAir) beep(180);
-          if (SOFT && fall < -200) s.pops.push({ x: m.x, y: m.y, at: s.t, dust: true });          // a puff of dust from a big landing
+          landed(m);                                                                             // a squash and a puff of dust, every landing
           if (SOFT) hopped(m);
           // Skok pressed just before landing, or pressed in the air and still held: off again
           if (SOFT && m.want && (s.t - m.want < 0.15 || s.jumpKey)) { jump(); if (!s.jumpKey) cut(); }
@@ -838,7 +861,11 @@
       const m = s.me, floor = L.top(m.x, HALF - 2);
       if (m.y <= floor) { m.y = floor; m.vy = 0; m.ground = true; return; }
       m.vy -= G * dt; m.y = Math.max(floor, m.y + m.vy * dt);
-      if (m.y <= floor) { m.vy = 0; m.ground = true; beep(180); }
+      if (m.y <= floor) { m.vy = 0; m.ground = true; beep(180); landed(m); }
+    }
+    function landed(m) {
+      m.landAt = s.t; m.landK = m.short ? 0.5 : 1; s.pops.push({ x: m.x, y: m.y, at: s.t, dust: true });
+      if (m.act && (m.act.name === 'swat' || (m.act.name === 'throw' && m.act.air && s.t - m.act.at >= m.act.rel))) m.act = null;   // a throw in the air ends as they land
     }
     // A jump let go of too soon that did not get up onto what is in front: after the second one, a tip to hold Skok.
     function hopped(m) {
@@ -850,10 +877,13 @@
       if (wall && m.short && ++s.short >= 2 && s.t - s.holdTold > 8) { s.holdTold = s.t; s.short = 0; say('Drž Skok déle!'); }
     }
     // At the shut door: it rattles, the padlock swings, the list shows what is still missing, and an arrow points to it.
+    // The hero knocks twice and points the way to the nearest thing still missing.
     function knock() {
       const m = s.me; if (s.t - s.bumpAt < 1.4) return;
       s.bumpAt = s.t; s.hunt = true; if (SOFT) { m.push = -70; s.washTo = undefined; }
       beep(150, 110); say(lacking());
+      const near = missing().map(posOf).sort((a, b) => Math.abs(a.x - m.x) - Math.abs(b.x - m.x))[0], dir = near && near.x > m.x + 4 ? 1 : -1;
+      m.act = { name: 'knock', at: s.t, dir }; tell('knock', { d: dir });
     }
     function lacking() {
       const left = missing(), n = left.length;
@@ -870,28 +900,29 @@
       s.pops.push({ x: it.x, y: it.h, at: s.t + 0.35, dust: true });
       say(`Soused vynesl ${PIECE[it.kind][3] || named(it.kind)}!`);
     }
-    // A piece taken here: it is gone from the kerb at once, its name rises from where it stood, and it flies up into the list.
+    // A piece taken here: it is gone from the kerb at once, its name rises from where it stood, the hero heaves it up
+    // over their head, and from there it flies up into the list.
     function take(it) {
       const d = dims(it.kind);
       taken.add(it.id); seen.add(it.id); live.got.push(it.id); s.sent[it.id] = s.t;
-      Net.send({ type: 'ev', e: 'got', id: it.id });
+      tell('lift', { id: it.id }); Net.send({ type: 'ev', e: 'got', id: it.id });
       beep(660, 990); plus(named(it.kind).replace(/^./, (c) => c.toUpperCase()) + '!', clamp(it.x - s.cam, 20, W - 20), GY - it.h - d.h - 14);
       s.pops.push({ x: it.x, y: it.h + d.h / 2, at: s.t, got: 'piece' });
-      flyHome(it);
+      hold(s.me, it, 'lift');
     }
     // Up into its place on the list: a little hop first, then off it goes, faster and smaller, and its place pops.
-    function flyHome(it) {
-      const el = slots[it.kind], to = el && el.querySelector('canvas'); if (!to) return;
-      if (!Element.prototype.animate) return;
-      const d = dims(it.kind), ui = K.ui.getBoundingClientRect(), u = ui.width / W, box = to.getBoundingClientRect();
-      const x = clamp(it.x - s.cam - d.w / 2, 0, W - d.w), y = clamp(GY - it.h - d.h, 30, H - d.h);   // one found off the screen (by the other) comes in from the edge
+    // `from`: where it starts, held up over a head (its foot, on the screen, and its size there), instead of the kerb.
+    function flyHome(it, from) {
+      const el = slots[it.kind], to = el && el.querySelector('canvas'); if (!to || !Element.prototype.animate) { delete s.flying[it.kind]; return; }
+      const d = dims(it.kind), ui = K.ui.getBoundingClientRect(), u = ui.width / W, box = to.getBoundingClientRect(), k = from ? from.k : 1;
+      const x = clamp(from ? from.x - (d.w * k) / 2 : it.x - s.cam - d.w / 2, 0, W - d.w * k), y = clamp(from ? from.y - d.h * k : GY - it.h - d.h, 30, H - d.h * k);   // one found off the screen (by the other) comes in from the edge
       const fly = add('<div class="flying"></div>'); fly.appendChild(pic(it.kind));
       Object.assign(fly.style, { left: `${x * u}px`, top: `${y * u}px`, width: `${d.w * u}px`, height: `${d.h * u}px` });
       const dx = box.left - ui.left - x * u, dy = box.top - ui.top - y * u, f = box.width / (d.w * u);
       s.flying[it.kind] = true;
       const land = () => { if (!s.flying[it.kind]) return; delete s.flying[it.kind]; fly.remove(); el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop'); beep(1320, 1760); };
-      const a = fly.animate([{ transform: 'translate(0,0) scale(1)', easing: 'cubic-bezier(.2,.8,.4,1)' },
-        { transform: `translate(${-d.w * u * 0.06}px,${-12 * u}px) scale(1.12)`, offset: 0.28, easing: 'cubic-bezier(.6,0,.9,.5)' },
+      const a = fly.animate([{ transform: `translate(0,0) scale(${k})`, easing: 'cubic-bezier(.2,.8,.4,1)' },
+        { transform: `translate(${-d.w * u * 0.06 * k}px,${-12 * u}px) scale(${1.12 * k})`, offset: 0.28, easing: 'cubic-bezier(.6,0,.9,.5)' },
         { transform: `translate(${dx}px,${dy}px) scale(${f})` }], { duration: 760, fill: 'forwards' });
       a.onfinish = land; setTimeout(land, 1200);                                                // land even if the animation is cut short
     }
@@ -902,15 +933,15 @@
         const k = kindOf(p.id), [hw, h] = SIZE[k], flying = FLIES.includes(k);
         if (p.falling) continue;                                                               // a cone still dropping from its tree
         if (k === 'magpie' && p.dive === undefined) continue;                                  // a magpie only matters when it dives, and that is seen coming
-        if (k === 'crab' && p.popped !== null && p.popped < 0.12 && Math.abs(p.x - m.x) < hw + HALF && m.y < 4) { beat(p, 'pop'); m.vy = JUMP * 0.7; m.ground = false; continue; }   // up out of the sand right under you: off you go, and it is knocked over
+        if (k === 'crab' && p.popped !== null && p.popped < 0.12 && Math.abs(p.x - m.x) < hw + HALF && m.y < 4) { beat(p, 'pop'); m.vy = JUMP * 0.7; m.ground = false; m.upAt = s.t; m.upK = 1; continue; }   // up out of the sand right under you: off you go, and it is knocked over
         if (p.hidden) continue;                                                                // dug into the sand: eyes only
         if ((k === 'crab' || k === 'jelly') && swept()) continue;                              // in a wave's water nothing on the sand bites
         const lo = flying ? p.y - h : p.y, hi = flying ? p.y + h : p.y + h;
         if (Math.abs(p.x - m.x) > hw + HALF - 2 || m.y > hi || m.y + TALL < lo) continue;
         if (k === 'puddle') { if (m.ground && m.y < 1) hurt(p); continue; }
         if (k === 'jelly') { if (m.ground && m.y < 3) hurt(p); continue; }                    // a jellyfish is jumped over, never on
-        if (powered()) { beat(p, 'whack'); s.whack = s.t; continue; }                         // the drumstick: everything in the way is knocked flying
-        if (m.vy < 0 && m.y > lo + (hi - lo) * 0.45) { beat(p, 'stomp'); m.vy = JUMP * 0.62; m.ground = false; continue; }   // landed on it
+        if (powered()) { beat(p, 'whack'); m.act = { name: 'whack', at: s.t }; tell('whack'); continue; }   // the drumstick: everything in the way is knocked flying
+        if (m.vy < 0 && m.y > lo + (hi - lo) * 0.45) { beat(p, 'stomp'); m.vy = JUMP * 0.62; m.ground = false; m.stompAt = s.t; continue; }   // landed on it
         hurt(p);
       }
       for (const it of pieces) {                                                                // a piece on the list: reached when standing (or jumping) where it stands
@@ -924,17 +955,21 @@
       }
       for (const it of GULLS) {                                                                 // a seagull with a piece: jump into it (it never hurts) and it lets go
         const g = carrying(it);
-        if (g && Math.abs(g.x - m.x) < 10 + HALF - 2 && g.y - 8 < m.y + TALL && g.y + 8 > m.y) letGo(it, g);
+        if (g && Math.abs(g.x - m.x) < 10 + HALF - 2 && g.y - 8 < m.y + TALL && g.y + 8 > m.y) { letGo(it, g); const d = g.x < m.x ? -1 : 1; m.act = { name: 'swat', at: s.t, dir: d }; tell('swat', { d }); }   // swiped at, where it is
       }
       for (const it of L.items) {
         if (pieces.includes(it) || it.kind === 'scrap') continue;
         if (it.kind === 'pickup' ? live.picked || !sc.pickup : live.got.includes(it.id)) continue;
         if (Math.abs(it.x - m.x) < 10 && it.h + 6 > m.y && it.h - 6 < m.y + TALL) {
-          if (it.kind === 'pickup') { live.picked = true; Net.send({ type: 'ev', e: 'pick' }); beep(660, 880, 1100); continue; }
+          if (it.kind === 'pickup') {                                                          // the drumstick: held up high for a moment
+            live.picked = true; Net.send({ type: 'ev', e: 'pick' }); beep(660, 880, 1100);
+            m.act = { name: 'pick', at: s.t }; tell('pick'); s.pops.push({ x: it.x, y: it.h + 14, at: s.t, got: 'pickup' }); continue;
+          }
           const coin = it.kind === 'coin' || it.kind === 'shell';
+          if (it.kind === 'shell') { tell('grab', { id: it.id }); hold(m, it, 'grab'); }        // a shell is picked up (and put away)
           live.got.push(it.id); Net.send({ type: 'ev', e: 'got', id: it.id }); beep(coin ? 990 : 660, coin ? 1320 : 990);
           if (it.kind === 'heart') say(live.hp[who] < live.max ? 'Srdíčko navíc!' : 'Srdíčko! (Už máš všechna.)');
-          s.pops.push({ x: it.x, y: it.h + 14, at: s.t, got: it.kind });
+          if (it.kind !== 'shell') s.pops.push({ x: it.x, y: it.h + 14, at: s.t, got: it.kind });
         }
       }
       // the partner floating in a bubble: jump into it to let them out
@@ -946,7 +981,8 @@
     }
     const t = () => s.t;
     function fly(dt) {
-      s.shots = s.shots.filter((sh) => {
+      const was = s.shots;
+      s.shots = was.filter((sh) => {
         sh.x += sh.vx * dt; sh.vy -= sh.g * dt; sh.y += sh.vy * dt; sh.left -= dt;
         if (sh.slide) {                                                                            // the puck: on the ground, falling off edges
           const floor = L.top(sh.x, 2);
@@ -963,6 +999,7 @@
         for (const it of GULLS) { const g = carrying(it); if (g && Math.abs(g.x - sh.x) < 12 && Math.abs(g.y - sh.y) < 14) { letGo(it, g); return false; } }   // low in its swoop, even a puck on the sand reaches it
         return true;
       });
+      for (const sh of was) if (sh.w === 'kel' && !s.shots.includes(sh) && s.t >= (sh.rel || 0)) s.back.push({ x: sh.x, y: sh.y, at: s.t });   // the bunny hops home to her hand
     }
     return {
       s, kind: 'platform',
@@ -977,24 +1014,44 @@
           left: missing().map((it) => { const at = posOf(it); return { id: it.id, x: at.x, h: at.h, gull: !scrapAt(it) }; }), hunt: s.hunt, shut: missing().length > 0, bottle: BOTTLE,
           gulls: GULLS.map((it) => { const g = carrying(it); return g && { x: g.x, y: g.y }; }).filter(Boolean), opened: !!s.openAt, wet: s.t - s.wetAt < 0.6 } }),
       sync(n) {
-        const wasOut = out(who), mateWas = mateHere() && out(mate()); live = n;
+        const wasOut = out(who), mateWas = mateHere() && out(mate());
+        for (const id of n.beaten || []) if (!s.popped.has(id) && !live.beaten.includes(id)) {   // knocked out by the other one: it flies off here too
+          s.popped.add(id); const f = L.foes[parseInt(id, 10)], p = f && dive(f, L.at(f, s.t));
+          if (p && Math.abs(p.x - s.cam - W / 2) < W) s.pops.push({ x: p.x, y: p.y + 10, at: s.t, kind: f.kind, dir: p.dir || 1, away: p.x >= s.mate.x ? 1 : -1, how: 'hit' });
+        }
+        live = n;
         if (wasOut && !out(who)) { s.me.x = s.bub ? s.bub.x : s.mate.x; s.me.y = L.top(s.me.x); s.me.vy = 0; s.me.ground = true; s.me.inv = 1.6; say(who === 'kel' ? 'Jsi volná! Díky.' : 'Jsi volný! Díky.'); }   // let out of the bubble, where it was
         if (!wasOut && out(who)) say(mateHere() && !out(mate()) ? `Jsi v bublině. ${heroName(mate())} se zastaví a vyskočí pro tebe.` : 'Došla srdíčka.');
         if (!mateWas && mateHere() && out(mate()) && !out(who)) say(`${heroName(mate())} je v bublině! Zastav se a vyskoč.`);
         if (live.picked && sc.pickup && !s.told) { s.told = true; say(WORLD.items[sc.pickup].dash); }
+        const theirs = (it) => s.mate.load && s.mate.load.it === it;                               // held up over their head here, to fly off from there
         for (const it of scraps) if (live.got.includes(it.id) && !seen.has(it.id)) {               // a piece found by the other one: it flies up into the note here too
           seen.add(it.id); const at = posOf(it), x = clamp(at.x - s.cam, 8, W - 8);
-          flyNote(scraps.indexOf(it), x, GY - at.h); s.pops.push({ x: at.x, y: at.h + 6, at: s.t, got: 'scrap' });
+          if (!theirs(it)) flyNote(scraps.indexOf(it), x, GY - at.h); s.pops.push({ x: at.x, y: at.h + 6, at: s.t, got: 'scrap' });
         }
         for (const it of pieces) if (live.got.includes(it.id) && !seen.has(it.id)) {               // found by the other one: it flies up into the list here too
-          seen.add(it.id); flyHome(it);
+          seen.add(it.id); if (!theirs(it)) flyHome(it);
           const x = it.x - s.cam; if (x > -20 && x < W + 20) plus(named(it.kind).replace(/^./, (c) => c.toUpperCase()) + '!', clamp(x, 20, W - 20), GY - it.h - dims(it.kind).h - 14, '#BFE8FF');
         }
         paint();
       },
       fx(m) {
-        if (m.k === 'pos') { s.mate.tx = m.x; s.mate.ty = m.y; s.mate.face = m.f; s.mate.pose = m.p; }
-        if (m.k === 'throw') { const sh = shoot(mate(), m.x, m.y, m.f, false); if (m.vy !== undefined && !sh.slide) sh.vy = m.vy; s.shots.push(sh); }   // the same arc as on the thrower's phone
+        const b = s.mate;
+        if (m.k === 'pos') {                                                                    // where they are, and how they stand: starting, stopping, taking off and landing show here too
+          const was = b.pose, now = m.p;
+          b.tx = m.x; b.ty = m.y; b.face = m.f; b.pose = now; b.bunny = !!m.b;
+          if (WALKS.includes(now) && !WALKS.includes(was)) b.walkAt = s.t;
+          if (WALKS.includes(was) && !WALKS.includes(now) && !AIRS.includes(now)) { b.skidAt = s.t; s.pops.push({ x: m.x + m.f * 3, y: m.y, at: s.t, dust: true }); }
+          if (AIRS.includes(now) && !AIRS.includes(was) && s.t - b.upAt > 0.3) { b.upAt = s.t; b.upK = 1; }
+          if (AIRS.includes(was) && !AIRS.includes(now)) { b.landAt = s.t; b.landK = 1; s.pops.push({ x: m.x, y: m.y, at: s.t, dust: true }); if (b.act && (b.act.name === 'swat' || (b.act.name === 'throw' && s.t - b.act.at >= b.act.rel))) b.act = null; }
+          if (now !== was || WALKS.includes(now) || AIRS.includes(now)) b.busyAt = s.t;
+        }
+        if (m.k === 'throw') {                                                                  // the same arc as on the thrower's phone, wound up and let go here too
+          const sh = shoot(mate(), m.x, m.y, m.f, false), rel = clamp(+m.rel || 0, 0, 0.1), air = AIRS.includes(b.pose); if (m.vy !== undefined && !sh.slide) sh.vy = m.vy;
+          b.act = throwing(s.t, rel, air, !air && WALKS.includes(b.pose)); sh.rel = s.t + rel; s.shots.push(sh); b.busyAt = s.t;
+        }
+        if (m.k === 'act') mateAct(m);
+        if (m.k === 'wave') s.mateWave = s.t;                                                   // their bubble wobbles, they wave for help
         if (m.k === 'hurt') s.mate.hurt = s.t;
         if (m.k === 'wet') s.mateWet = s.t;
       },
@@ -1011,7 +1068,11 @@
         const found = cfg.gate === 'salon' ? `Sebrali jste ${n} mincí${clues ? ` a ${clues === 2 ? 'hřeben i sponku' : 'jednu stopu'}` : ''}.` : `Sebrali jste ${notes} not.`;
         view.end(won, won ? (cfg.gate === 'salon' ? 'Jste u kadeřnictví!' : 'Jste nahoře!') : 'Au!', won ? found : spent);
       },
-      down() {},                                                                               // tapping the picture does nothing: only Skok jumps
+      down() {                                                                                 // tapping the picture: the hero looks up for a moment (only Skok jumps)
+        const m = s.me; if (s.over || s.t < 0 || out(who) || m.done) return;
+        m.busyAt = s.t; if (m.act && m.act.name !== 'look') return;
+        if (!m.act) tell('look'); m.act = { name: 'look', at: s.t };
+      },
       move() {},
       update(dt) {
         if (s.over) { if (s.me.done && !out(who)) settle(dt); if (NOTE) opening(dt); return; }   // one who won mid-jump comes down
@@ -1020,7 +1081,8 @@
         if (m.inv > 0) m.inv -= dt;
         if (m.cool > 0) m.cool -= dt;
         if (s.t >= 0 && !out(who)) { move(dt); touch(); }
-        if (SOFT && m.wantThrow && m.cool <= 0) { m.wantThrow = false; throwIt(); }
+        if (m.wantThrow && m.cool <= 0) { m.wantThrow = false; throwIt(); }
+        acts();
         fly(dt); drift(dt);
         if (WAVES) waves();
         if (NOTE) beach();
@@ -1036,13 +1098,13 @@
           m.done = true; Net.send({ type: 'ev', e: 'finish' }); beep(784, 988, 1175);
           if (mateHere() && !out(mate()) && !live.fin[mate()]) say(NOTE ? `Počkej na ${heroName(mate())}${mate() === 'ken' ? 'a' : ''}. Láhev otevřete spolu!` : `Hotovo! Počkej, ${heroName(mate())} ještě jde.`);   // the name as it is (Czech would bend it after "na")
         }
-        if (NOTE && m.done && mateHere()) { m.x += (SPOT[who] - m.x) * Math.min(1, dt * 6); m.face = 1; }   // at the bottle: to one's own place beside it
+        if (NOTE && m.done && mateHere()) { m.x += clamp(SPOT[who] - m.x, -SPEED * dt, SPEED * dt); m.face = 1; }   // at the bottle: a few steps to one's own place at it
         if (live.fin && live.fin[who] === undefined && m.done && Net.now() - (m.sentFin || 0) > 1500) { m.sentFin = Net.now(); Net.send({ type: 'ev', e: 'finish' }); }   // in case the first was lost
         // where I am, for the other phone, a few times a second
         if (mateHere() && Net.now() - m.sent > 140) {
           m.sent = Net.now();
-          const pose = m.done ? 'cheer' : s.t - s.wetAt < 0.5 ? 'dizzy' : !m.ground ? 'jump' : s.t - (m.gotAt || -9) < 0.3 ? 'cheer' : s.dir ? 'run' : 'stand';
-          Net.send({ type: 'fx', k: 'pos', x: Math.round(m.x), y: Math.round(m.y), f: m.face, p: pose });
+          const pose = m.done ? (NOTE ? 'heave' : 'cheer') : s.t - s.wetAt < 0.5 ? 'dizzy' : base(who, m, true);   // at the bottle: holding on to it, waiting
+          Net.send({ type: 'fx', k: 'pos', x: Math.round(m.x), y: Math.round(m.y), f: m.face, p: pose, ...(bunnyOut(who, m) ? { b: 1 } : {}) });
         }
         const b = s.mate; if (b.tx !== null) { b.x += (b.tx - b.x) * Math.min(1, dt * 10); b.y += (b.ty - b.y) * Math.min(1, dt * 10); }
         const lead = out(who) && mateHere() ? s.mate : m;                                        // out: the camera follows the one still walking
@@ -1088,18 +1150,19 @@
           if (q.kind === 'pigeon' || q.kind === 'flyer') { if (K.has('prague', 'pigeonfly')) K.figure('prague', x + Math.round(u * 40 * q.dir), y - Math.round(u * 50), 'pigeonfly', tt, q.dir < 0, 0.36); }
           else if (K.has('things', 'flash')) K.figure('things', x, y - Math.round(u * 20), 'flash', 0, false, 0.6);
         }
-        // the heroes: the partner from their last word, then me on top
-        const hero = (w, b, pose, blink) => { if (!blink) K.hero(w, X(b.x), Y(b.y), pose, tt, b.face < 0); };
+        // the heroes: the partner from their last word (and what they did, as it is heard of), then me on top
         if (mateHere()) {
           if (out(mate())) { if (s.bub) bubble(mate(), bubbleAt(), X, Y, tt); }
-          else hero(mate(), s.mate, tt - (s.mate.hurt || -9) < 0.45 ? 'dizzy' : s.mate.pose, false);
+          else kid(mate(), s.mate, false, X, Y, tt, false);
         }
-        const m = s.me, swing = powered() && tt - s.whack < 0.25;
+        const m = s.me;
         if (out(who)) { if (mateHere() && s.bub) bubble(who, bubbleAt(), X, Y, tt); else K.hero(who, X(m.x), Y(m.y), 'dizzy', tt, m.face < 0); }
-        else hero(who, m, s.lost ? 'dizzy' : m.done ? 'cheer' : tt - m.hurt < 0.45 || tt - s.wetAt < 0.5 ? 'dizzy' : swing ? 'drum' : m.cool > 0.3 ? 'shoot' : !m.ground ? 'jump' : tt - (m.gotAt || -9) < 0.3 ? 'cheer' : s.dir ? 'run' : 'stand', m.inv > 0 && Math.floor(tt * 14) % 2);
-        if (powered() && !out(who)) { const left = (live.power - Net.now()) / 1000; if (left > 1.5 || Math.floor(tt * 8) % 2) item(sc.pickup, X(m.x + m.face * 10), Y(m.y + 44)); }
-        for (const sh of s.shots) {                                                              // in the air: the puck, the bunny
-          const x = X(sh.x), y = Y(sh.y);
+        else kid(who, m, true, X, Y, tt, m.inv > 0 && Math.floor(tt * 14) % 2);
+        bunnies(X, Y, tt);
+        for (const sh of s.shots) {                                                              // in the air: the puck, the bunny (still in the hand until the release, then leaving it)
+          if (sh.rel && tt < sh.rel) continue;
+          if (sh.rel && !sh.off) fromHand(sh, sh.w, sh.real ? s.me : s.mate);
+          const v = sh.off ? 1 - (tt - sh.off.at) / 0.08 : 0, x = X(sh.x + (v > 0 ? sh.off.x * v : 0)), y = Y(sh.y + (v > 0 ? sh.off.y * v : 0));
           if (sh.w === 'ken') { if (K.has('things', 'puckfly')) K.figure('things', x, y + 4, 'puckfly', 0, sh.vx < 0, 0.45); else rect(x - 4, y - 2, 8, 4, INK); }
           else if (K.has('things', 'bunnyfly')) K.figure('things', x, y + 8, Math.floor(tt * 6) % 2 ? 'bunnyflip' : 'bunnyfly', 0, sh.vx < 0, 0.5);
           else rect(x - 3, y - 3, 6, 6, '#FFF8E7');
@@ -1112,6 +1175,231 @@
       },
     };
     function say(text) { view.tip.textContent = text; s.tipAt = s.t || 0.01; }
+    // ---- acting it out: every press shows at once on this phone, and on the other one as soon as the word comes ----
+    // An act started here, for the other phone to play too (the room passes fx on as they are).
+    function tell(a, extra) { if (mateHere()) Net.send({ type: 'fx', k: 'act', a, ...extra }); }
+    // What the other phone is told about how one stands (between acts): walking, in the air or resting, with the
+    // stick or the bunny (carry, airgear, idle), without the bunny while it is out (run, jump, stand), or with the drumstick.
+    function base(w, b) {
+      const pw = powered(), bun = bunnyOut(w, b);
+      if (!b.ground) return pw || bun ? 'jump' : 'airgear';
+      if (b.walking) return pw || bun ? 'run' : 'carry';
+      return pw ? 'drumhit' : bun ? 'stand' : 'idle';
+    }
+    // Kellyn's bunny is out from the moment she lets go until it has hopped back into her hands.
+    function bunnyOut(w, b) {
+      if (w !== 'kel') return false;
+      const here = s.shots.some((sh) => sh.w === 'kel') || s.back.length > 0;
+      return here || (b !== s.me && !!b.bunny && s.t - b.backAt > 0.6);                         // the other phone's word, for a throw not heard of here
+    }
+    function overhead(w) { return w === 'kel' ? 44 : 51; }                                     // the foot of what they lift (her hands are at her head)
+    // Picked up: held up a moment, then off it flies (into the list, into the note; a shell is put away). Furniture is
+    // heaved up over the head (0.5 s); a piece of the message or a shell is picked up (0.3 s), or, without stopping,
+    // shown over the head (0.2 s). `ghost`: the other's, already flying here: only the act is played.
+    function hold(b, it, how, ghost) {
+      if (b.load) finish(b);                                                                    // still holding the last one: off it goes now
+      const moving = b === s.me ? b.walking || !b.ground : WALKS.includes(b.pose) || AIRS.includes(b.pose);
+      b.load = { it, how, at: s.t, dur: how === 'lift' ? ACT.lift : moving ? 0.2 : ACT.grab, ghost };
+      if (!ghost && how === 'lift') s.flying[it.kind] = true;                                  // its place on the list waits for it
+      if (!ghost && it.kind === 'scrap') s.noteFly[scraps.indexOf(it)] = true;                  // and so does the note
+      if (how === 'lift' || !moving) b.act = { name: how, at: s.t };
+      b.busyAt = s.t;
+    }
+    function finish(b) {
+      const q = b.load; b.load = null; if (!q || q.ghost) return;
+      const at = q.drawn || { x: b.x - s.cam, y: GY - b.y - overhead(b === s.me ? who : mate()) };   // where it was last seen (on the screen)
+      if (b !== s.me) seen.add(q.it.id);
+      if (q.how === 'lift') flyHome(q.it, { x: at.x, y: at.y, k: 0.4 });
+      else if (q.it.kind === 'scrap') flyNote(scraps.indexOf(q.it), at.x, at.y);
+      else s.pops.push({ x: at.x + s.cam, y: GY - at.y + 4, at: s.t, got: 'shell' });           // a shell: put away, with a sparkle
+    }
+    // Every frame: acts that are over end (pointing ends as soon as they walk on), what is held up flies off, and the
+    // bunny that has hopped home is back in her hands.
+    function acts() {
+      for (const b of [s.me, s.mate]) {
+        const a = b.act, walking = b === s.me ? b.walking : WALKS.includes(b.pose);
+        if (a && (s.t - a.at >= (a.end || ACT[a.name]) || (a.name === 'knock' && s.t - a.at > 0.4 && walking))) b.act = null;
+        if (b.load && s.t - b.load.at >= b.load.dur) finish(b);
+      }
+      const kel = who === 'kel' ? s.me : s.mate;
+      s.back = s.back.filter((q) => s.t - q.at < 0.35 || ((kel.backAt = s.t), false));
+    }
+    // An act of the other one's, heard of: played here as it was there.
+    function mateAct(m) {
+      const b = s.mate, it = m.id !== undefined ? L.items[m.id | 0] : null; b.busyAt = s.t;
+      if (m.a === 'jump') { b.upAt = s.t; b.upK = 1; }
+      else if (m.a === 'boing') { const sp = L.springs[m.i | 0]; if (sp) sp.at = s.t; b.upAt = s.t; b.upK = 1.6; }
+      else if (m.a === 'knock') { b.act = { name: 'knock', at: s.t, dir: m.d < 0 ? -1 : 1 }; s.mateBump = s.t; }
+      else if ((m.a === 'lift' || m.a === 'grab') && it) hold(b, it, m.a, it.kind !== 'shell' && seen.has(it.id));
+      else if (ACT[m.a]) b.act = { name: m.a, at: s.t, dir: m.d ? (m.d < 0 ? -1 : 1) : 0 };
+    }
+    // The thrown thing starts in the hand that throws it (then goes its own way: see the drawing of s.shots).
+    function fromHand(sh, w, b) {
+      const o = acting(w, b, b === s.me, s.t), dir = o.flip ? -1 : 1;
+      const h = o.pose === 'jump' ? { x: JUMPFIST[w][0] * dir, y: JUMPFIST[w][1] } : K.hand(w, o.pose, w === 'kel' && o.pose === 'airgear' ? 0 : o.k, o.flip);
+      sh.off = { x: b.x + o.dx * dir + h.x - sh.x, y: b.y - o.dy - h.y - sh.y, at: s.t };
+    }
+    // What a hero shows this moment (the conventions every level follows): the pose and its frame (k, and f for
+    // K.hero), a nudge forward (dx) and down (dy), a squash about the feet (sx, sy), which way they face, where the stick
+    // or the bunny is (in the hands as drawn: 'hand'; lying at the feet: 'feet'; on the back while the drumstick is
+    // out: 'back'; flying: 'none'), and what else is drawn: the drumstick in a fist (`stick`: the pose whose fist),
+    // the pair held up (`sticks`), a flash, a swoosh.
+    function acting(w, b, mine, tt) {
+      const o = { pose: 'idle', k: 0, f: 0, dx: 0, dy: 0, sx: 1, sy: 1, flip: b.face < 0, gear: 'hand', stick: null, sticks: false, flash: false, swoosh: false };
+      const pick = (pose, k) => { o.pose = pose; o.k = k; o.f = K.frame(k); };
+      const pw = powered(), bun = bunnyOut(w, b), air = mine ? !b.ground : AIRS.includes(b.pose), walking = mine ? b.walking : WALKS.includes(b.pose);
+      const drum = () => { o.gear = bun ? 'none' : 'back'; }, down = () => { if (walking || air) drum(); else o.gear = bun ? 'none' : 'feet'; };   // hands busy on the move: the gear rides on the back, never sliding along at the feet
+      const whack = (k) => { if (air) { pick('jump', 0); o.stick = 'jump'; } else pick('drumhit', k); drum(); };   // the drumstick's hit: standing, or held out in the air (never a standing frame in the air)
+      const stepTo = (go) => { pick(pw || bun ? 'run' : 'carry', 0); o.f = tt; o.flip = go < 0; };   // at the bottle: a few steps to one's own end of it
+      const rest = () => {                                                                       // standing: breathing, tapping the drumstick, or empty-handed while the bunny is out
+        if (pw) { pick('drumhit', Math.floor(tt * 2) % 2); o.f = K.loop(tt, 2); drum(); }
+        else { pick(bun ? 'stand' : 'idle', Math.floor(tt * 1.5) % 2); o.f = K.loop(tt, 1.5); if (bun) o.gear = 'none'; }
+      };
+      if (s.lost) { pick('dizzy', 0); down(); return o; }
+      const u = s.openAt ? tt - s.openAt : -1;
+      if (u >= 0 && lifters().some(([v]) => v === w)) {                                         // the bottle: shaken loose together, then held up high
+        const two = lifters().length > 1, go = two ? SPOT[w] - b.x : 0;                          // with two, each at their own end of it (the gear slung on the back)
+        if (Math.abs(go) > 1.5) { stepTo(go); return o; }                                        // the one who came last steps over first
+        if (u < 0.45) { const p = Math.sin(u * 45) > 0; pick('heave', p ? 1 : 0); o.dx = p ? -1 : 1; }
+        else { pick('lift', 1); if (u < 0.53) o.sy = 0.96; o.dy = -joy(u); }
+        o.flip = two && w === 'ken'; if (two) drum(); else down(); return o;
+      }
+      if (mine ? b.done : b.pose === 'cheer' || b.pose === 'heave') {
+        const go = NOTE && mateHere() && !s.over ? SPOT[w] - b.x : 0;
+        if (Math.abs(go) > 1.5) { stepTo(go); return o; }
+        if (NOTE && !s.over && mateHere()) { pick('heave', 0); o.dy = tt % 0.5 < 0.12 ? -2 : 0; o.flip = w === 'ken'; drum(); return o; }   // at the bottle: holding on, hopping to call the other
+        pick('cheer', 0); down(); return o;
+      }
+      const wet = tt - (mine ? s.wetAt : s.mateWet);
+      if (tt - (b.hurt === undefined ? -9 : b.hurt) < 0.45 || wet < 0.5) {                      // hurt: dizzy; a wave: flung back, then sat down by it
+        if (wet < 0.15) { pick('shrug', 0); o.dx = -1; } else pick('dizzy', 0);
+        down(); return o;
+      }
+      const a = b.act, t = a ? tt - a.at : 0;
+      if (a && a.name === 'throw') {                                                            // wind up, let go (the flash, the swoosh), follow through
+        const after = t >= a.rel, fresh = after && t < a.rel + 0.08;
+        const bare = w === 'kel' && (s.back.length > 0 || s.shots.some((sh) => sh.w === 'kel' && sh.rel < a.at + a.rel - 1e-6));   // her last bunny still out: her hands are empty until this one leaves them
+        if (pw) { whack(after ? 1 : 0); if (air) o.dx = after ? 1 : -1; o.flash = fresh; }
+        else if (air) { pick(bare && !after ? 'jump' : 'airgear', after ? 1 : 0); o.flash = fresh && w === 'ken'; o.swoosh = fresh && w === 'kel'; }
+        else {
+          if (!after) { pick(bare ? 'throw' : 'aim', 0); o.dx = -1; } else if (w === 'ken' && !a.walk && t < 0.15) pick('swing', 0); else { pick('shoot', 0); o.dx = 1; }
+          o.flash = fresh && w === 'ken'; o.swoosh = fresh && w === 'kel';
+        }
+        return o;
+      }
+      if (a && a.name === 'twitch') {                                                           // pressed too soon: a twitch, so the press shows
+        if (pw) whack(0); else if (air) pick(bun ? 'jump' : 'airgear', 0); else pick(bun ? 'throw' : 'aim', 0);   // her bunny out: an empty-handed wind-up
+        if (bun) o.gear = 'none';
+        o.dy = 1; return o;
+      }
+      if (a && a.name === 'whack') { whack(t < 0.12 ? 0 : 1); o.dx = -Math.round(2 * (1 - t / ACT.whack)); o.flash = t < 0.1; return o; }
+      if (a && a.name === 'pick') { pick('cheer', 0); o.sticks = true; if (!air) o.dy = -Math.round(Math.sin(Math.min(1, t / ACT.pick) * Math.PI) * 3); drum(); return o; }   // the gear goes on the back for the drumstick's run
+      if (a && a.name === 'lift') { if (t < 0.1) pick('heave', 0); else { pick('lift', walking || air ? Math.floor(tt * 6) % 2 : 1); if (t < 0.18) o.sy = 0.96; } down(); return o; }
+      if (a && a.name === 'grab') { if (t < 0.1) pick('heave', 0); else { pick('stand', 0); o.f = K.loop(tt, 1.5); } down(); return o; }
+      if (a && a.name === 'knock') { if (t < 0.4) pick('tap', t % 0.2 < 0.08 ? 0 : 1); else { pick('point', 1); o.flip = a.dir < 0; } o.gear = bun ? 'none' : 'feet'; return o; }   // at the door (walked into): the gear put down at once
+      if (a && a.name === 'swat') {                                                             // into the gull: a swipe at it (the stick's blade, or the bunny held out at it)
+        if (a.dir) o.flip = a.dir < 0;
+        if (air) pick(bun ? 'jump' : 'airgear', w === 'kel' ? 0 : 1); else pick(bun ? 'shoot' : 'swing', 0);
+        o.flash = t < 0.1; if (w === 'kel' && !air) o.hit = 'shoot'; if (bun) o.gear = 'none'; return o;   // her swing holds the bunny back: the hit is at her front hand
+      }
+      if (a && a.name === 'look' && !air && !walking) {                                         // the picture tapped: perking up, the gear kept in the hands (with it put away, a little cheer)
+        if (pw || bun) { pick('cheer', 0); o.dy = -1; drum(); return o; }
+        rest(); o.sx = 0.96; o.sy = 1.06; o.dy = -1; return o;
+      }
+      if (air) {                                                                                // in the air: holding the gear (taking off stretched, a stomp squashed)
+        pick(pw || bun ? 'jump' : 'airgear', 0);
+        if (pw) { drum(); o.stick = 'jump'; } else if (bun) o.gear = 'none';
+        const up = tt - b.upAt, len = b.upK > 1 ? 0.12 : 0.08;
+        if (up < len) { o.sx = 1 - 0.08 * b.upK; o.sy = 1 + 0.12 * b.upK; } else if (tt - b.stompAt < 0.06) { o.sx = 1.1; o.sy = 0.86; }
+        if (a && a.name === 'look') o.dy = -1;
+        return o;
+      }
+      if (tt - b.landAt < 0.08) { rest(); o.sx = 1 + 0.1 * b.landK; o.sy = 1 - 0.15 * b.landK; return o; }   // landed: squashed for a moment
+      if (walking || tt - b.skidAt < 0.1) {                                                     // walking (leaning into it at first), or skidding to a stop
+        const v = tt - b.walkAt, skid = !walking;
+        pick(pw || bun ? 'run' : 'carry', skid ? 2 : v < 0.06 ? 0 : Math.floor(v * 9) % 4); o.f = skid ? K.frame(2) : v < 0.06 ? K.frame(0) : v;
+        if (!skid && v < 0.06) o.dx = 1;
+        if (pw) { drum(); o.stick = 'run'; } else if (bun) o.gear = 'none';
+        if (a && a.name === 'look') o.dy = -1;
+        return o;
+      }
+      rest();
+      // standing still a while: now and then a glance at the other one (or at what is coming), and at a piece a
+      // neighbour has just put out
+      const news = LIST && s.news && !found(s.news) && tt - (s.born[s.news.id] || -9) < 1.2 ? s.news.x : null;
+      const quiet = tt - b.busyAt, near = news !== null ? news : quiet > 3 && (quiet - 3) % 4 < 0.5 ? lookAt(b, mine) : null;
+      if (near !== null && Math.abs(near - b.x) > 4) o.flip = near < b.x;
+      return o;
+    }
+    function lookAt(b, mine) {
+      if (!mine) return out(who) ? null : s.me.x;
+      if (mateHere() && !out(mate())) return s.mate.x;
+      const p = foesNow().filter((q) => !q.hidden && Math.abs(q.x - b.x) < 110 && Math.abs(q.x - b.x) > 12).sort((p1, p2) => Math.abs(p1.x - b.x) - Math.abs(p2.x - b.x))[0];
+      return p ? p.x : null;
+    }
+    // A hero drawn as acting() says, with what goes with it: the gear at the feet or on the back (behind them), the
+    // drumstick in the fist, the flash of a hit, a swoosh, and what they hold up.
+    function kid(w, b, mine, X, Y, tt, blink) {
+      const o = acting(w, b, mine, tt); if (blink) return;
+      const dir = o.flip ? -1 : 1, x = X(b.x) + o.dx * dir, y = Y(b.y) + o.dy;
+      const at = (pose, k) => { const h = K.hand(w, pose, k, o.flip); return { x: x + h.x * o.sx, y: y + h.y * o.sy }; }, fist = { x: x + JUMPFIST[w][0] * dir, y: y + JUMPFIST[w][1] };
+      if (o.gear === 'feet') gearAtFeet(w, x, y, o.flip);
+      if (o.gear === 'back' && w === 'ken') onBack(w, x, y, dir, o.pose);
+      if (o.sx !== 1 || o.sy !== 1) { ctx.save(); ctx.translate(x, y); ctx.scale(o.sx, o.sy); K.hero(w, 0, 0, o.pose, o.f, o.flip); ctx.restore(); }
+      else K.hero(w, x, y, o.pose, o.f, o.flip);
+      if (o.gear === 'back' && w === 'kel') onBack(w, x, y, dir, o.pose);
+      if (o.stick && (live.power - Net.now() > 1500 || Math.floor(tt * 8) % 2)) {               // blinking as the drumstick's time runs out
+        const p = o.stick === 'jump' ? fist : at(o.stick, o.k); drumstick(p.x, p.y, dir);
+      }
+      if (o.sticks && K.has('strahov', 'sticks')) { const p = at('cheer', 1); K.figure('strahov', p.x, p.y + 3, 'sticks', 0, o.flip, 0.3); }
+      if (o.flash && K.has('things', 'flash')) { const p = o.stick === 'jump' ? { x: fist.x + dir * 5, y: fist.y - 10 } : o.pose === 'jump' ? fist : at(o.hit || o.pose, o.hit ? 0 : o.k); K.figure('things', p.x, p.y + 5, 'flash', 0, false, 0.3); }   // at the drumstick's tip in the air
+      if (o.swoosh) { const p = at(o.pose, o.k); rect(p.x - dir * 4, p.y - 1, 3, 1, '#FFFFFF'); rect(p.x - dir * 6, p.y + 1, 3, 1, '#FFFFFF'); }
+      if (b.load && !b.load.ghost) heldUp(w, b, o, x, y, tt, at);
+    }
+    // What a hero has picked up: low in the hands as they heave, up between the hands as they lift it, in the hands
+    // standing, or over the head while they walk (or jump) on. Remembered where it was drawn, to fly off from there.
+    function heldUp(w, b, o, x, y, tt, at) {
+      const q = b.load, kind = q.it.kind, t = tt - q.at;
+      const [sheet, k] = kind === 'scrap' ? ['bondilife', 0.5] : kind === 'shell' ? ['beach', 12 / ((art('beach', 'shell') || [12, 12])[1])] : [dims(kind).sheet, dims(kind).k * 0.4];
+      if (!K.has(sheet, kind)) return;
+      const top = { x: at('lift', 1).x, y: y - overhead(w) * o.sy };
+      let p;
+      if (o.pose === 'lift') { const lo = at('heave', 0), v = clamp((t - 0.1) / 0.08, 0, 1); p = { x: lo.x + (at('lift', o.k).x - lo.x) * v, y: lo.y + 3 + (top.y - lo.y - 3) * v }; }
+      else if (o.pose === 'heave') { const lo = at('heave', 0); p = { x: lo.x, y: lo.y + 3 }; }
+      else if (o.pose === 'stand') { const h = at('stand', 0); p = { x: h.x, y: h.y + 4 }; }
+      else p = { x, y: y - 55 };
+      K.figure(sheet, Math.round(p.x), Math.round(p.y), kind, 0, false, k);
+      q.drawn = { x: p.x, y: p.y };
+    }
+    // The drumstick in a fist: a short wooden stick pointing up and forward, its tip lighter (drawn on the fine grid).
+    function drumstick(x, y, dir) {
+      for (let i = 0; i < 11; i++) {
+        const px = x + dir * i * 0.5 - 0.5, py = y - 1 - i * 0.9;
+        ctx.fillStyle = '#6B4220'; ctx.fillRect(px + dir * 0.5, py + 0.5, 1, 1);
+        ctx.fillStyle = i > 8 ? '#F3E2B8' : '#C98A4B'; ctx.fillRect(px, py, 1, 1);
+      }
+    }
+    // While the drumstick is out: Kendrick's hockey stick is slung across his back (drawn behind him, on the fine grid:
+    // the shaft from the hip to the neck, the taped blade low behind), Kellyn's bunny rides on her back, peeking over
+    // her shoulder (drawn in front of her).
+    function onBack(w, x, y, dir, pose) {
+      const low = pose === 'jump' || pose === 'heave' ? 6 : 0;
+      if (w === 'kel') { if (K.has('things', 'bunny')) K.figure('things', x - dir * 8, y - 30 + low, 'bunny', 0, dir < 0, 0.3); return; }
+      const ax = -15, ay = -14 + low, bx = 1, by = -50 + low, n = Math.ceil(Math.hypot(bx - ax, by - ay) * 2);
+      ctx.fillStyle = '#1E1E24';
+      for (let i = 0; i <= n; i++) ctx.fillRect(x + dir * (ax + ((bx - ax) * i) / n) - 0.5, y + ay + ((by - ay) * i) / n - 0.5, 1, 1);
+      ctx.fillStyle = '#F4F4F0'; for (let i = 0; i < 4; i++) ctx.fillRect(x + dir * (ax - i * 0.8) - 0.5, y + ay + 0.5 - i * 0.2, 1, 1.5);
+    }
+    // Kellyn's bunny, its flight over (spent, or it hit something), hops back to her hands on a low arc.
+    function bunnies(X, Y, tt) {
+      if (!K.has('things', 'bunnyfly')) return;
+      const b = who === 'kel' ? s.me : s.mate, walking = b === s.me ? b.walking : WALKS.includes(b.pose), h = K.hand('kel', walking ? 'carry' : 'idle', 0, b.face < 0);
+      for (const q of s.back) {
+        const u = clamp((tt - q.at) / 0.35, 0, 1), tx = b.x + h.x, ty = b.y - h.y;
+        const x = q.x + (tx - q.x) * u, y = q.y + (ty - q.y) * u + Math.sin(u * Math.PI) * 10;
+        K.figure('things', X(x), Y(y) + 8, Math.floor(tt * 8) % 2 ? 'bunnyflip' : 'bunnyfly', 0, tx < q.x, 0.5);
+      }
+    }
     // A piece on the list, standing on the kerb: it glints now and then, so it reads as something to take, and gives a
     // little hop when someone comes close.
     function piece(it, x, foot, tt) {
@@ -1131,7 +1419,7 @@
     function tower(x, tt) {
       if (x < -80 || x > W + 80 || !K.has('storeys', 'lobby')) return;
       const k = 2, foot = GY + 2, fill = (a, b, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(a, b, w, h); };
-      ['lobby', 'floor', 'plants', 'floor'].forEach((pose, i) => K.figure('storeys', x, foot - i * 50 * k, pose, 0, false, k));
+      ['lobby', 'floor', 'plants', 'floor'].forEach((pose, i) => K.figure('storeys', x + (i ? 0 : knocked(tt)), foot - i * 50 * k, pose, 0, false, k));   // the door jumps as it is knocked on
       const left = x - 43 * k, top = foot - 92 * k, gx = left + 36 * k, gy = top + 69 * k, gw = 13 * k, gh = 19 * k;   // the glass of the door, in the lobby's picture
       const open = s.allAt ? clamp((s.t - s.allAt - 0.45) / 0.55, 0, 1) : 0, e = 1 - Math.pow(1 - open, 3);
       if (open > 0 && towerImg.complete && towerImg.naturalWidth) {
@@ -1143,7 +1431,7 @@
         ctx.restore();
       }
       if (K.has('prague', 'padlock')) {
-        const since = s.t - s.bumpAt, swing = since < 0.7 ? Math.round(Math.sin(since * 22) * 3 * (1 - since / 0.7)) : 0;
+        const since = s.t - Math.max(s.bumpAt, s.mateBump), swing = (since < 0.7 ? Math.round(Math.sin(since * 22) * 3 * (1 - since / 0.7)) : 0) + knocked(tt);
         const drop = s.allAt ? s.t - s.allAt : 0, fall = Math.round(drop * drop * 300);
         if (drop < 0.5) { ctx.save(); ctx.globalAlpha = 1 - drop * 2; K.figure('prague', x + swing, gy + 24 + fall, 'padlock', 0, false, 0.32); ctx.restore(); }
       }
@@ -1307,24 +1595,27 @@
       const w = Math.max(1, Math.round(Math.abs(Math.cos(tt * 3)) * 6));
       rect(x - w, y - 6, w * 2, 12, '#B8862A'); rect(x - w + 1, y - 5, Math.max(1, w * 2 - 2), 10, '#FFD43A'); if (w > 3) rect(x - 1, y - 3, 2, 6, '#E6B340');
     }
+    // A press in the bubble wobbles it and the one inside waves for help (on both phones; the other's flashes too).
     function bubble(w, b, X, Y, tt) {
-      const x = X(b.x), y = Y(b.y), r = 13 + (w === who && tt - (s.wobble || -9) < 0.4 ? Math.round(Math.sin((tt - s.wobble) * 30) * 2) : 0);
-      for (let a = 0; a < 40; a++) { const u = a / 40 * Math.PI * 2; rect(Math.round(x + Math.cos(u) * r), Math.round(y + Math.sin(u) * r), 1, 1, a % 5 ? '#BFE8FF' : '#FFFFFF'); }
+      const at = w === who ? s.wobble || -9 : s.mateWave, u = tt - at;
+      const x = X(b.x), y = Y(b.y), r = 13 + (u < 0.4 ? Math.round(Math.sin(u * 30) * 2) : 0), lit = w !== who && u < 0.2;
+      for (let a = 0; a < 40; a++) { const v = a / 40 * Math.PI * 2; rect(Math.round(x + Math.cos(v) * r), Math.round(y + Math.sin(v) * r), 1, 1, a % 5 && !lit ? '#BFE8FF' : '#FFFFFF'); }
       rect(x - 7, y - 9, 3, 2, '#FFFFFF');
-      K.figure(w, x, y + 10, 'dizzy', tt, false, 0.3);
+      K.figure(w, x, y + 10, u < 0.3 ? 'cheer' : 'dizzy', tt, false, 0.3);
     }
     // ---- the beach (cfg.note, cfg.waves) ----
-    // A piece of the message picked up here: gone from the sand at once, a sparkle, the hero gives a little cheer, and
-    // the piece flies up into the note, where its letters pop in.
+    // A piece of the message picked up here: gone from the sand at once, a sparkle, the hero picks it up, and from
+    // their hands the piece flies up into the note, where its letters pop in.
     function takeScrap(it, at) {
-      taken.add(it.id); seen.add(it.id); live.got.push(it.id); s.sent[it.id] = s.t; s.me.gotAt = s.t;
-      Net.send({ type: 'ev', e: 'got', id: it.id });
+      taken.add(it.id); seen.add(it.id); live.got.push(it.id); s.sent[it.id] = s.t;
+      tell('grab', { id: it.id }); Net.send({ type: 'ev', e: 'got', id: it.id });
       beep(660, 990); s.pops.push({ x: at.x, y: at.h + 6, at: s.t, got: 'scrap' });
-      flyNote(scraps.indexOf(it), at.x - s.cam, GY - at.h);
+      hold(s.me, it, 'grab');
     }
     // Up into its place on the note (part i; the last part comes out of the bottle): a little hop first, then off it
     // goes, and its letters pop in one after another. x, y: where it starts, on the screen (its foot).
     function flyNote(i, x, y) {
+      delete s.noteFly[i];
       const mine = cells.filter((c, j) => partOf[j] === i); if (!mine.length) return;
       const done = () => { light(i, true); beep(1320, 1760); if (cells.every((c) => c.classList.contains('on'))) noteEl.classList.add('full'); };
       if (!Element.prototype.animate || !K.has('bondilife', 'scrap')) return done();
@@ -1465,12 +1756,14 @@
     // Won: everybody is at the bottle. It is lifted, the cork pops, the last part of the message flies out into the
     // note; then the card.
     function opening(dt) {
-      s.t = clock(live); fly(dt);
-      if (mateHere()) for (const [w, b] of [[who, s.me], [mate(), s.mate]]) if (w === who ? b.done : live.fin && live.fin[w]) { b.x += (SPOT[w] - b.x) * Math.min(1, dt * 6); b.tx = b.x; b.face = 1; if (w !== who) { b.y = b.ty = L.top(SPOT[w], 2); b.pose = 'cheer'; } }   // side by side at the bottle, cheering
+      s.t = clock(live); fly(dt); acts();
+      const by = lifters(), two = by.length > 1;                                                // alone: at its end, to pull it out; with two: each at their own place at it (walked to)
+      for (const [w, b] of by) { b.x += two ? clamp(SPOT[w] - b.x, -SPEED * dt, SPEED * dt) : (BOTTLE - 24 - b.x) * Math.min(1, dt * 6); b.tx = b.x; b.face = 1; if (w !== who) { b.y = b.ty = L.top(b.x, 2); b.pose = 'cheer'; } }
       if (s.openAt && !s.corked && s.t - s.openAt > 0.8) {
         s.corked = true; beep(880, 1320); K.drum('stick');
-        s.pops.push({ x: BOTTLE + 12, y: L.top(BOTTLE, 4) + 24, at: s.t, cork: true });
-        flyNote(scraps.length, BOTTLE - s.cam, GY - L.top(BOTTLE, 4) - 16);
+        const bt = bottleAt(s.t);                                                                // up over their heads by now
+        s.pops.push({ x: bt.x + 12, y: bt.y + 24, at: s.t, cork: true });
+        flyNote(scraps.length, bt.x - s.cam, GY - bt.y - 16);
       }
       if (s.endIn > 0 && (s.endIn -= dt) <= 0) {
         const spent = mateHere() ? 'Došla vám srdíčka. Zkuste to ještě jednou.' : 'Došla ti srdíčka. Zkus to ještě jednou.';
@@ -1479,7 +1772,7 @@
     }
     function bounce(sp) {                                                                       // a beach umbrella: boing, high up
       const m = s.me; m.y = sp.h; m.vy = JUMP * 1.45; s.jumpHeld = !!s.jumpKey; m.short = false; m.from = undefined; sp.at = s.t;
-      beep(330, 660, 990);
+      beep(330, 660, 990); m.upAt = s.t; m.upK = 1.6; tell('boing', { i: L.springs.indexOf(sp) });   // flung up: a big stretch
       if (!s.said.boing) { s.said.boing = true; plus('Boing!', clamp(sp.x + sp.w / 2 - s.cam, 20, W - 20), GY - sp.h - 40); }
     }
     // How far down the screen a wave's water comes (to just in front of the heroes' feet), or null while it does not.
@@ -1546,17 +1839,30 @@
       }
     }
     // The bottle on top of the rocks at the end, the goal. It rattles when somebody comes too soon (pieces are still
-    // missing); opened, it is lifted with a wobble. With two, once every piece is found, a little square over it for
-    // each of them, lit in their colour when they stand there.
+    // missing); opened, it is shaken loose and lifted up over the heads of whoever is at it. With two, once every piece
+    // is found, a little square over it for each of them, lit in their colour when they stand there.
     function bottleGoal(X, Y, tt) {
-      const x = X(BOTTLE), foot = Y(L.top(BOTTLE, 4)); if (x < -40 || x > W + 40 || !K.has('beach', 'bottle')) return;
+      const at = bottleAt(tt), x = X(at.x), foot = Y(at.y); if (x < -40 || x > W + 40 || !K.has('beach', 'bottle')) return;
       const u = s.openAt ? s.t - s.openAt : -1;
-      let dx = 0, lift = 0;
-      if (u >= 0) { dx = u < 0.45 ? Math.round(Math.sin(u * 45) * 2) : 0; lift = Math.round(18 * (1 - Math.pow(1 - clamp((u - 0.45) / 0.35, 0, 1), 3))); }
-      else if (s.t - s.bumpAt < 0.6) dx = Math.round(Math.sin((s.t - s.bumpAt) * 30) * 2);
-      K.figure('beach', x + dx, foot + 2 - lift, 'bottle', 0, false, 0.6);
-      if (u < 0 && (tt * 0.8 + 0.3) % 1 < 0.12) { const gx = x + 4, gy = foot - 12; rect(gx - 2, gy, 5, 1, '#FFFFFF'); rect(gx, gy - 2, 1, 5, '#FFFFFF'); }   // the glass glints
+      const dx = u >= 0 ? (u < 0.45 ? Math.round(Math.sin(u * 45) * 2) : 0) : knocked(tt);
+      K.figure('beach', x + dx, foot, 'bottle', 0, false, 0.6);
+      if (u < 0 && (tt * 0.8 + 0.3) % 1 < 0.12) { const gx = x + 4, gy = foot - 14; rect(gx - 2, gy, 5, 1, '#FFFFFF'); rect(gx, gy - 2, 1, 5, '#FFFFFF'); }   // the glass glints
     }
+    // Who lifts the bottle once it is open: whoever is at it (one still in a bubble watches).
+    function lifters() { return [[who, s.me], [mate(), s.mate]].filter(([w, b]) => (w === who ? b.done : mateHere() && live.fin && live.fin[w]) && !out(w)); }
+    // Where the bottle is (its middle, and its foot above the sand): lying on the rocks; once opened, shaken loose
+    // (0.45 s), lifted over their heads (0.35 s, between the two of them) and held up there, with a hop for joy.
+    function bottleAt(t) {
+      const rest = { x: BOTTLE, y: L.top(BOTTLE, 4) - 2 }, u = s.openAt ? t - s.openAt : -1, by = lifters();
+      if (u < 0.45 || !by.length) return rest;
+      const ken = by.length > 1 && s[who === 'ken' ? 'me' : 'mate'], kel = ken && s[who === 'kel' ? 'me' : 'mate'];   // with two: its belly on her head, its raised neck on his hands
+      const up = ken ? { x: ken.x + K.hand('ken', 'lift', 1).x - 7, y: (ken.y + kel.y) / 2 + 46 } : by.reduce((a, [w, b]) => ({ x: a.x + (b.x + K.hand(w, 'lift', 1).x) / by.length, y: a.y + (b.y + overhead(w)) / by.length }), { x: 0, y: 0 });
+      const e = 1 - Math.pow(1 - clamp((u - 0.45) / 0.35, 0, 1), 3);
+      return { x: rest.x + (up.x - rest.x) * e, y: rest.y + (up.y - rest.y) * e + joy(u) };
+    }
+    function joy(u) { return u > 1.75 && u < 2.05 ? Math.round(Math.sin(((u - 1.75) / 0.3) * Math.PI) * 3) : 0; }   // the bottle held up: a hop for joy
+    // The door (or the bottle) knocked on: it jumps a pixel at each of the two strikes, whoever knocks.
+    function knocked(tt) { const u = tt - Math.max(s.bumpAt, s.mateBump); return (u >= 0.08 && u < 0.2) || (u >= 0.28 && u < 0.4) ? 1 : 0; }
     function bottleMarks(X, Y, tt) {                                                            // over each one's place: lit in their colour once they stand there
       if (!mateHere() || !s.allAt) return;
       ['ken', 'kel'].forEach((w) => {
