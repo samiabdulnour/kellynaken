@@ -98,13 +98,18 @@ const gamePage = (extra) => {
   if (!page.includes(`window.BUILD = '${BUILD}'`)) throw new Error('could not put the version into the game page');
   return page;
 };
+// The stylesheet asks for the game's own font (game/assets/fonts/) with the version too.
+const gameCss = read('game/game.css').replace(/url\((assets\/[\w./-]+)\)/g, (m, f) => `url(${f}?v=${BUILD})`);
+if (!gameCss.includes(`.woff2?v=${BUILD})`)) throw new Error('could not put the version into the font links');
 fs.rmSync(here + 'docs/v2', { recursive: true, force: true });
 fs.cpSync(here + 'game', here + 'docs/v2', { recursive: true });
 fs.writeFileSync(here + 'docs/v2/index.html', gamePage());
+fs.writeFileSync(here + 'docs/v2/game.css', gameCss);
 // /v3/: the same game for trying levels out: played alone on one device, every level open, its own save.
 fs.rmSync(here + 'docs/v3', { recursive: true, force: true });
 fs.cpSync(here + 'game', here + 'docs/v3', { recursive: true });
 fs.writeFileSync(here + 'docs/v3/index.html', gamePage(' window.INSPECT = true;').replace('<title>Kellyn a Ken</title>', '<title>Kellyn a Ken · zkušební verze</title>'));
+fs.writeFileSync(here + 'docs/v3/game.css', gameCss);
 
 console.log('Built docs/index.html, docs/v2/ and docs/v3/');
 for (const [id, pl] of Object.entries(cfg.players)) {
