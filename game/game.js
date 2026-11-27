@@ -1989,89 +1989,296 @@
     };
   }
 
-  // The reef: the two of them are stranded on the rock. First throw lifebuoys to them: a meter swings up and down,
-  // tap to throw, and the buoy has to land right by them. When enough have reached them, they hold on and the heroes
-  // pull them across to the jetty, tapping as fast as they can, before the shark gets there.
+  // The reef: the two of them are stranded on the rock, and a shark circles it. First throw lifebuoys to them: a needle
+  // rises and falls by the hero, and a buoy thrown while it is in the green comes down in the ring on the rock. One buoy
+  // at a time; after a miss a new one has to be fetched, and a press while there is none (or a finger hammering away)
+  // only gets a "Počkej!". Now and then the shark dashes at the jetty: a buoy thrown just then is knocked away. Once
+  // enough have reached them, they hold on to a raft and the heroes pull them across on a rope, a tap a tug, while the
+  // shark bites the raft now and then and drags it back. With two, each loses only buoys of their own, and pulling in
+  // turn (hej, rup!) pulls harder: the rope lights up.
   function Rescue(sc, place, sn) {
-    const cfg = sc.rescue, who = me(), GY = sc.ground || GROUND, G = 520, HX = 34, HY = GY - 26, LAND = cfg.land;
-    const s = { t: 0, over: false, lost: false, buoys: [], mateBuoys: [], cool: 0, taps: 0, sentTaps: 0, lastSend: 0, splash: [], stuck: 0 };
+    const cfg = sc.rescue, who = me(), GY = sc.ground || GROUND, G = 520, VY = 300, HX = 34, MX = HX + 22, HY = GY - 26, LAND = cfg.land;
+    const plan = Room.course.rescue(sn.seed, sc, sn.two), WATER = 182, JET = { x: 48, y: 192 };   // where a buoy in the sea splashes; where the shark dashes at the jetty
+    const FLY = (VY + Math.sqrt(VY * VY - 2 * G * (HY - LAND.y))) / G;                     // seconds a buoy flies before it comes down on the rock
+    const ease = (u) => { u = clamp(u, 0, 1); return u * u * (3 - 2 * u); };
+    const s = { t: 0, over: false, lost: false, buoys: [], parts: [], u: 0, cool: 0, flying: false, mark: null, ring: null, noAt: -9, nos: 0, waitAt: -9, beepAt: -9,
+      throwAt: -9, mateAt: -9, catchAt: -9, catcher: 0, pile: sn.hits, lunge: null, warned: false, tip: '', tipTill: 0, left: sn.left[who],
+      taps: sn.tugs[who], sentTaps: sn.tugs[who], lastSend: 0, f: 0, tugAt: -9, mateTugAt: -9, beads: [], ropeAt: -9, said: -1, combo: 0 };
     let live = sn, stage0 = sn.stage;
-    const view = stage('<span class="lives"></span><span class="count"></span><span class="meter"><i></i></span>', 'Hoď, když je ručička v zeleném!');
-    const keys = pad([{ id: 'act', label: 'Hoď', big: true, press: () => press() }]);
-    const meter = (t) => (Math.sin(t * 2.6) + 1) / 2;                                    // swings 0..1
+    const view = stage('<span class="lives buoys"></span><span class="count"></span><span class="meter"><i></i></span>', '');
+    const keys = pad([{ id: 'act', label: sn.stage === 'pull' ? 'Táhni!' : 'Hoď', big: true, press: () => press() }], 'reef');
+    const btn = K.ui.querySelector('.pad.reef [data-k="act"]');
+    const wait = add(`<p class="reef-wait" style="${pinAt([17, 118])}">Počkej!</p>`);
     const pulling = () => live.stage === 'pull';
-    const pullT = () => ((live.paused || Net.now()) - live.pullAt) / 1000;              // stands still while paused
+    const nowR = () => live.paused || Net.now();
+    const pullT = () => (nowR() - live.pullAt) / 1000;                                  // stands still while paused
+    const mine = () => live.left[who];
+    const needle = () => (s.u < 1 ? s.u : 2 - s.u);                                     // up the meter and down again, steadily
+    const ready = () => !s.flying && s.cool <= 0 && mine() > 0;
+    const inGreen = (p) => p >= cfg.green[0] && p <= cfg.green[1];
+    // the needle is slow for the first buoy and quicker with every one caught
+    const speed = () => cfg.swing[0] + (cfg.swing[1] - cfg.swing[0]) * clamp(live.hits / Math.max(1, live.needHits - 1), 0, 1);
+    const danger = () => !!s.lunge && s.t > s.lunge.at - 1.4 && s.t < s.lunge.at + 0.8;   // the shark is coming at the jetty: not now
+    const throwNow = () => ready() && inGreen(needle()) && !danger();                   // the moment to throw
+    // how far the raft has come: what the room counted, less what the shark has dragged back since, and the taps not yet counted
+    const progress = () => Math.max(0, live.pull - Room.course.dragged(plan, live.pullAt, live.pullT, nowR())) + Math.max(0, s.taps - live.tugs[who]);
+    const surge = (T) => plan.surges.find((q) => T > q.at - 1.2 && T < q.at + q.len + 0.8);
+    const myTurn = () => live.two && live.lastTug === mate() && Net.now() - live.lastTugAt < 1000 && live.lastTugAt > s.lastSend && Net.now() - live.comboAt >= 300;
+    // A line of advice for a while; then back to the one that stands (only the first throw has one).
+    const say = (text, secs) => { s.tip = text; s.tipTill = secs ? s.t + secs : 0; };
+    const advice = () => (pulling() ? '' : !live.hits && !s.pile ? 'Hoď, když je ručička v zeleném!' : live.two && mine() <= 0 ? `Došly ti kruhy. Hází ${heroName(mate())}.` : live.two && live.left[mate()] <= 0 ? `${heroName(mate())} nemá kruhy. Trefuj!` : '');
     const paint = () => {
-      hearts(view.hud.children[0], live.lives, sn.lives);
-      view.hud.children[1].textContent = pulling() ? `${Math.min(live.pull, live.needPull)} / ${live.needPull}` : `${live.hits} / ${live.needHits}`;
-      view.hud.children[2].firstElementChild.style.width = (pulling() ? clamp(live.pull / live.needPull, 0, 1) : clamp(live.hits / live.needHits, 0, 1)) * 100 + '%';
+      const lv = view.hud.children[0];
+      if (lv.dataset.n !== String(mine())) {                                          // the buoy lost sinks away; one handed back pops in
+        const was = lv.dataset.n === undefined ? mine() : +lv.dataset.n;
+        hearts(lv, mine(), Math.max(sn.left[who], mine())); lv.dataset.n = mine();
+        const i = lv.children[was > mine() ? mine() : mine() - 1]; if (i && was !== mine()) i.classList.add(was > mine() ? 'gone' : 'new');
+      }
+      view.hud.children[1].textContent = pulling() ? `${Math.min(Math.floor(s.f * live.needPull), live.needPull)} / ${live.needPull}` : `${s.pile} / ${live.needHits}`;
+      view.hud.children[2].firstElementChild.style.width = (pulling() ? clamp(s.f, 0, 1) : clamp(s.pile / live.needHits, 0, 1)) * 100 + '%';
     };
     paint();
-    function launch(list, p, x0) { list.push({ x: x0, y: HY, vx: 20 + 190 * p, vy: -300, done: false }); }
-    function press() {                                                                    // throw a lifebuoy, or once they hold on, pull
-      if (s.over || s.t < 0) return;
-      if (pulling()) { if (pullT() >= 0) { s.taps++; beep(300 + (s.taps % 4) * 40); } return; }
-      if (s.cool > 0) return;
-      const p = meter(s.t); launch(s.buoys, p, HX); s.cool = 0.9; beep(440, 660);
-      Net.send({ type: 'fx', k: 'buoy', p });
+    function burst(x, y, n, colors, up, wide, fall) {                                    // a few pixels flying out: spray, sparkles
+      for (let i = 0; i < n; i++) {
+        const a = (i / n) * Math.PI * 2 + Math.random() * 0.5;
+        s.parts.push({ x, y, vx: fall ? (Math.random() - 0.5) * wide : Math.cos(a) * wide, vy: fall ? -up * (0.55 + Math.random() * 0.6) : Math.sin(a) * up, g: fall ? 420 : 0, c: colors[i % colors.length], at: s.t, life: 0.45 + Math.random() * 0.25 });
+      }
     }
+    const spray = (x, y, n) => burst(x, y, n || 10, ['#FFFFFF', '#BFE8F5', '#FFFFFF', '#7FC8E8'], 120, 70, true);
+    // Where a buoy thrown with the needle at p comes down, and what becomes of it (decided when it leaves the hand).
+    function fate(p, t0) {
+      const x = HX + (20 + 190 * p) * FLY, q = s.lunge;
+      if (q && t0 > q.at - 0.25 && t0 < q.at + 0.8) return 'shark';
+      return Math.abs(x - LAND.x) <= LAND.w ? 'hit' : x < LAND.x ? 'short' : 'long';
+    }
+    // A buoy in the air, from x0 (one's own hand or the other's) to the same spot either way.
+    function launch(p, x0, real, out) {
+      const land = HX + (20 + 190 * p) * FLY, knockAt = out === 'shark' ? Math.max(s.t + 0.12, s.lunge ? s.lunge.at : 0) : null;
+      s.buoys.push({ x: x0, y: HY, vx: (land - x0) / FLY, vy: -VY, real, out, knockAt, knocked: false, spin: 0 });
+    }
+    function press() {                                                                    // throw a lifebuoy, or once they hold on, pull
+      if (s.over) return;
+      if (s.t < 0) { no(); return; }                                                      // 2, 1, Start! first
+      if (pulling()) return tug();
+      if (mine() <= 0) { no(); return; }
+      if (!ready() || s.t - s.noAt < 0.2) { no(); return; }                              // none in hand yet, or a finger hammering away
+      const p = needle(), out = fate(p, s.t);
+      s.flying = true; s.u = 0; s.throwAt = s.t; s.mark = { p, at: s.t, ok: null }; s.nos = 0;
+      launch(p, HX, true, out);
+      beep(520, 780);
+      Net.send({ type: 'fx', k: 'buoy', p, out });
+    }
+    // A press that cannot do anything now: the button shakes, "Počkej!" by the meter, and a low tick (not on every press of a hammering finger).
+    function no() {
+      s.noAt = s.t; s.waitAt = s.t; s.nos++; wait.textContent = !pulling() && mine() <= 0 ? 'Nemáš kruh' : 'Počkej!';
+      for (const el of [btn, wait]) if (el) { el.classList.remove('no', 'on'); void el.offsetWidth; el.classList.add(el === wait ? 'on' : 'no'); }
+      if (s.t - s.beepAt > 0.3) { s.beepAt = s.t; beep(150); }
+      if (!pulling() && mine() > 0 && s.nos >= 4) say('Klepni jednou, až bude zelená!', 2.5);
+    }
+    function tug() {
+      const T = pullT();
+      if (T < 0) { no(); return; }                                                        // 3, 2, 1 first
+      const turn = myTurn();
+      s.taps++; s.tugAt = s.t; s.beads.push({ at: s.t, x: HX + 8, gold: turn });
+      if (turn) beep(660, 880); else beep(300 + (s.taps % 4) * 40);
+      if (turn) flush();                                                                  // pulling in turn: tell the room at once
+    }
+    function flush() {
+      const n = Math.min(12, s.taps - s.sentTaps); if (n <= 0) return;
+      Net.send({ type: 'ev', e: 'pull', n }); Net.send({ type: 'fx', k: 'tug', n });
+      s.sentTaps += n; s.lastSend = Net.now();
+    }
+    // A buoy comes down: caught on the rock, or into the sea with a splash.
+    function caught(b) {
+      b.done = true; s.catchAt = s.t; s.catcher = (s.catcher + 1) % 2; s.ring = { at: s.t, ok: true };
+      burst(LAND.x, LAND.y - 6, 12, ['#FFD43A', '#FFFFFF', '#7CE07C'], 50, 50, false);
+      beep(660, 880, 1100);
+      const id = (sc.cast || [])[s.catcher];
+      plus(id === 'zofia' ? 'Chytila!' : 'Chytil!', LAND.x, LAND.y - 48);
+      if (b.real) { s.pile = Math.max(s.pile, live.hits + 1); s.flying = false; s.cool = 0.5; if (s.mark) s.mark.ok = true; Net.send({ type: 'ev', e: 'hit' }); say('', 0); }
+    }
+    function splash(b) {
+      b.done = true; const x = clamp(b.x, 6, 186), y = b.knocked ? JET.y + 2 : WATER;
+      spray(x, y, 12); s.parts.push({ ring: true, x, y: y + 2, at: s.t, life: 0.5 });
+      beep(180, 110);
+      if (!b.knocked) s.ring = { at: s.t, ok: false };
+      if (b.real) {
+        s.flying = false; s.cool = 1.8;                                                      // a new buoy has to be fetched
+        if (s.mark) s.mark.ok = false;
+        if (!b.knocked) { Net.send({ type: 'ev', e: 'miss' }); say(b.out === 'short' ? 'Kousek dál!' : 'Moc daleko!', 1.6); }
+      }
+    }
+    function knock(b) {                                                                      // the shark leaps into it: away it goes
+      b.knocked = true; b.vx = -40 - Math.random() * 30; b.vy = -170; spray(b.x, b.y, 8); beep(130, 90);
+      if (b.real) { Net.send({ type: 'ev', e: 'miss' }); say('Žralok ho odrazil!', 1.8); }
+    }
+    // The shark during the throws: circling in front of the rock, or, during a dash, out to the jetty, up out of the
+    // water and back. y is where the water is; `up` how far it leaps.
+    function shark(t) {
+      const a = t * 0.7, cx = 100 + Math.cos(a) * 64, cy = 180 + Math.sin(a) * 6, round = { x: cx, y: cy, left: Math.sin(a) > 0, size: 0.3 + 0.05 * (Math.sin(a) + 1) / 2, up: 0 };
+      const q = s.lunge; if (!q) return round;
+      if (t < q.at) { const e = ease((t - q.at + 1.4) / 1.4); return { x: cx + (JET.x - cx) * e, y: cy + (JET.y - cy) * e, left: JET.x < cx, size: round.size + (0.36 - round.size) * e, up: 0, warn: true }; }
+      if (t < q.at + 0.8) { const u = (t - q.at) / 0.8; return { x: JET.x, y: JET.y, left: true, size: 0.36, up: Math.round(Math.sin(u * Math.PI) * 14), snap: true }; }
+      const e = ease((t - q.at - 0.8) / 1.2); return { x: JET.x + (cx - JET.x) * e, y: JET.y + (cy - JET.y) * e, left: cx < JET.x, size: 0.36 + (round.size - 0.36) * e, up: 0 };
+    }
+    // The shark during the pull: off to the side of the raft, closer as time runs out; biting the raft during a surge.
+    function sharkPull(T, rx, ry) {
+      const q = surge(T), d0 = 8 + 50 * (1 - clamp(T / cfg.seconds, 0, 1));
+      const k = !q ? 0 : T < q.at ? ease((T - q.at + 1.2) / 1.2) : T < q.at + q.len ? 1 : 1 - ease((T - q.at - q.len) / 0.8);
+      const d = d0 + (3 - d0) * k, shake = k === 1 ? Math.round(Math.sin(T * 40)) : 0;
+      return { x: rx + 12 + d + shake, y: ry + 4 + Math.round(Math.sin(T * 2.3) * 3 * (1 - k)), left: true, size: 0.3 + 0.1 * s.f, up: 0, warn: !!q && T < q.at, bite: k === 1 };
+    }
+    function drawShark(f) {
+      if (!K.has('aussie', 'fin')) return;
+      if (f.up) rect(f.x - 10, f.y - 1, 20, 1, '#FFFFFF');                                 // where it broke the water
+      K.figure('aussie', f.x, f.y - f.up, Math.floor(s.t * 5) % 2 ? 'fin' : 'fin2', 0, f.left, f.size);
+      if (f.warn && Math.floor(s.t * 6) % 2) {                                              // "!" over it: here it comes
+        const x = Math.round(f.x) - 1, y = Math.round(f.y - 34);
+        rect(x - 1, y - 1, 5, 12, INK); rect(x, y, 3, 6, '#FF5A4A'); rect(x, y + 8, 3, 2, '#FF5A4A');
+      }
+    }
+    // The ring on the rock where a buoy must come down, a bright patch going round it. Blinking when it is the moment to throw;
+    // green for a moment after a catch, red after a miss. Drawn in two halves: the back behind their feet, the front before.
+    function ring(front) {
+      const r = s.ring, age = r ? s.t - r.at : 9, flash = age < 0.5, lit = throwNow();
+      const c = flash ? (r.ok ? '#7CE07C' : Math.floor(age * 10) % 2 ? '#FF5A4A' : '#FFFFFF') : lit && Math.floor(s.t * 8) % 2 ? '#FFFFFF' : '#FFD43A';
+      const rx = LAND.w + (flash && r.ok ? Math.round(age * 12) : lit ? 1 : 0), ry = Math.round(rx / 3.6), N = 72, spin = Math.floor(s.t * 24);
+      for (let k = 0; k < N; k++) {
+        const a = (k / N) * Math.PI * 2; if ((Math.sin(a) >= 0) !== front) continue;
+        const x = LAND.x + Math.round(Math.cos(a) * rx), y = LAND.y - 3 + Math.round(Math.sin(a) * ry);
+        rect(x, y + 1, 1, 1, INK); rect(x, y, 1, 1, !flash && (k + spin) % 24 < 4 ? '#FFFFFF' : c);   // a bright patch going round
+      }
+    }
+    const buoyPic = (x, y, size) => { if (K.has('beach', 'buoy')) K.figure('beach', x, y, 'buoy', 0, false, size); else rect(x - 4, y - 8, 8, 8, '#CC2233'); };
     return {
-      s, kind: 'rescue', peek: () => ({ stage: live.stage, meter: meter(s.t), cool: s.cool, pullT: pullT() }),
+      s, kind: 'rescue', peek: () => ({ stage: live.stage, meter: needle(), cool: ready() ? 0 : 1, danger: danger(), pullT: pullT(), left: mine(), f: s.f }),
       sync(n) {
-        live = n; paint();
-        if (n.stage !== stage0) { stage0 = n.stage; keys.label('act', 'Táhni!'); beep(520, 660, 780); }
+        live = n;
+        if (n.stage !== stage0) { stage0 = n.stage; keys.label('act', 'Táhni!'); beep(520, 660, 780); s.buoys = []; s.ropeAt = s.t; say('', 0); }
+        if (n.left[who] < s.left) { const lv = view.hud.children[0]; lv.classList.remove('hit'); void lv.offsetWidth; lv.classList.add('hit'); }   // a buoy lost
+        if (n.left[who] > s.left && !s.over) { cheer('Máš nový kruh!'); beep(520, 660, 880); }   // the other one's catch brought one back
+        s.left = n.left[who];
+        if (n.hits > s.pile) s.pile = n.hits;
+        paint();
       },
-      fx(m) { if (m.k === 'buoy') launch(s.mateBuoys, m.p, HX); },                      // the same arc as on their own screen
-      over(won) { s.over = true; s.lost = !won; paint(); view.end(won, won ? 'Jsou na molu!' : pulling() ? 'Žralok byl rychlejší!' : 'Došly záchranné kruhy.', won ? 'Žralok odplouvá s prázdnou.' : 'Zkuste to ještě jednou.'); },
+      fx(m) {
+        if (m.k === 'buoy' && !pulling()) { s.mateAt = s.t; launch(+m.p || 0, MX, false, m.out); beep(600); }   // the same buoy, from their hands to the same spot
+        if (m.k === 'tug' && pulling()) { s.mateTugAt = s.t; s.beads.push({ at: s.t, x: MX + 8, gold: false }); }
+      },
+      over(won) { s.over = true; s.lost = !won; wait.remove(); if (won && pulling()) s.f = 1; paint(); view.end(won, won ? 'Jsou na molu!' : pulling() ? 'Žralok byl rychlejší!' : 'Došly záchranné kruhy!', won ? 'Žralok odplouvá s prázdnou.' : 'Zkuste to ještě jednou.'); },
       down() { press(); },
       update(dt) {
         if (s.over) return;
-        s.t = clock(live); s.cool -= dt;
-        for (const [list, real] of [[s.buoys, true], [s.mateBuoys, false]]) {
-          for (const b of list) {
-            if (b.done) continue;
-            b.x += b.vx * dt; b.vy += G * dt; b.y += b.vy * dt;
-            if (b.vy > 0 && b.y >= LAND.y) {                                                   // it comes down: by them on the rock, or in the sea
-              b.done = true;
-              const hit = Math.abs(b.x - LAND.x) <= LAND.w;
-              if (hit) { s.stuck = 1.2; beep(660, 880, 1100); } else { s.splash.push({ x: b.x, at: s.t }); beep(160); }
-              if (real) Net.send({ type: 'ev', e: hit ? 'hit' : 'miss' });
-            }
+        s.t = clock(live);
+        if (!pulling()) {
+          // a dash at the jetty: decided as it starts, from the first buoy caught on (and more often for the last one)
+          if (s.lunge && s.t > s.lunge.at + 2) s.lunge = null;
+          if (!s.lunge) s.lunge = plan.lunges.find((q) => s.t > q.at - 1.4 && s.t < q.at - 1.0 && live.hits >= (q.late ? live.needHits - 1 : 1)) || null;
+          if (s.lunge && !s.warned && s.t > s.lunge.at - 1.4) { s.warned = true; say('Pozor, žralok! Počkej.', 2.2); beep(220, 180); }
+          if (ready() && s.t > 0) s.u = (s.u + speed() * dt) % 2; else s.u = 0;             // a new buoy: the needle starts from the bottom
+          if (!s.flying && s.cool > 0) s.cool -= dt;
+          for (const b of s.buoys) {
+            if (b.knockAt !== null && !b.knocked && s.t >= b.knockAt) knock(b);
+            b.x += b.vx * dt; b.vy += G * dt; b.y += b.vy * dt; b.spin += dt * (b.knocked ? 16 : 5);
+            if (!b.knocked && b.out === 'hit' && b.vy > 0 && b.y >= LAND.y) caught(b);
+            else if (b.vy > 0 && b.y >= (b.knocked ? JET.y + 2 : WATER)) splash(b);
           }
+          s.buoys = s.buoys.filter((b) => !b.done);
+          keys.mark('act', throwNow());
+        } else {
+          const T = pullT(), q = surge(T);
+          if (T < 0) say(`Připravte se… ${Math.ceil(-T)}`, 0);
+          else if (q && T < q.at) say('Pozor, žralok!', 0);
+          else if (q && T < q.at + q.len) say('Žralok tahá! Rychle!', 0);
+          else if (T < 3) say(live.two ? 'Ťukejte střídavě: hej, rup!' : 'Ťukej rychle, táhni!', 0);
+          else say('', 0);
+          if (q && T >= q.at && s.said !== q.at) { s.said = q.at; beep(200, 150, 120); }
+          if (s.taps > s.sentTaps && Net.now() - s.lastSend > 120) flush();
+          keys.mark('act', T >= 0 && ((q && T >= q.at && T < q.at + q.len) || myTurn()));
+          s.f += (clamp(progress() / live.needPull, 0, 1) - s.f) * Math.min(1, dt * 10);   // eased: the raft glides after every tug
+          const combo = live.two && Net.now() - live.comboAt < 1200 ? live.combo : 0;
+          if (combo > s.combo && combo % 4 === 0) plus('Hej rup!', 60, HY - 30, '#FFD43A');
+          s.combo = combo;
         }
-        if (s.stuck > 0) s.stuck -= dt;
-        s.buoys = s.buoys.filter((b) => !b.done); s.mateBuoys = s.mateBuoys.filter((b) => !b.done);
-        s.splash = s.splash.filter((q) => s.t - q.at < 0.6);
-        if (pulling() && !s.over) { const c = Math.ceil(-pullT()); view.tip.textContent = c > 0 ? `Připravte se… ${c}` : 'Táhni! Mačkej co nejrychleji, ať jsou u mola dřív než žralok!'; }
-        if (pulling() && s.taps > s.sentTaps && Net.now() - s.lastSend > 150) { Net.send({ type: 'ev', e: 'pull', n: s.taps - s.sentTaps }); s.sentTaps = s.taps; s.lastSend = Net.now(); }
+        if (s.tipTill && s.t > s.tipTill) say('', 0);
+        const text = s.tip || advice();
+        if (view.tip.textContent !== text) view.tip.textContent = text;
+        if (s.t - s.waitAt > 0.7) wait.classList.remove('on');
+        for (const q of s.parts) if (!q.ring) { q.x += q.vx * dt; q.vy += q.g * dt; q.y += q.vy * dt; }
+        s.parts = s.parts.filter((q) => s.t - q.at < q.life);
+        s.beads = s.beads.filter((b) => s.t - b.at < 0.35);
         paint();
       },
       draw() {
         K.background(sc.bg, 0, place.look);
-        const f = pulling() ? clamp(live.pull / live.needPull, 0, 1) : 0;
-        // the stranded two: on the rock, then on the raft coming across
-        const rx = LAND.x + (132 - LAND.x) * f, ry = LAND.y - 4 + (cfg.jetty - LAND.y + 4) * f, far = 0.31 + 0.13 * f;   // smaller far out, bigger as they come
-
-        if (pulling()) {
-          if (K.has('beach', 'raft')) K.figure('beach', rx, ry + 6, 'raft', 0, false, 0.62);
-          rect(Math.min(HX + 8, rx), HY + 4, 1, 1, '#000');
-          for (let k = 0; k <= 10; k++) { const u = k / 10; rect(Math.round(HX + 8 + (rx - HX - 8) * u), Math.round(HY + (ry - 6 - HY) * u + Math.sin(u * Math.PI) * 6), 2, 1, '#D9C08A'); }   // the rope
+        const f = pulling() ? s.f : 0, T = pullT();
+        // the stranded two: on the rock, then on the raft coming across, bigger as they come
+        const rx = LAND.x + (132 - LAND.x) * f, ry = LAND.y - 4 + (cfg.jetty - LAND.y + 4) * f + (pulling() ? Math.round(Math.sin(s.t * 3) * 1) : 0), far = 0.31 + 0.13 * f;
+        const sh = pulling() ? sharkPull(T, rx, ry) : shark(s.t);
+        if (!pulling()) {
+          ring(false);
+          // the buoys they have caught, in a little pile by the tower; the newest pops in
+          for (let i = 0; i < s.pile; i++) { const pop = i === s.pile - 1 && s.t - s.catchAt < 0.25 ? 0.06 : 0; buoyPic(122 + (i % 3) * 7 + (i >= 3 ? 3 : 0), 140 - Math.floor(i / 3) * 6, 0.2 + pop); }
+        } else {
+          if (K.has('beach', 'raft')) K.figure('beach', rx, ry + 6, 'raft', 0, false, 0.5 + 0.2 * f);
+          // the rope, thrown over first; slack, taut and red while the shark pulls, golden where both pull in turn
+          const out = ease((s.t - s.ropeAt) / 0.6), x0 = HX + 8, y0 = HY + 4, x1 = x0 + (rx - 8 - x0) * out, y1 = y0 + (ry - 6 - y0) * out;
+          const bite = sh.bite, gold = clamp(s.combo / 8, 0, 1), N = Math.max(1, Math.ceil(Math.hypot(x1 - x0, y1 - y0)));
+          const along = (u) => ({ x: Math.round(x0 + (x1 - x0) * u), y: Math.round(y0 + (y1 - y0) * u + (bite ? 0 : Math.sin(u * Math.PI) * 5)) });
+          for (let k = 0; k <= N; k++) {
+            const u = k / N, p = along(u), y = p.y + (bite ? Math.round(Math.sin(s.t * 50 + k * 0.7)) : 0);
+            rect(p.x, y + 1, 1, 1, INK); rect(p.x, y, 1, 1, bite ? '#E0735A' : u < gold ? '#FFD43A' : '#D9C08A');
+          }
+          for (const b of s.beads) {                                                         // every tug runs along the rope to the raft
+            const v0 = clamp((b.x - x0) / Math.max(1, x1 - x0), 0, 1), p = along(v0 + (1 - v0) * (s.t - b.at) / 0.35);
+            rect(p.x - 1, p.y - 1, b.gold ? 4 : 3, b.gold ? 3 : 2, b.gold ? '#FFD43A' : '#FFFFFF');
+          }
         }
-        (sc.cast || []).forEach((id, i) => K.figure(id, rx - 10 + i * 20, ry - (pulling() ? 2 : Math.round(Math.abs(Math.sin(s.t * 4 + i * 1.7)) * 3)), pulling() ? 'three' : 'cheer', s.t, true, far));   // hopping and calling for help, then holding on
-        if (!pulling() && s.stuck > 0 && K.has('beach', 'buoy')) K.figure('beach', LAND.x, LAND.y + 2, 'buoy', 0, false, 0.32);
-        // the shark: circling during the throws, closing in on the raft while they pull
-        const sx = pulling() ? 196 - (196 - rx - 14) * clamp(pullT() / cfg.seconds, 0, 1) : 100 + Math.sin(s.t * 0.9) * 70, sy = pulling() ? ry + 4 : 178;
-        if (K.has('aussie', 'fin')) K.figure('aussie', sx, sy, Math.floor(s.t * 5) % 2 ? 'fin' : 'fin2', 0, pulling() || Math.cos(s.t * 0.9) < 0, 0.34);
-        for (const q of s.splash) { const u = (s.t - q.at) / 0.6; rect(q.x - 6 * u - 1, LAND.y - 4 - 8 * (1 - u), 3, 3, '#FFFFFF'); rect(q.x + 6 * u - 1, LAND.y - 4 - 8 * (1 - u), 3, 3, '#FFFFFF'); }
-        for (const b of [...s.buoys, ...s.mateBuoys]) { if (K.has('beach', 'buoy')) K.figure('beach', b.x, b.y + 6, 'buoy', 0, false, 0.3); else rect(b.x - 4, b.y - 4, 8, 8, '#CC2233'); }
-        if (mateHere()) K.hero(mate(), HX + 22, GY + 2, pulling() ? (Math.floor(s.t * 6) % 2 ? 'aim' : 'stand') : 'stand', s.t + 0.3);
-        K.hero(who, HX, GY + 4, s.lost ? 'dizzy' : pulling() ? (s.taps % 2 ? 'aim' : 'stand') : 'aim', s.t);
-        if (!pulling() && !s.over) {                                                         // the throwing meter, by the hero
-          const mx = 6, my = 120, mh = 90, p = meter(s.t);
+        (sc.cast || []).forEach((id, i) => {
+          const catching = !pulling() && i === s.catcher && s.t - s.catchAt < 0.9, hop = pulling() ? 0 : Math.round(Math.abs(Math.sin(s.t * 4 + i * 1.7)) * 3);
+          const pose = pulling() ? (sh.bite ? 'act' : f > 0.97 ? 'joy' : 'three') : catching ? (s.t - s.catchAt < 0.3 ? 'act' : 'joy') : Math.floor(s.t * 1.3 + i) % 3 === 0 ? 'joy' : 'front';   // waving and calling, catching, holding on
+          K.figure(id, rx - 10 + i * 20, ry - (catching ? 0 : hop), pose, s.t, true, far);
+        });
+        if (!pulling()) ring(true);
+        drawShark(sh);
+        for (const b of s.buoys) {                                                            // a buoy in the air, turning
+          const k = Math.floor(b.spin) % 4, w = k === 1 || k === 3 ? 0.27 : 0.3;
+          buoyPic(b.x, b.y + 6, w);
+        }
+        for (const q of s.parts) {
+          const u = (s.t - q.at) / q.life;
+          if (q.ring) { const r = 3 + Math.round(u * 9); rect(q.x - r, q.y, 2, 1, '#FFFFFF'); rect(q.x + r - 1, q.y, 2, 1, '#FFFFFF'); rect(q.x - Math.round(r / 2), q.y + 1, 1, 1, '#BFE8F5'); rect(q.x + Math.round(r / 2), q.y + 1, 1, 1, '#BFE8F5'); }
+          else if (u < 0.85 || Math.floor(s.t * 20) % 2) rect(q.x, q.y, 1, 1, q.c);
+        }
+        // the heroes: a buoy held up ready, thrown (arms out), fetching the next; pulling on the rope with every tap
+        const holdUp = (w, x, y) => buoyPic(x + (w === 'ken' ? 1 : 0), y - 46 + (Math.floor(s.t * 3) % 2), 0.3);
+        if (mateHere()) {
+          const thrown = s.t - s.mateAt, out = live.left[mate()] <= 0;
+          const pose = pulling() ? (s.t - s.mateTugAt < 0.15 ? 'surf' : 'stand') : thrown < 0.3 ? 'surf' : thrown < 1.1 || out ? 'stand' : 'cheer';
+          K.hero(mate(), MX, GY + 2, pose, s.t + 0.3);
+          if (pose === 'cheer') holdUp(mate(), MX, GY + 2);
+        }
+        const mePose = s.lost ? 'dizzy' : pulling() ? (s.t - s.tugAt < 0.15 ? 'surf' : 'stand') : s.t - s.throwAt < 0.3 ? 'surf' : ready() ? 'cheer' : 'stand';
+        K.hero(who, HX, GY + 4, mePose, s.t);
+        if (mePose === 'cheer') holdUp(who, HX, GY + 4);
+        if (pulling() && live.two && T >= 0 && !s.over) {                                     // whose turn it is to pull: an arrow over them
+          const turn = myTurn() ? HX : live.lastTug === who && Net.now() - live.lastTugAt < 1000 ? MX : null;
+          if (turn !== null) {
+            const y = GY - 62 + Math.round(Math.sin(s.t * 8) * 2);
+            for (const [dy, w] of [[0, 3], [1, 3], [2, 3], [3, 9], [4, 7], [5, 5], [6, 3], [7, 1]]) { rect(turn - (w >> 1) - 1, y + dy, w + 2, 1, INK); }
+            for (const [dy, w] of [[0, 1], [1, 1], [2, 1], [3, 7], [4, 5], [5, 3], [6, 1]]) rect(turn - (w >> 1), y + dy, w, 1, '#FFD43A');
+            rect(turn - 1, y - 1, 3, 1, INK); rect(turn, y + 8, 1, 1, INK);
+          }
+        }
+        if (!pulling() && !s.over && mine() > 0) {                                            // the throwing meter, by the hero
+          const mx = 6 + (s.t - s.waitAt < 0.3 ? Math.round(Math.sin(s.t * 70) * 2) : 0), my = 120, mh = 90, p = needle(), lo = cfg.green[0], hi = cfg.green[1], lit = throwNow();
           rect(mx - 1, my - 1, 10, mh + 2, INK); rect(mx, my, 8, mh, '#3A2F33');
-          const lo = cfg.green[0], hi = cfg.green[1];
-          rect(mx, my + Math.round(mh * (1 - hi)), 8, Math.round(mh * (hi - lo)), '#1FA463');
-          rect(mx - 3, my + Math.round(mh * (1 - p)) - 1, 14, 3, s.cool > 0 ? '#8A8F9C' : '#FFD43A');
+          rect(mx, my + Math.round(mh * (1 - hi)), 8, Math.round(mh * (hi - lo)), lit ? (Math.floor(s.t * 8) % 2 ? '#7CE07C' : '#1FA463') : '#1FA463');
+          const gy = my + Math.round(mh * (1 - (lo + hi) / 2));                               // a little ring by the green: this is the ring on the rock
+          for (const [dx, dy] of [[-2, -1], [-1, -2], [0, -2], [1, -2], [2, -1], [-3, 0], [3, 0], [-2, 1], [-1, 2], [0, 2], [1, 2], [2, 1]]) { rect(mx + 14 + dx, gy + dy + 1, 1, 1, INK); rect(mx + 14 + dx, gy + dy, 1, 1, lit ? '#FFFFFF' : '#FFD43A'); }
+          if (s.mark && s.t - s.mark.at < 3 && s.mark.ok !== null) rect(mx + 8, my + Math.round(mh * (1 - s.mark.p)) - 1, 3, 3, s.mark.ok ? '#7CE07C' : '#FF5A4A');   // where the last one was thrown
+          const c = danger() ? '#FF5A4A' : !ready() ? '#8A8F9C' : lit ? '#FFFFFF' : '#FFD43A', ny = my + Math.round(mh * (1 - p)) - 1;
+          rect(mx - 4, ny - 1, 16, 5, INK); rect(mx - 3, ny, 14, 3, c);
         }
       },
     };
