@@ -19,7 +19,7 @@
 // A place has a few scenes. A scene has a background (bg), some lines of story (talk), and a way to play.
 // `ground` is how far down the picture feet stand, when it is not the usual 232 (the sea, the jetty).
 // A scrolling picture is repeated with every other copy mirrored; `tile: 'repeat'` repeats it as it is.
-//   run     a side-scrolling dash: tap to jump the obstacles
+//   run     a side-scrolling dash on surfboards, a little faster all the time: jump the fins, stay down under the parrots
 //   drums   notes fall down three lanes in time with the beat: tap each drum as its note reaches the line
 //   echo    a rhythm is played on four drums and has to be played back; each of them has two of the drums
 //   find    koalas peek out of the trees: tap them while they show; drag to look around a wide picture
@@ -38,7 +38,7 @@
 // catch it on the line in the drums. Each item belongs to one saga: the drumstick to Strahov (the drumming),
 // the boomerang to Australia. The drumstick is for hitting: in a dash the hero whacks whatever comes at them for a few
 // seconds, and in the drums every hit counts twice. The boomerang is for throwing: in a dash it gives three throws
-// that fly ahead, knock out the first thing in the way and come back.
+// that fly ahead, knock out the next thing in the way (for both of them) and come back.
 // Texts are drafts. The story of who or what is behind it all is still open.
 window.WORLD = {
   title: 'Kellyn a Ken',
@@ -50,7 +50,7 @@ window.WORLD = {
   },
   items: {
     drumstick: { name: 'Palička', art: ['strahov', 'sticks'], use: 'hit', dash: 'Palička! Chvíli praštíš do všeho, co ti stojí v cestě.', shot: 'Palička! Každá rána je dvojitá.', drums: 'Palička! Chvíli se každá trefa počítá dvakrát.' },
-    boomerang: { name: 'Bumerang', art: ['aussie', 'boomerang'], use: 'throw', dash: 'Bumerang! Klepni na Hoď a smete, co ti stojí v cestě. Máš tři hody.', shot: 'Bumerang! Každá rána se vrací.' },
+    boomerang: { name: 'Bumerang', art: ['aussie', 'boomerang'], use: 'throw', dash: 'Bumerang! Klepni na Hoď.', shot: 'Bumerang! Každá rána se vrací.' },
   },
   // Czechia, close up: Prague under the glass (tapping anywhere on the glass opens it), and Ostrov.
   map: {
@@ -200,7 +200,9 @@ window.WORLD = {
             ['', 'Dnes se po stopách pradědy Václava vydali dva cestovatelé. Chtěli vidět místa, kde kdysi žil.', null, 'travellers'],
             ['', 'Jenže na pláži Bondi teď vyplavilo moře roztrhaný vzkaz v láhvi.'], ['hero', 'Posbíráme všechny kousky, než je vlny zase odnesou!']] },
         { id: 'australia-sea', name: 'Na vlně', at: [136, 230], label: 'right', bg: 'australia-sea', scroll: true, play: 'run', code: 'SURF', ground: 200, tile: 'repeat', pickup: 'boomerang',
-          run: { seconds: 40, low: 'žralok', high: 'papoušek', board: true, art: { low: ['aussie', 'fin', 'fin2'], high: ['parrot', 'parrot1', 'parrot2'] } },
+          // `speed`: how fast the sea goes by at the start and at the end, in pixels a second; `heart`: when a heart floats by, to
+          // jump into for one back (room.js: course.run lays the course out)
+          run: { seconds: 40, speed: [70, 105], heart: 0.62, low: 'žralok', high: 'papoušek', board: true, art: { low: ['aussie', 'fin', 'fin2'], high: ['parrot', 'parrot1', 'parrot2'] } },
           talk: [['', 'Za útesem se zvedají pořádné vlny. Vy to zvládnete na prkně!'], ['', 'Na prkno! Žraloka přeskoč, pod papouškem zůstaň dole.']] },
         // Koalas sit still, small, in the forks and on the trunks of the bush picture (S15). A hiding place is [x, y, pose]:
         // where its feet are on the picture, and whether it hugs the trunk (branch), looks round it (side) or peeks over leaves (peek).
