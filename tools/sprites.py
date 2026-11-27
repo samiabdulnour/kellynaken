@@ -235,7 +235,13 @@ def sheet(frames, anchors):
 POSES = os.path.join(SOURCE, 'poses')
 POSE_ROWS = {                                   # which row holds which frames, for each hero
     'ken': [('A1', ['run', 'run', 'run', 'run']), ('A2', ['jump', 'dizzy', 'cheer', 'surf']), ('A3', ['aim', 'shoot', 'drum', 'drum']),
-            ('A7', ['guitar', 'guitar', 'rock', 'leap'])],          # the band: strumming down and up, leaning back, in the air
+            ('A7', ['guitar', 'guitar', 'rock', 'leap']),           # the band: strumming down and up, leaning back, in the air
+            ('A9', ['carry', 'carry', 'carry', 'carry']),           # running with the stick low in both hands, as A1
+            ('A10', ['idle', 'idle', 'stand', 'stand']),            # leaning on the stick; hands free (both with a breath)
+            ('A11', ['drumhit', 'drumhit', 'throw', 'throw']),      # a stick down on each side; wind-up and release
+            ('A12', ['tap', 'tap', 'heave', 'heave']),              # one-hand strike up and down; grip low and pull back
+            ('A13', ['lift', 'lift', 'point', 'point']),            # a load overhead, walking and standing; pointing up and ahead
+            ('A14', ['shrug', 'swing', 'airgear', 'airgear'])],     # oops; mid slap shot; a jump shot, stick back and through
     'kel': [('A4', ['run', 'run', 'run', 'run']), ('A5', ['jump', 'dizzy', 'cheer', 'surf']), ('A6', ['aim', 'shoot', 'drum', 'drum']),
             ('A8', ['bass', 'bass', 'groove', 'leap'])],            # the band: plucking (with a nod), leaning back, in the air
 }
@@ -317,9 +323,10 @@ def pose_sheet(name):
     left = max(int(np.ceil(ax)) for _, f, ax, _ in frames)
     right = max(int(np.ceil(f.width - ax)) for _, f, ax, _ in frames)
     cw, ch = 2 * max(left, right) + 2, max(f.height + lift for _, f, _, lift in frames)
-    # Standing still: no drawn pose for it yet, so the mid-step running frame, set down on the ground.
-    step = [fr for fr in frames if fr[0] == 'run'][1]
-    frames.append(('stand', step[1], step[2], 0))
+    # Standing still: when there is no drawn pose for it, the mid-step running frame, set down on the ground.
+    if not any(fr[0] == 'stand' for fr in frames):
+        step = [fr for fr in frames if fr[0] == 'run'][1]
+        frames.append(('stand', step[1], step[2], 0))
     out = Image.new('RGBA', (cw * len(frames), ch))
     poses = {}
     for k, (pose, f, ax, lift) in enumerate(frames):
