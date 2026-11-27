@@ -219,8 +219,20 @@ window.WORLD = {
           tower: { need: 15, slack: 15, stack: 16 },   // `stack`: where the storeys wait on the ground, to be picked up one by one                // 14 storeys on the lobby; the higher, the harder (room.js: course.sway, course.slack)
           talk: [['sami', 'Díky, že jste nás zachránili! Víte, že jsem architekt?'], ['sami', 'Navrhl jsem v Sydney nový dům. Jenže stavba se zasekla a sám ho nepostavím.'],
             ['zofia', 'Kendrick bude řídit jeřáb a Kellyn bude pouštět patra. Spolu to zvládnete!'], ['hero', 'Jdeme stavět!']] },
+        // The new flat is empty. In Sydney people put furniture they no longer need out on the kerb: walk the street of
+        // terrace houses and find everything on the list (play 'platform', with `list`: the door of the flat opens only
+        // when all of it is found). Ibises walk the footpath, magpies swoop.
+        { id: 'sydney-kerb', name: 'Nábytek', at: [112, 204], label: 'left', bg: 'sydney-street', scroll: true, play: 'platform', music: 'street', code: 'GAUC', cast: ['sami', 'zofia'],
+          platform: { length: 2640, goal: 2552, gate: 'flat', list: ['sofa', 'armchair', 'lamp', 'table', 'chair', 'shelf', 'rugroll', 'plant', 'bed'],
+            blocks: [], foes: [], items: [] },
+          talk: [['sami', 'Dům stojí, jenže náš nový byt je úplně prázdný.'], ['zofia', 'V Sydney lidi dávají nábytek, který už nechtějí, ven na chodník. Kdo chce, ten si ho vezme!'],
+            ['sami', 'Seznam máte nahoře. Najděte všechno, co na něm je.'], ['', 'Pozor na ibisy a straky!']] },
+        // Moving in before night: the flat seen like a dollhouse, two rooms; drag every piece to its place (play 'flat').
+        { id: 'sydney-flat', name: 'Byt', at: [80, 240], label: 'below', bg: 'sydney-flat', play: 'flat', code: 'BYT', cast: ['sami', 'zofia'],
+          flat: { seconds: 120 },
+          talk: [['zofia', 'Všechno máme! Teď to rychle nastěhovat, než se setmí.'], ['', 'Táhni věci na jejich místo. Klepnutím je otočíš.']] },
       ],
-      done: [['sami', 'Díky, dům stojí! Sám bych ho nikdy nepostavil.'], ['zofia', 'Juchůů! Zachránili jste nás a ještě jste postavili mrakodrap!']],
+      done: [['sami', 'Díky! Dům stojí a byt je zařízený. Sám bych to nikdy nezvládl.'], ['zofia', 'Juchůů! Zachránili jste nás, postavili mrakodrap a ještě nás nastěhovali!']],
     },
   ],
 };

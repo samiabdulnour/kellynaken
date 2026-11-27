@@ -1141,5 +1141,145 @@ window.SPRITES = {
         80
       ]
     }
+  },
+  "furniture": {
+    "file": "furniture.png",
+    "w": 114,
+    "h": 95,
+    "scale": 0.5,
+    "fps": 1,
+    "poses": {
+      "sofa": [
+        0
+      ],
+      "armchair": [
+        1
+      ],
+      "lamp": [
+        2
+      ],
+      "table": [
+        3
+      ],
+      "chair": [
+        4
+      ],
+      "shelf": [
+        5
+      ],
+      "rugroll": [
+        6
+      ],
+      "plant": [
+        7
+      ],
+      "stand": [
+        0
+      ]
+    },
+    "sizes": {
+      "sofa": [
+        114,
+        53
+      ],
+      "armchair": [
+        63,
+        61
+      ],
+      "lamp": [
+        32,
+        82
+      ],
+      "table": [
+        72,
+        38
+      ],
+      "chair": [
+        42,
+        78
+      ],
+      "shelf": [
+        69,
+        95
+      ],
+      "rugroll": [
+        76,
+        43
+      ],
+      "plant": [
+        74,
+        93
+      ]
+    }
+  },
+  "kerb": {
+    "file": "kerb.png",
+    "w": 94,
+    "h": 80,
+    "scale": 0.5,
+    "fps": 1,
+    "poses": {
+      "bed": [
+        0
+      ],
+      "rug": [
+        1
+      ],
+      "tv": [
+        2
+      ],
+      "box": [
+        3
+      ],
+      "ibis": [
+        4
+      ],
+      "ibisfly": [
+        5
+      ],
+      "magpie1": [
+        6
+      ],
+      "magpie2": [
+        7
+      ],
+      "stand": [
+        0
+      ]
+    },
+    "sizes": {
+      "bed": [
+        77,
+        38
+      ],
+      "rug": [
+        94,
+        26
+      ],
+      "tv": [
+        59,
+        47
+      ],
+      "box": [
+        68,
+        50
+      ],
+      "ibis": [
+        70,
+        59
+      ],
+      "ibisfly": [
+        71,
+        80
+      ],
+      "magpie1": [
+        67,
+        66
+      ],
+      "magpie2": [
+        70,
+        51
+      ]
+    }
   }
 };
