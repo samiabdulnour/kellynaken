@@ -98,7 +98,8 @@ window.WORLD = {
           talk: [['', 'Doma je divné ticho. Někdo tu chybí…'], ['', 'A někdo vás zamkl! Na dveřích, na skříních, všude visí zámky.'], ['hero', 'Ty zámky sestřelím!']] },
         // A walk down the street to the salon (play 'platform', see Room.course.platform): ◀ ▶ walk, Skok, Hoď.
         // blocks [x, width, height, kind] stand on the pavement and can be climbed; foes [kind, from, to, height,
-        // speed, every]; items [kind, x, height]. Heights are above the pavement, in game pixels.
+        // speed, every]; items [kind, x, height]. Heights are above the pavement, in game pixels. Flyers swoop 12 up and
+        // down, and fly 60 above whatever is under them: they only catch someone who jumps into them.
         { id: 'praha-street', name: 'Ulice', at: [52, 250], label: 'right', bg: 'praha-street', scroll: true, play: 'platform', music: 'street', code: 'HOLUB',
           platform: { length: 2640, goal: 2552, gate: 'salon',
             // parked cars 24 high, a bench seat 13, a waste container 28, a brick wall 26 (the pictures in tools/sprites.py, P17)
@@ -106,12 +107,12 @@ window.WORLD = {
               [780, 48, 26, 'wall'], [900, 40, 13, 'bench'], [1010, 30, 28, 'bin'], [1120, 60, 24, 'car2'], [1250, 50, 24, 'car1'],
               [1420, 48, 26, 'wall'], [1530, 40, 13, 'bench'], [1650, 30, 28, 'bin'], [1680, 48, 26, 'wall'], [1820, 50, 24, 'car1'], [1960, 60, 24, 'car2'],
               [2120, 40, 13, 'bench'], [2230, 30, 28, 'bin'], [2350, 50, 24, 'car1'], [2470, 48, 26, 'wall']],
-            foes: [['pigeon', 90, 150, 0, 14], ['pigeon', 230, 310, 0, 18], ['puddle', 400], ['pigeon', 520, 600, 0, 18],
-              ['pigeon', 466, 504, 24, 12], ['flyer', 680, 760, 54, 22], ['pigeon', 830, 890, 0, 20], ['puddle', 962], ['pigeon', 1060, 1112, 0, 22],
-              ['flyer', 1150, 1260, 54, 26], ['pigeon', 1300, 1400, 0, 24],
-              ['puddle', 1482], ['pigeon', 1580, 1640, 0, 24], ['pigeon', 1586, 1646, 0, 30], ['flyer', 1700, 1820, 52, 28], ['pigeon', 1826, 1864, 24, 14],
-              ['puddle', 1922], ['flyer', 1960, 2100, 56, 30], ['pigeon', 2030, 2110, 0, 26],
-              ['pigeon', 2164, 2226, 0, 28], ['puddle', 2292], ['flyer', 2250, 2400, 50, 34], ['pigeon', 2404, 2462, 0, 28], ['pigeon', 2420, 2540, 0, 32], ['flyer', 2430, 2540, 55, 36]],
+            foes: [['pigeon', 90, 150, 0, 14], ['pigeon', 230, 310, 0, 18], ['puddle', 400], ['pigeon', 528, 600, 0, 18],
+              ['pigeon', 466, 504, 24, 12], ['flyer', 680, 760, 60, 22], ['pigeon', 850, 894, 0, 20], ['puddle', 962], ['pigeon', 1066, 1112, 0, 22],
+              ['flyer', 1150, 1260, 84, 26], ['pigeon', 1322, 1400, 0, 24],
+              ['puddle', 1512], ['pigeon', 1592, 1640, 0, 24], ['pigeon', 1596, 1646, 0, 30], ['flyer', 1700, 1820, 86, 28], ['pigeon', 1826, 1864, 24, 14],
+              ['puddle', 1922], ['flyer', 1960, 2100, 84, 30], ['pigeon', 2052, 2110, 0, 26],
+              ['pigeon', 2176, 2226, 0, 28], ['puddle', 2312], ['flyer', 2250, 2400, 88, 34], ['pigeon', 2416, 2462, 0, 28], ['pigeon', 2532, 2550, 0, 20], ['flyer', 2430, 2540, 86, 36]],
             items: [['coin', 178, 30], ['coin', 190, 30], ['coin', 202, 30], ['coin', 345, 46], ['coin', 470, 40], ['coin', 485, 40], ['coin', 500, 40],
               ['coin', 625, 40], ['coin', 640, 40], ['coin', 655, 40], ['coin', 700, 10], ['coin', 720, 10], ['comb', 804, 34], ['coin', 910, 30], ['coin', 922, 30],
               ['coin', 934, 30], ['coin', 1025, 46], ['coin', 1135, 40], ['coin', 1150, 40], ['coin', 1165, 40], ['coin', 1262, 40], ['coin', 1277, 40],
@@ -160,10 +161,10 @@ window.WORLD = {
               [760, 40, 22, 'logs'], [860, 360, 8, 'stones'], [900, 320, 16, 'stones'], [940, 280, 24, 'stones'], [980, 240, 32, 'stones'], [1080, 40, 54, 'logs'],
               [1340, 40, 13, 'bench'], [1460, 30, 22, 'boulder'], [1580, 300, 8, 'stones'], [1620, 260, 16, 'stones'], [1660, 220, 24, 'stones'], [1760, 30, 46, 'boulder'],
               [2040, 40, 22, 'logs'], [2200, 40, 13, 'bench'], [2330, 30, 22, 'boulder'], [2440, 40, 22, 'logs']],
-            foes: [['crow', 110, 250, 54, 24], ['cone', 240, 636, 0, 40, 4.4], ['crow', 520, 660, 66, 26], ['pigeon', 680, 750, 0, 20],
-              ['crow', 700, 860, 52, 28], ['cone', 840, 1216, 0, 44, 3.8], ['crow', 1000, 1150, 74, 30], ['pigeon', 1240, 1330, 0, 22],
-              ['crow', 1360, 1520, 52, 30], ['cone', 1560, 1876, 0, 46, 3.4], ['crow', 1680, 1860, 66, 32], ['pigeon', 1900, 2030, 0, 26],
-              ['crow', 1960, 2120, 54, 32], ['cone', 2100, 2490, 0, 48, 3.2], ['crow', 2240, 2400, 52, 34], ['pigeon', 2350, 2430, 0, 28], ['crow', 2400, 2540, 56, 36]],
+            foes: [['crow', 110, 250, 60, 24], ['cone', 240, 636, 0, 40, 4.4], ['crow', 520, 660, 84, 26], ['pigeon', 680, 750, 0, 20],
+              ['crow', 700, 860, 60, 28], ['cone', 840, 1216, 0, 44, 3.8], ['crow', 1000, 1150, 92, 30], ['pigeon', 1240, 1330, 0, 22],
+              ['crow', 1360, 1520, 60, 30], ['cone', 1560, 1876, 0, 46, 3.4], ['crow', 1680, 1860, 84, 32], ['pigeon', 1900, 2030, 0, 26],
+              ['crow', 1960, 2120, 60, 32], ['cone', 2100, 2490, 0, 48, 3.2], ['crow', 2240, 2400, 60, 34], ['pigeon', 2370, 2430, 0, 28], ['crow', 2400, 2540, 60, 36]],
             items: [['note', 150, 14], ['note', 170, 14], ['note', 370, 40], ['note', 390, 40], ['note', 410, 40], ['pickup', 485, 62], ['note', 560, 40],
               ['note', 580, 40], ['note', 700, 12], ['note', 720, 12], ['note', 780, 36], ['note', 1000, 48], ['note', 1020, 48], ['note', 1040, 48],
               ['note', 1100, 68], ['note', 1150, 48], ['heart', 1290, 14], ['note', 1355, 28], ['note', 1370, 28], ['note', 1475, 36], ['note', 1690, 40],
