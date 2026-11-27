@@ -69,7 +69,147 @@ const K = (() => {
   ['pointerdown', 'pointerup', 'touchend', 'keydown'].forEach((e) => addEventListener(e, wake, true));
   // No pinching or double-tapping the game bigger on iPhones (they ignore user-scalable=no in the page's viewport).
   for (const e of ['gesturestart', 'gesturechange', 'dblclick']) document.addEventListener(e, (ev) => ev.preventDefault(), { passive: false });
-  document.addEventListener('visibilitychange', () => { try { if (ac) (document.hidden ? ac.suspend() : ac.resume()); } catch (e) {} });
+  document.addEventListener('visibilitychange', () => { try { if (document.hidden) band.hush(); if (ac) (document.hidden ? ac.suspend() : ac.resume()); } catch (e) {} });
+
+  // ---- the band at the concert: an electric guitar, an electric bass and a drum kit ----
+  // Each sound starts at `when` on the sound's own clock (0, or a moment gone by: at once), so a song can be laid out
+  // a little ahead and still keep its time. Sounds ahead of time are only laid out while the sound is awake: asleep,
+  // nothing piles up to burst out later. hush() silences the band at once and drops what is waiting to play (for a
+  // pause, or the game going out of sight); `epoch` counts the hushes, so a song knows to lay its next notes out again.
+  // Everything goes through one compressor and a limiter, so the band never clips on a phone's small speaker.
+  const band = (() => {
+    let bus = null, voices = [], epoch = 0, hiss = null, asleep = 0;
+    const strings = {}, hz = (midi) => 440 * 2 ** ((midi - 69) / 12);
+    const squeeze = (c) => { const k = c.createDynamicsCompressor(); k.threshold.value = -12; k.knee.value = 6; k.ratio.value = 4; k.attack.value = 0.002; k.release.value = 0.1; return k; };
+    const amp = (c, v) => { const g = c.createGain(); g.gain.value = v; return g; };
+    function chain() {
+      const c = sound();
+      if (bus && bus.c === c) return bus;
+      const comp = c.createDynamicsCompressor(), out = c.createGain(), limit = c.createDynamicsCompressor();
+      comp.threshold.value = -14; comp.knee.value = 10; comp.ratio.value = 2.5; comp.attack.value = 0.005; comp.release.value = 0.2;
+      limit.threshold.value = -3; limit.knee.value = 0; limit.ratio.value = 20; limit.attack.value = 0.001; limit.release.value = 0.08;   // and nothing ever clips
+      out.gain.value = 0.5; comp.connect(out).connect(limit).connect(c.destination);
+      const eq = (type, f, q, gain) => { const b = c.createBiquadFilter(); b.type = type; b.frequency.value = f; b.Q.value = q; if (gain) b.gain.value = gain; return b; };
+      const input = (level, ...filters) => { const g = c.createGain(); g.gain.value = level; filters.reduce((a, b) => a.connect(b), g).connect(comp); return g; };
+      // The guitar leads: a small amp, no mud, some bite where a phone speaker is loudest, no fizz. A phone cannot play
+      // the bass's low notes themselves, so its overtones carry it there and its depths are kept low; its pluck and the
+      // drums' hits are squeezed a little, so they never push the rest down and are heard between the hits too.
+      bus = { c, comp,
+        guitar: input(1.15, eq('highpass', 160, 0.7), eq('peaking', 1900, 1, 3), eq('lowpass', 5200, 0.7)),
+        bass: input(0.35, squeeze(c), eq('highpass', 50, 0.7), eq('lowshelf', 200, 0.7, -6), eq('peaking', 1000, 0.8, 7), amp(c, 1.35)),
+        kit: input(2, squeeze(c), amp(c, 1.7)) };
+      hiss = c.createBuffer(1, c.sampleRate * 1.2, c.sampleRate); const d = hiss.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+      return bus;
+    }
+    // One sound: its own volume (env), and a second knob (cut) that hush() turns down. While the sound is asleep only
+    // a sound for right now is kept, and only the first two (the tap that wakes it is heard; a pile is not).
+    function voice(part, when, len) {
+      const c = sound();
+      if (c.state !== 'running') { if ((when || 0) > c.currentTime + 0.01 || asleep >= 2) return null; asleep++; } else asleep = 0;
+      const b = chain(), t = Math.max(c.currentTime, when || 0), env = c.createGain(), cut = c.createGain();
+      env.connect(cut).connect(b[part]);
+      const v = { t, end: t + len, env, cut, src: [] };
+      voices = voices.filter((o) => o.end > c.currentTime); voices.push(v);
+      return v;
+    }
+    const start = (v, node, stop) => { node.start(v.t); node.stop(stop); v.src.push(node); return node; };
+    const noise = (v, type, f, q, len, vol) => {                                          // a burst of filtered noise, dying away
+      const c = bus.c, n = c.createBufferSource(), fl = c.createBiquadFilter(), g = c.createGain();
+      n.buffer = hiss; fl.type = type; fl.frequency.value = f; fl.Q.value = q;
+      g.gain.setValueAtTime(vol, v.t); g.gain.exponentialRampToValueAtTime(0.001, v.t + len);
+      n.connect(fl).connect(g).connect(v.env); start(v, n, v.t + len + 0.02);
+    };
+    const tone = (v, f0, f1, len, vol, type) => {                                          // a tone falling in pitch, dying away
+      const c = bus.c, o = c.createOscillator(), g = c.createGain();
+      o.type = type || 'sine'; o.frequency.setValueAtTime(f0, v.t); o.frequency.exponentialRampToValueAtTime(f1, v.t + len);
+      g.gain.setValueAtTime(vol, v.t); g.gain.exponentialRampToValueAtTime(0.001, v.t + len);
+      o.connect(g).connect(v.env); start(v, o, v.t + len + 0.02);
+    };
+    // A plucked string (Karplus-Strong), worked out once for each note: a burst of noise, picked a fifth of the way
+    // along the string, runs round a loop as long as one swing of the note and softens a little every time round.
+    // Then a touch of drive, like a small amp. The loop is a whole number of samples long; playing it a hair faster
+    // brings it exactly into tune.
+    function string(midi) {
+      const c = sound();
+      if (strings[midi] && strings[midi].sr === c.sampleRate) return strings[midi];
+      const sr = c.sampleRate, f = hz(midi), N = Math.max(4, Math.round(sr / f - 0.5)), real = sr / (N + 0.5), len = Math.floor(sr * 1.9);
+      const buf = c.createBuffer(1, len, sr), d = buf.getChannelData(0), line = new Float32Array(N), pick = Math.max(1, Math.round(N / 5));
+      const loss = Math.pow(0.001, 1 / (real * 2.8));                                       // about 2.8 s to die away, high or low
+      let lp = 0, mean = 0, peak = 0;
+      const burst = Array.from({ length: N }, () => (lp += 0.55 * (Math.random() * 2 - 1 - lp)));
+      for (let i = 0; i < N; i++) { line[i] = burst[i] - burst[(i + pick) % N]; mean += line[i] / N; }
+      for (let i = 0; i < N; i++) line[i] -= mean;
+      for (let i = 0, k = 0; i < len; i++) { const n = k + 1 === N ? 0 : k + 1; d[i] = line[k]; line[k] = loss * 0.5 * (line[k] + line[n]); k = n; }
+      for (let i = 0; i < len; i++) { d[i] = Math.tanh(d[i] * 2.5); peak = Math.max(peak, Math.abs(d[i])); }
+      for (let i = 0; i < len; i++) d[i] /= peak || 1;
+      return (strings[midi] = { buf, rate: f / real, sr });
+    }
+    return {
+      // The guitar: `len` is how long the note is held (seconds); then it is let go.
+      guitar(midi, when, vol = 1, len = 0.5) {
+        try {
+          const s = string(midi), ring = Math.min(1.8, Math.max(0.22, len + 0.1)), v = voice('guitar', when, ring + 0.1); if (!v) return;
+          const src = bus.c.createBufferSource(), g = v.env.gain; src.buffer = s.buf; src.playbackRate.value = s.rate; src.connect(v.env);
+          g.setValueAtTime(0.55 * vol, v.t); g.setTargetAtTime(0, v.t + ring - 0.05, 0.025);
+          start(v, src, v.t + ring + 0.1);
+        } catch (e) {}
+      },
+      // The bass: a round sine for the note itself, and a growl (a sawtooth, its brightness closing after the pluck)
+      // that a phone's speaker can play.
+      bass(midi, when, vol = 1, len = 0.5) {
+        try {
+          const f = hz(midi), hold = Math.max(0.12, len - 0.03), v = voice('bass', when, hold + 0.2); if (!v) return;
+          const c = bus.c, sine = c.createOscillator(), saw = c.createOscillator(), lp = c.createBiquadFilter(), a = c.createGain(), b = c.createGain(), g = v.env.gain;
+          sine.frequency.value = f; saw.type = 'sawtooth'; saw.frequency.value = f;
+          lp.type = 'lowpass'; lp.Q.value = 2; lp.frequency.setValueAtTime(Math.min(3000, f * 28), v.t); lp.frequency.exponentialRampToValueAtTime(Math.max(1100, f * 12), v.t + 0.2);
+          a.gain.value = 0.2; b.gain.value = 1.3;
+          sine.connect(a).connect(v.env); saw.connect(lp).connect(b).connect(v.env);
+          g.setValueAtTime(0, v.t); g.linearRampToValueAtTime(vol, v.t + 0.006); g.setTargetAtTime(vol * 0.55, v.t + 0.006, 0.15); g.setTargetAtTime(0, v.t + hold, 0.03);
+          start(v, sine, v.t + hold + 0.2); start(v, saw, v.t + hold + 0.2);
+        } catch (e) {}
+      },
+      // Alan's kit: kick, snare, hat, tom, cymbal (a crash), and two sticks clicked together to count in. The kick has
+      // the beater's click on top, so it is heard on a phone too.
+      kit(kind, when, vol = 1) {
+        try {
+          const v = voice('kit', when, kind === 'cymbal' ? 1.2 : 0.3); if (!v) return;
+          v.env.gain.value = vol;
+          if (kind === 'kick') { tone(v, 165, 46, 0.24, 0.45); noise(v, 'bandpass', 2400, 1, 0.025, 0.9); }
+          if (kind === 'snare') { tone(v, 210, 160, 0.09, 0.45, 'triangle'); noise(v, 'bandpass', 1900, 0.6, 0.2, 1.4); noise(v, 'highpass', 6000, 0.7, 0.08, 0.5); }
+          if (kind === 'hat') noise(v, 'highpass', 6500, 0.7, 0.045, 0.55);
+          if (kind === 'tom') { tone(v, 200, 125, 0.24, 0.6); noise(v, 'bandpass', 1200, 1, 0.05, 0.8); }
+          if (kind === 'cymbal') { noise(v, 'highpass', 5000, 0.7, 1.1, 0.5); noise(v, 'bandpass', 3300, 1.2, 0.45, 0.4); }
+          if (kind === 'stick') { tone(v, 1900, 1500, 0.04, 0.45); noise(v, 'highpass', 5000, 0.7, 0.03, 0.25); }
+        } catch (e) {}
+      },
+      // A tap with no note: the strings muted under the hand and scratched, a dull click and no note.
+      scratch(part, vol = 1) {
+        try {
+          const v = voice(part, 0, 0.12); if (!v) return;
+          v.env.gain.value = vol;
+          if (part === 'bass') { tone(v, 95, 70, 0.07, 0.5); noise(v, 'bandpass', 650, 1, 0.045, 0.35); }
+          else { noise(v, 'bandpass', 2600, 1.3, 0.05, 0.45); noise(v, 'bandpass', 900, 1, 0.03, 0.25); }
+        } catch (e) {}
+      },
+      hush() {
+        epoch++;
+        if (!ac) return;
+        const now = ac.currentTime;
+        for (const v of voices) {
+          try {
+            if (v.t > now + 0.005) { v.cut.gain.value = 0; for (const s of v.src) s.stop(now); continue; }   // not begun yet: never begins
+            v.cut.gain.setValueAtTime(1, now); v.cut.gain.linearRampToValueAtTime(0, now + 0.05);
+            for (const s of v.src) s.stop(now + 0.06);
+          } catch (e) {}
+        }
+        voices = [];
+      },
+      warm(midis) { try { for (const m of midis) string(m); chain(); } catch (e) {} },     // work the strings out before the song needs them
+      now: () => (ac ? ac.currentTime : 0),
+      get ready() { return !!ac && ac.state === 'running'; },
+      get epoch() { return epoch; },
+    };
+  })();
 
   // ---- music: a tune looping under a level (assets/music). A scene names its tune (see go()); the next scene with
   // the same tune lets it play on, any other fades it out. Every tune is there twice, .ogg and .m4a (iPhones may
@@ -222,5 +362,5 @@ const K = (() => {
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
   const has = (sheet, pose) => !!(sprites[sheet] && sprites[sheet].poses && sprites[sheet].poses[pose]);
-  return { W, H, GROUND, INK, has, ctx, ui, clamp, hash, rng, rect, beep, drum, music, hush, loadTune, asset, preload, save, write, hasBg, picture, background, sprites, figure, hero: figure, prop, go, add, esc, get scene() { return scene; }, get tune() { return tune ? { name: tune.name, volume: Math.round(tune.gain.gain.value * 100) / 100 } : null; } };
+  return { W, H, GROUND, INK, has, ctx, ui, clamp, hash, rng, rect, beep, drum, band, music, hush, loadTune, asset, preload, save, write, hasBg, picture, background, sprites, figure, hero: figure, prop, go, add, esc, get scene() { return scene; }, get tune() { return tune ? { name: tune.name, volume: Math.round(tune.gain.gain.value * 100) / 100 } : null; } };
 })();
