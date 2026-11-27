@@ -196,7 +196,7 @@ Same pixel-art style and palette as set up. No text.
 ```text
 S7, the open sea for a surfing level. Landscape, 3:2 (1536x1024).
 
-Open ocean seen side-on. The top 60% is bright sky with scattered clouds, and far away a low coastline of red cliffs with a small lighthouse. The waterline runs perfectly straight across the whole image at 60% from the top. Below it is clear blue water in a few layered tones with lighter wave crests and foam marks, with nothing floating in it. Make the left and right edges look alike, because the game repeats this image side by side.
+Open ocean seen side-on. The top 60% is bright sky with scattered clouds, and far away a low coastline of red cliffs with a small all-white lighthouse with a dark lantern on top (Cape Byron, in Byron Bay). The waterline runs perfectly straight across the whole image at 60% from the top. Below it is clear blue water in a few layered tones with lighter wave crests and foam marks, with nothing floating in it. Make the left and right edges look alike, because the game repeats this image side by side.
 
 Same pixel-art style and palette as set up. No text.
 ```

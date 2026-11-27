@@ -23,15 +23,22 @@
 
   // What a scene throws at the players, made from a seed so both devices get exactly the same.
   const course = {
+    // `at` is when a thing reaches the surfer. A gentle start to learn on: three far apart (a fin, a fin, a parrot).
+    // Then they come ever closer together, and the last few come in a quick row, the finale. A jump lasts about
+    // 0.7 s, so even the closest leave time to land before the next. Up in the air: the pick-up, and a heart.
     run(seed, sc) {
-      const cfg = sc.run, r = rng(seed), obs = [], pickAt = sc.pickup ? cfg.seconds * 0.3 : null;
-      for (let at = 2.6; at < cfg.seconds - 2; at += 1.15 + r() * 0.95) {
-        const high = !!cfg.high && obs.length > 1 && r() < 0.28;
-        if (pickAt !== null && Math.abs(at - pickAt) < 0.9) continue;                 // keep the way to the pick-up clear
-        const alt = !high && !!(cfg.art && cfg.art.alt) && r() < 0.35;               // a second kind of low thing (a puddle among the pigeons)
-        obs.push({ at, high, alt });
+      const cfg = sc.run, r = rng(seed), obs = [], pickAt = sc.pickup ? cfg.seconds * 0.3 : null, end = cfg.seconds - 2;
+      const heartAt = cfg.heart ? cfg.seconds * cfg.heart : null, clear = [pickAt, heartAt].filter((p) => p !== null);
+      const FIRST = [3, 5.6, 8.2], FINALE = 5, from = FIRST[2] + 2.2, last = end - FINALE + 1;
+      FIRST.forEach((at, i) => obs.push({ at, high: !!cfg.high && i === 2 }));
+      for (let at = from; at < last - 1;) {
+        const near = clear.find((p) => Math.abs(at - p) < 0.9); if (near !== undefined) { at = near + 1; continue; }   // keep the way to a pick-up clear
+        const kinds = obs.slice(-3).map((o) => o.high), roll = r() < 0.4;                // a good mix: never four fins or three parrots in a row
+        obs.push({ at, high: !!cfg.high && (kinds.every((h) => !h) || (roll && !(kinds[1] && kinds[2]))) });
+        at += 1.95 - 0.85 * ((at - from) / (last - from)) + r() * 0.35;
       }
-      return { obs, pickAt };
+      for (let k = 0; k < FINALE; k++) obs.push({ at: last + k, high: !!cfg.high && k % 2 === 1, finale: true });   // jump, stay, jump, stay, jump
+      return { obs, pickAt, heartAt, finale: last };
     },
     // A walk along a street (or up a hill): what stands in the way, who walks and flies about, and what lies there
     // to collect. Laid out by hand in world.js, so the level gets harder towards its end; nothing here is random.
@@ -200,7 +207,8 @@
       const sn = S.scene, sc = place().scenes[sn.index], two = both();
       if (!GAMES.includes(sc.play)) { sn.phase = 'stub'; return; }
       Object.assign(sn, { phase: 'play', startAt: now() + 1600, fin: {}, picked: false, power: 0 });
-      if (sc.play === 'run') sn.lives = two ? 5 : 3;
+      // hearts of one's own; out of them, a ride on the partner's board (`ride`: obstacles they have passed since)
+      if (sc.play === 'run') Object.assign(sn, { two, hp: { ken: 3, kel: 3 }, max: 3, out: {}, outAt: {}, ride: {}, passed: {}, ko: [], healed: {}, hurts: 0, outs: 0 });
       if (sc.play === 'platform') Object.assign(sn, { two, hp: { ken: 3, kel: 3 }, max: 3, out: {}, beaten: [], got: [] });   // hearts of one's own; out of them, a bubble
       if (sc.play === 'shoot') Object.assign(sn, { lives: two ? 4 : 3, hits: 0, need: Math.round(sc.shoot.need * (two ? 1.6 : 1)), every: sc.shoot.every / (two ? 1.4 : 1), two, hit: [], missed: [], item: null, gold: null, go: null });
       if (sc.play === 'find') Object.assign(sn, { found: [], need: sc.find.need });
@@ -317,6 +325,7 @@
       if (sn.phase === 'stub') return 3;
       const k = sc.play, by = (bad, two) => (bad <= 0 ? 3 : bad <= two ? 2 : 1);            // bad: what went wrong; two: how much still earns two stars
       if (k === 'platform') return Math.min(by(sn.hurts || 0, sn.two ? 3 : 2), sn.outs ? 2 : 3);
+      if (k === 'run') return Math.min(by(sn.hurts, sn.two ? 3 : 2), sn.outs ? 2 : 3);           // a ride on the partner's board: two at most
       if (k === 'memory') return Math.min(by(sn.misses - Math.floor(sn.maxMiss * 0.4), Math.floor(sn.maxMiss * 0.3)), sn.before ? 2 : 3);   // after a lost go (its pairs kept) two at most
       if (k === 'find') { const u = (now() - sn.startAt) / 1000 / sc.find.seconds; return u <= 0.6 ? 3 : u <= 0.85 ? 2 : 1; }
       if (k === 'drums') { const r = sn.hits / Math.max(1, sn.need); return r >= 1.25 ? 3 : r >= 1.1 ? 2 : 1; }
@@ -340,9 +349,24 @@
         sn.picked = true;
         if (kind === 'shoot') sn.item = sc.pickup; else sn.power = now() + 5000;
       }
+      // The surf: `i` is which obstacle. Out of hearts, one rides on the other's board until that one has passed three
+      // more; it is lost only when nobody is left surfing. A boomerang knocks its obstacle out for both of them.
       if (kind === 'run') {
-        if (m.e === 'hurt' && --sn.lives <= 0) sn.phase = 'lost';
-        if (m.e === 'finish' && sn.lives > 0) sn.phase = 'won';
+        const team = sn.two ? ['ken', 'kel'] : [who], other = who === 'ken' ? 'kel' : 'ken', i = m.i | 0;
+        if (m.e === 'hurt' && !sn.out[who] && !sn.ko.includes(i)) {                     // a thing already knocked out hurts nobody (the news was slow)
+          sn.hurts++;
+          if (--sn.hp[who] <= 0) {
+            sn.out[who] = true; sn.outs++; sn.ride[who] = 0; sn.outAt[who] = i;
+            if (team.every((w) => sn.out[w])) sn.phase = 'lost';
+          }
+        }
+        if (m.e === 'pass' && sn.two && sn.out[other] && !sn.out[who] && i > sn.outAt[other] && i > (sn.passed[who] ?? -1)) {
+          sn.passed[who] = i;
+          if (++sn.ride[other] >= 3) { sn.out[other] = false; sn.hp[other] = 2; }        // back on their own board
+        }
+        if (m.e === 'ko' && sn.picked && i >= 0 && i < 200 && !sn.ko.includes(i)) sn.ko.push(i);
+        if (m.e === 'heal' && sc.run.heart && !sn.out[who] && !sn.healed[who]) { sn.healed[who] = true; sn.hp[who] = Math.min(sn.max, sn.hp[who] + 1); }   // each may catch the heart once
+        if (m.e === 'finish' && team.some((w) => !sn.out[w])) sn.phase = 'won';
       }
       if (kind === 'platform') {
         const team = sn.two ? ['ken', 'kel'] : [who], other = who === 'ken' ? 'kel' : 'ken';
