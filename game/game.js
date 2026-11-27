@@ -3780,9 +3780,13 @@
     const cfg = sc.salon, who = me(), ST = cfg.stations, SPEED = 84, max = sn.lives;
     const NAME = { wash: 'umýt', cut: 'ostříhat', dye: 'obarvit', dry: 'vyfoukat', pay: 'zaplatit' };
     const QUEUE = [[14, 284], [42, 284], [70, 284]], CUST = 0.55;                // three chairs in a row along the bottom, by the door
-    const home = (w) => (w === who ? { x: 96, y: 236 } : { x: 120, y: 250 });
-    const s = { t: 0, over: false, lost: false, me: { ...home(who), to: null, go: null, walked: [] }, mate: { ...home(mate()), to: null }, shout: 0, seenNo: {}, no: null, tipTill: 0, pops: [],
-      strays: [], hold: false, tick: 0, syncT: 0, seen: {}, emit: {}, bits: [], taps: [], cash: sn.coins, took: false, hintAt: -9, helpAt: null, rescue: null, joy: -9, wasBusy: false, taught: 0 };
+    const home = (w) => (w === 'ken' ? { x: 96, y: 236 } : { x: 124, y: 212 });   // the same on both phones (and clear of the till)
+    // A hero's body: where they are and are going, and what they act out (see perform() and kid() below): the way they face
+    // (1 right, -1 left), the act of the moment, when they last stopped (a squash), hopped, or pressed Pracuj (a stroke).
+    const acting = () => ({ face: 1, act: null, stop: -9, hop: null, press: -9, k: 0 });
+    const s = { t: 0, over: false, lost: false, me: { ...home(who), to: null, go: null, walked: [], ...acting() }, mate: { ...home(mate()), to: null, ...acting() }, shout: 0, seenNo: {}, no: null, tipTill: 0, pops: [],
+      strays: [], hold: false, tick: 0, syncT: 0, seen: {}, emit: {}, bits: [], taps: [], cash: sn.coins, took: false, hintAt: -9, helpAt: null, rescue: null, joy: -9, wasBusy: false, taught: 0,
+      lead: {}, walks: {}, hopC: {} };          // lead: where those led by the hand are drawn; walks: back to a chair by the door; hopC: a customer's hop
     let live = sn;
     const view = stage('<span class="lives"></span><span class="count"></span><span class="cash"><i></i><b></b></span><span class="clock"></span><span class="meter"><i></i></span>', 'Klepni na zákazníka!');
     const say = (text, secs = 2.6) => { view.tip.textContent = text; s.tipTill = s.t + secs; };   // a tip, for a moment (the first one stays till it is done)
@@ -3799,8 +3803,9 @@
     // Pracuj, held down while working at a place, makes the work go half as fast again; let go, it goes on as before.
     const keys = pad([{ id: 'drop', label: 'Pustit', side: 'left', hidden: true, press: () => {
       const c = leading(who); if (!c || s.over) return;
-      if (queued().length >= QUEUE.length) { nope('drop'); return say('Židle u dveří jsou plné.'); }
-      beep(330, 260); Net.send({ type: 'ev', e: 'drop', c: c.id });
+      const chair = QUEUE[Math.min([...queued(), c].sort((a, b) => a.id - b.id).indexOf(c), QUEUE.length - 1)][0], door = Math.abs(chair - s.me.x) < 4 ? -s.me.face : chair < s.me.x ? -1 : 1;   // the way to the chair by the door they will sit on
+      if (queued().length >= QUEUE.length) { nope('drop'); perform('shrug', door); return say('Židle u dveří jsou plné.'); }
+      beep(330, 260); perform('point', door); Net.send({ type: 'ev', e: 'drop', c: c.id });
     } }, { id: 'work', label: 'Pracuj', big: true, press: () => hold(true), release: () => hold(false) }]);
     // A button that can do nothing just now shakes, with a low beep (and a tip saying what to do instead).
     const nope = (id) => {
@@ -3811,14 +3816,28 @@
       if (s.over) return;
       s.hold = on; Net.send({ type: 'ev', e: 'hold', on });
       if (!on) return;
-      if (busyAt(who)) { beep(660, 990); s.tick = 0.3; if (s.tipTill) { view.tip.textContent = ''; s.tipTill = 0; } return; }   // straight into it, on this phone at once
-      if (s.me.to && s.me.go && s.me.go.st !== undefined) return beep(520);                   // on the way to a place: it counts once there
+      if (busyAt(who)) {                                                                       // straight into it, on this phone at once: a stroke, and bits fly
+        beep(660, 990); s.tick = 0.3; if (s.tipTill) { view.tip.textContent = ''; s.tipTill = 0; }
+        s.me.antic = raise(s.me); s.me.press = s.t; s.me.act = null; spray(who, 4); Net.send({ type: 'fx', k: 'stroke', x: s.me.x, y: s.me.y }); return;
+      }
+      if (s.me.to && s.me.go && s.me.go.st !== undefined) { hop(s.me, 2, 0.16); return beep(520); }   // on the way to a place: a hop (it counts once there)
       nope('work'); s.hintAt = s.t;
       const c = leading(who);
+      if (c) { const a = toward(arrowAt(c)); perform('point', a.d, undefined, { up: a.up }); }   // there! (at the arrow over the place they want)
+      else perform('look');                                                                   // nothing here to work at: a shrug, looking round
       say(c ? `Chce ${NAME[c.order[c.step]]}. Klepni tam.` : s.helpAt !== null || s.rescue !== null ? 'Běž pomoct!' : 'Klepni na zákazníka.');
     }
-    const spot = (i, far) => { const d = ST[i].side || 13; return { x: ST[i].x + d + (far ? Math.sign(d) * 16 : 0), y: ST[i].y + 18 + (far ? 8 : 0) }; };   // where a hairdresser stands to work there
-    const spotFor = (i) => { const a = spot(i), m = s.mate.to || s.mate; return mateHere() && Math.hypot(m.x - a.x, m.y - a.y) < 8 ? spot(i, true) : a; };   // the partner there already: a step further out
+    // Where a hairdresser stands to work at a place: beside the customer, on the side the place leaves free, as close as
+    // lets the raised fist (the stroke's first frame) reach their head without standing in front of their face; but on
+    // the floor, never up on the wall behind the chairs (FLOOR). With the partner there already: on the other side of
+    // the customer (squeezed in by the edge of the room at the basin and the dryer), not reaching over the partner.
+    const FLOOR = { wash: 140, cut: 137, dye: 137, dry: 152, pay: 0 }, GAP = { wash: 6, cut: 8, dye: 4, dry: 4, pay: 4 };   // (GAP: a little further out where their face is turned to the hero)
+    const spot = (i, far) => {
+      const st = ST[i], d = Math.sign(st.side || 1) * (far ? -1 : 1), c = live.cust.find((q) => q.at === i) || leading(who) || { id: 0 };
+      const h = head({ ...c, at: i }, seat(c, i)), fist = strokeHand(who, 0, d > 0);
+      return { x: Math.round(clamp(h.x - fist.x + d * GAP[st.k], 12, W - 12)), y: Math.round(Math.max(FLOOR[st.k] || 0, h.y - fist.y)) };
+    };
+    const spotFor = (i) => { const a = spot(i), m = s.mate.to || s.mate; return mateHere() && Math.abs(m.x - a.x) < 12 && Math.abs(m.y - a.y) < 12 ? spot(i, true) : a; };   // the partner there already: a step further out
     // Sitting down. The two styling chairs face the mirror, so only the head shows over the back of the chair; at the
     // basin and on the stool under the dryer they sit sideways (the seated sheet, tools/seated.py); at the till they
     // stand. Rows of a customer's picture, for each of the six: the top of the head, the chin, the hip and the knee.
@@ -3859,9 +3878,9 @@
     const stuck = (c) => c.by && c.by !== who && fedUp(c) && !body(c.by).to;                     // ... while the other stands about with them
     const rate = (i) => hands(i).reduce((a, w) => a + (quick(w) ? 1.5 : 1), 0);              // how fast the work goes there, as in the room
     // How far the work on someone has got: moved on smoothly between the room's messages at the speed of the hands
-    // there (one's own button counting at once), and never back.
+    // there (one's own button counting at once), and never back; at the end it stops where it was.
     function progress(c) {
-      const key = c.id + ':' + c.step, f = clamp((c.work + Math.max(0, s.t - s.syncT) * rate(c.at)) / cfg.work[ST[c.at].k], 0, 1);
+      const key = c.id + ':' + c.step, f = clamp((c.work + Math.max(0, (s.over ? s.endT : s.t) - s.syncT) * rate(c.at)) / cfg.work[ST[c.at].k], 0, 1);
       return (s.seen[key] = Math.max(s.seen[key] || 0, f));
     }
     const head = (c, p) => (ST[c.at] && ST[c.at].k === 'pay' ? { x: ST[c.at].x, y: ST[c.at].y - 22 } : { x: p.cx, y: Math.min(p.top, c.at >= 0 && ST[c.at].k === 'dry' ? 90 : p.top) + 8 });   // where the work goes on
@@ -3880,9 +3899,55 @@
     const ARROW = ['....#####....', '....#ooo#....', '....#ooo#....', '....#ooo#....', '#####ooo#####', '.#ooooooooo#.', '..#ooooooo#..', '...#ooooo#...', '....#ooo#....', '.....#o#.....', '......#......'];
     function where(c) {                                                                         // where a customer is right now, and how
       if (c.at >= 0) return seat(c, c.at);                                                      // in the chair, at the basin, under the dryer
-      const stand = (x, y) => ({ how: 'stand', x, y, cx: x, top: y - 62 });
-      if (c.by) { const b = body(c.by); return stand(b.x - 12, b.y - 2); }
-      const [x, y] = QUEUE[clamp(queued().indexOf(c), 0, QUEUE.length - 1)]; return stand(x, y);
+      const stand = (x, y, walking, flip) => ({ how: 'stand', x, y, cx: x, top: y - 62, walking, flip });
+      if (c.by) {                                                                               // by the hand: beside the hero, a step behind (the rope in update())
+        const b = body(c.by), L = s.lead[c.id] || { x: b.x - b.face * ROPE, y: b.y + 2 };
+        return stand(L.x, L.y, !!b.to || !!L.moved, b.to ? b.to.x < b.x : L.x > b.x);
+      }
+      // waiting by the door: walking to a chair there (let go, or a chair freed up), over 0.4 s, or up to a second from afar
+      const [x, y] = QUEUE[clamp(queued().indexOf(c), 0, QUEUE.length - 1)], w = s.walks[c.id] || (s.walks[c.id] = { x0: x, y0: y, x1: x, y1: y, at: -9, dur: 0.4 });
+      if (w.x1 !== x || w.y1 !== y) { const p = walked(w); Object.assign(w, { x0: p.x, y0: p.y, x1: x, y1: y, at: s.t, dur: clamp(Math.hypot(x - p.x, y - p.y) / 150, 0.4, 1) }); }
+      const p = walked(w); return stand(p.x, p.y, p.u < 1, p.u < 1 && w.x1 < w.x0);
+    }
+    const ROPE = 17;                                                                            // how far behind the hero someone led by the hand walks
+    const walked = (w) => { const u = clamp((s.t - w.at) / (w.dur || 0.4), 0, 1), e = u * u * (3 - 2 * u); return { x: w.x0 + (w.x1 - w.x0) * e, y: w.y0 + (w.y1 - w.y0) * e, u }; };
+    // ---- acting it out: every tap and press shows on the hero at once, and (fx 'act', 'stroke', 'hop') on the partner's phone ----
+    // An act is a pose held for a moment, facing d (1 right, -1 left), turning to `then` after: 'take' (a hand held out to a
+    // customer, who hops), 'point' (the arm out: at the place they want, at the chairs by the door; `up` at an arrow high
+    // over them), 'shrug' (with a shake of the head), 'look' (a shrug, looking left and right: nothing to work at) and
+    // 'nudge' (one more stroke, then a point down at the Pracuj button, with a nod).
+    // On the run there is no stopping to act: a hop instead, at once (an act would only show once they stop, late).
+    // The messages carry where the hero stands, so the partner's phone, still walking them there, puts them there first.
+    const ACTS = { take: 0.3, point: 0.4, shrug: 0.4, look: 0.4, nudge: 0.48 };
+    function perform(a, d, then, more) {
+      const b = s.me; if (b.to) return hop(b, 2, 0.16);
+      b.act = { a, at: s.t, d: d || b.face, then: then !== undefined ? then : a === 'look' ? b.face : undefined, ...more };
+      Net.send({ type: 'fx', k: 'act', a, d: b.act.d, then: b.act.then, ...more, x: b.x, y: b.y });
+    }
+    const hop = (b, h, dur) => { b.hop = { at: s.t, h, dur }; if (b === s.me) Net.send({ type: 'fx', k: 'hop', h, dur, x: b.x, y: b.y }); };   // a hop: up h px and down in dur s
+    const toward = (p) => { const dx = p.x - s.me.x, dy = s.me.y - 36 - p.y; return { d: dx < 0 ? -1 : 1, up: dy > Math.abs(dx) * 0.6 }; };   // to point at p: which way, and up or level
+    const arrowAt = (c) => { const i = ST.findIndex((x) => x.k === c.order[c.step]), p = seat(c, i); return { x: p.cx, y: Math.min(p.top, ST[i].k === 'dry' ? 90 : p.top) - 16 }; };
+    const workHead = (w) => { const at = live.workers[w], c = live.cust.find((q) => q.at === at && worked(q)); return c ? head(c, where(c)) : null; };   // where this one's work goes on
+    const spray = (w, n) => { const h = workHead(w); if (h) for (let k = 0; k < n; k++) s.bits.push({ ...BITS[ST[live.workers[w]].k](), x: h.x + Math.round((Math.random() - 0.5) * 8), y: h.y, at: s.t }); };
+    // The two frames of a stroke, [pose, frame]: the tool up at the head, then struck. Kellyn's own 'tap' raises the fist
+    // over her own head, so for the head she reaches up with the arm out ('point' 0), as Kendrick's raised fist does.
+    // The strokes go in step on both phones (by the game's clock): 3 a second, 8 while Pracuj is held or pressed again and
+    // again. A press strikes at once for 80 ms, the fist up for 40 ms first when it is not up already (landing on a
+    // strike, or just after one), and back up for at least 50 ms after: however fast the presses come, each is a stroke.
+    const STROKE = { ken: [['tap', 0], ['tap', 1]], kel: [['point', 0], ['tap', 1]] };
+    const strokeHand = (w, k, flip) => { const [p, f] = (STROKE[w] || STROKE.ken)[k]; return K.hand(w, p, f, flip); };
+    const struck = (b) => s.t - b.press - (b.antic || 0);                                     // how far into a press's strike (below 0: raised first)
+    const raise = (b) => (b.k === 1 ? 0.04 : Math.max(0, 0.04 - (s.t - (b.up === undefined ? -9 : b.up))));   // how long to hold the fist up first (40 ms up before each strike)
+    const stroke = (w, b) => {
+      const u = struck(b); if (u > -0.05 && u < 0.13) return u >= 0 && u < 0.08 ? 1 : 0;
+      const [up, down] = quick(w) || u < 0.35 ? [0.07, 0.055] : [0.2, 0.13], p = ((s.t % (up + down)) + up + down) % (up + down); return p < up ? 0 : 1;
+    };
+    function facing(w, b) {
+      if (b.to) return Math.abs(b.to.x - b.x) > 0.5 ? Math.sign(b.to.x - b.x) : b.face;
+      const a = b.act;
+      if (a) { const u = s.t - a.at; return a.a === 'look' ? (u < 0.15 ? -1 : u < 0.3 ? 1 : a.then) : a.a === 'nudge' && u < 0.08 && busyAt(w) ? facing(w, { ...b, act: null }) : a.d; }
+      const h = busyAt(w) && workHead(w);
+      return h ? (h.x < b.x ? -1 : 1) : b.face;
     }
     const cash = view.hud.querySelector('.cash');
     const paint = () => {
@@ -3896,21 +3961,23 @@
     function walk(x, y, go) {
       const m = s.me;
       if (live.workers[who] !== null && live.workers[who] !== undefined) Net.send({ type: 'ev', e: 'at', st: -1 });   // leaving one's place
-      m.to = { x: clamp(x, 10, W - 10), y: clamp(y, 150, H - 4) }; m.go = go;
+      m.to = { x: clamp(x, 10, W - 10), y: clamp(y, go ? 120 : 150, H - 4) }; m.go = go; m.act = null;   // (a place to work at may be up by the chairs)
       m.stray = !go && !leading(who); if (m.stray) s.strays.push(s.t);                          // off across the bare floor, for nothing (with someone by the hand it is looking for the place)
       Net.send({ type: 'fx', k: 'walk', x: m.to.x, y: m.to.y });
     }
     function arrive() {
       const go = s.me.go; s.me.go = null; if (!go) return;
       if (go.take !== undefined) {
-        const c = live.cust.find((q) => q.id === go.take);
-        if (c && c.by && c.by !== who && !fedUp(c)) { beep(180); return say(`${heroName(c.by)} byl${c.by === 'kel' ? 'a' : ''} rychlejší.`); }   // the partner was quicker
+        const c = live.cust.find((q) => q.id === go.take), dir = c && where(c).cx < s.me.x ? -1 : 1;
+        if (c && c.by && c.by !== who && !fedUp(c)) { beep(180); perform('shrug', dir); return say(`${heroName(c.by)} byl${c.by === 'kel' ? 'a' : ''} rychlejší.`); }   // the partner was quicker
+        if (c) { s.hopC[c.id] = s.t; perform('take', dir, undefined, { c: c.id }); }          // turned to them, a hand held out: they hop up and come along
         Net.send({ type: 'ev', e: 'take', c: go.take });
       }
       if (go.st !== undefined) {
         const c = leading(who);
         if (c) Net.send({ type: 'ev', e: 'lead', c: c.id, st: go.st });
         else Net.send({ type: 'ev', e: 'at', st: go.st });
+        if (!c && live.workers[mate()] === go.st && live.cust.some((q) => q.at === go.st && worked(q))) hop(s.me, 2, 0.2);   // here to help: a hop, and into it
       }
     }
     // stand-in pictures: a customer whose hair changes as the work is done, and an icon for each kind of work
@@ -3927,8 +3994,7 @@
           const b = chairBack(c.at); if (b) ctx.drawImage(b.c, b.x, BACK);
         } else if (p.how === 'side') K.figure('seated', x + shook, y, look, 0, p.flip, CUST);       // sitting at the basin, or under the dryer
         else {
-          const led = c.by && body(c.by).to, step = led ? Math.round(Math.abs(Math.sin(s.t * 9 + c.id))) * 2 : 0;   // being led: a step at a time
-          K.figure('customers', x + shook, y - step, look, 0, led && body(c.by).to.x < body(c.by).x, CUST);          // grown-ups as tall as Mamka
+          K.figure('customers', x + shook, y - lifted(c, p), look, 0, p.flip, CUST);              // grown-ups as tall as Mamka
         }
         if (did('wash') && !did('dry')) { const t = p.top + 4, h = p.cx; rect(h - 9, t + 10, 1, 2, '#7CC6F2'); rect(h + 8, t + 4, 1, 2, '#7CC6F2'); rect(h + 10, t + 12, 1, 2, '#7CC6F2'); }   // wet hair, dripping
         return;
@@ -3942,6 +4008,18 @@
       rect(x - 6, y - 31 - (did('dry') ? 1 : 0), 12, 4 + (did('dry') ? 1 : 0), hair);            // hair, fluffier once dried
       rect(x - 7, y - 29, 3, long ? 12 : 5, hair);
       if (wet) { rect(x - 8, y - 22, 1, 2, '#7CC6F2'); rect(x + 7, y - 27, 1, 2, '#7CC6F2'); }
+    }
+    // Walking: a step at a time (2 px up and down); taken by the hand: a hop.
+    const lifted = (c, p) => { const u = s.t - (s.hopC[c.id] === undefined ? -9 : s.hopC[c.id]); return (p.walking ? Math.round(Math.abs(Math.sin(s.t * 9 + c.id))) * 2 : 0) + (u < 0.2 ? Math.round(Math.sin(u / 0.2 * Math.PI) * 2) : 0); };
+    // A hand held: a little arm of skin from the hero's fist on that side (6 px out, 24 up; the hero drawn at bx, by) to
+    // the customer's hand.
+    function holdHands(c, bx, by) {
+      const b = body(c.by); if (b.act && !b.to) return;                                          // (holding out a hand to them, or shrugging: let go for a moment)
+      const p = where(c), x = Math.round(p.x), y = Math.round(p.y) - lifted(c, p), side = x < bx ? -1 : 1;
+      const fx = bx + side * 6, fy = by - 24, hx = x - side, hy = y - 19;
+      if (Math.abs(hx - fx) > ROPE - 6) return;
+      const n = Math.max(Math.abs(hx - fx), Math.abs(hy - fy), 1);
+      for (let i = 0; i <= n; i++) rect(fx + Math.round((hx - fx) * i / n), fy + Math.round((hy - fy) * i / n), 1, 1, '#E8B58A');
     }
     function icon(k, x, y) {
       x = Math.round(x); y = Math.round(y);
@@ -3974,17 +4052,23 @@
       s, kind: 'salon',
       peek: () => ({ me: { x: s.me.x, y: s.me.y, walking: !!s.me.to }, mine: leading(who) && leading(who).id, workers: live.workers, stations: ST.map((st, i) => ({ k: st.k, i, x: st.x, y: st.y, busy: live.cust.some((c) => c.at === i) })),
         cust: live.cust.map((c) => ({ id: c.id, at: c.at, by: c.by, want: c.order[c.step], work: c.work, pat: c.pat / c.max, ...where(c) })),
-        working: busyAt(who), hold: s.hold, help: s.helpAt, rescue: s.rescue, shout: s.shout, coins: live.coins, shown: Math.round(s.cash), tip: view.tip.textContent }),
+        working: busyAt(who), hold: s.hold, hero: s.me.shown, mateHero: s.mate.shown, act: s.me.act && s.me.act.a, mateAct: s.mate.act && s.mate.act.a, help: s.helpAt, rescue: s.rescue, shout: s.shout, coins: live.coins, shown: Math.round(s.cash), tip: view.tip.textContent }),
       sync(n) {
         for (const c of n.cust) {
           const was = live.cust.find((q) => q.id === c.id);
           if (was && c.step > was.step && was.at >= 0) { const h = head(was, where(was)); burst(h.x, h.y); }    // a job done: a burst of stars
           if (c.by === who && was && was.at >= 0 && was.by !== who) { beep(660, 880); say(`Hotovo! Teď chce ${NAME[c.order[c.step]]}.`); }
           if (was && was.by === who && c.by && c.by !== who) { beep(520, 660); say(`${heroName(c.by)} ti pomáhá.`); }   // nearly out of patience in this one's hand: the other took them on
+          const L = s.lead[c.id];
+          if (was && was.by && !c.by && c.at === -2 && L) s.walks[c.id] = { x0: L.x, y0: L.y, x1: L.x, y1: L.y, at: -9, dur: 0.4 };   // let go: they walk from here to a chair by the door
+          if (was && was.at >= 0 && c.by && !L) s.lead[c.id] = { x: where(was).cx, y: body(c.by).y + 2 };   // up out of the chair, on its side of the hero
         }
         for (const c of n.cust) if (c.no && c.no !== s.seenNo[c.id]) {
           s.seenNo[c.id] = c.no;
-          if (c.by === who) { s.no = { id: c.id, at: s.t }; s.hintAt = s.t; beep(180); const st = ST.find((x) => x.k === c.order[c.step]), i = ST.indexOf(st); say(n.cust.some((q) => q.at === i) ? 'Tam už někdo sedí.' : `Teď chce ${NAME[c.order[c.step]]}.`); }
+          if (c.by === who) {
+            s.no = { id: c.id, at: s.t }; s.hintAt = s.t; beep(180); const st = ST.find((x) => x.k === c.order[c.step]), i = ST.indexOf(st); say(n.cust.some((q) => q.at === i) ? 'Tam už někdo sedí.' : `Teď chce ${NAME[c.order[c.step]]}.`);
+            const L = s.lead[c.id]; if (!s.me.to) perform('shrug', L && L.x < s.me.x ? -1 : 1, st.x < s.me.x ? -1 : 1);   // a shrug to them, then a look at where they want to go
+          }
         }
         // someone leaves: paid, with coins at the till and in the bar, or fed up, with a cross little cloud where they stood
         const gone = live.cust.filter((c) => !n.cust.some((q) => q.id === c.id));
@@ -4002,17 +4086,35 @@
         if (live.paused && !n.paused && s.hold) Net.send({ type: 'ev', e: 'hold', on: true });   // back from a pause with a finger still on Pracuj (the room let go of it)
         live = n; s.syncT = s.t; paint(); keys.show('drop', !s.over && !!leading(who));
       },
-      fx(m) { if (m.k === 'walk') s.mate.to = { x: m.x, y: m.y }; },
-      over(won) { s.over = true; s.lost = !won; s.cash = live.coins; shout.hidden = true; help.hidden = true; paint(); view.end(won, won ? 'Zvládnuto!' : 'Zákazníci utekli.', won ? `Obsloužili jste ${live.served} zákazníků a v kase je ${live.coins} korun.` : `Obsloužili jste ${live.served} z ${live.need}. Zkuste to ještě jednou.`); },
+      fx(m) {
+        const b = s.mate;
+        if (m.k === 'walk') { b.to = { x: m.x, y: m.y }; b.act = null; }
+        else if (b.to && Math.abs(b.to.x - m.x) < 1 && Math.abs(b.to.y - m.y) < 1) { b.x = b.to.x; b.y = b.to.y; b.to = null; b.stop = s.t; }   // already there on their phone: there now
+        if (m.k === 'act' && ACTS[m.a]) {                                                         // the partner's act, played the same here
+          b.act = { a: m.a, at: s.t, d: m.d === -1 ? -1 : 1, then: m.then, up: !!m.up };
+          if (m.a === 'take' && m.c !== undefined) s.hopC[m.c] = s.t;
+          if (m.a === 'nudge') spray(mate(), 3);
+        }
+        if (m.k === 'stroke') {                                                                   // each of the partner's presses on Pracuj
+          const u = struck(b);                                                                    // (two come close together over the network: the second right after the first)
+          if (u > -0.05 && u < 0.08) b.next = b.press + (b.antic || 0) + 0.13; else { b.antic = raise(b); b.press = s.t; b.next = 0; }
+          b.act = null; spray(mate(), 4);
+        }
+        if (m.k === 'hop') b.hop = { at: s.t, h: clamp(+m.h || 2, 1, 4), dur: clamp(+m.dur || 0.2, 0.1, 0.4) };
+      },
+      over(won) { s.over = true; s.endT = s.t; s.lost = !won; s.cash = live.coins; shout.hidden = true; help.hidden = true; paint(); view.end(won, won ? 'Zvládnuto!' : 'Zákazníci utekli.', won ? `Obsloužili jste ${live.served} zákazníků a v kase je ${live.coins} korun.` : `Obsloužili jste ${live.served} z ${live.need}. Zkuste to ještě jednou.`); },
       // A tap answers at once on this phone: a ring where the finger landed and a beep, then the walk. Leading someone to
       // a place they do not want, or one where someone sits, is refused before walking: they shake their head and the
       // arrow over the right place jumps.
       down(x, y) {
         if (s.over || y < 22) return;
-        if (s.t < 0) return ripple(x, y, false);                                                   // not yet: 2, 1, Start!
+        if (s.t < 0) { ripple(x, y, false); return hop(s.me, 3, 0.16); }                           // not yet: 2, 1, Start! (a hop: ready!)
         const mineNow = leading(who);
         const hit = live.cust.filter((q) => !q.by || stuck(q)).map((q) => ({ q, p: where(q) })).find(({ p }) => Math.abs(p.cx - x) < 14 && y > p.top - 26 && y < p.y + 3);
-        const no = (text) => { ripple(x, y, false); beep(180); s.no = { id: mineNow.id, at: s.t }; s.hintAt = s.t; say(text); };
+        const no = (text) => {                                                                     // a shrug to the one by the hand, then a look at where they want to go
+          ripple(x, y, false); beep(180); s.no = { id: mineNow.id, at: s.t }; s.hintAt = s.t; say(text);
+          const L = s.lead[mineNow.id], a = arrowAt(mineNow); perform('shrug', L && L.x < s.me.x ? -1 : 1, a.x < s.me.x ? -1 : 1);
+        };
         if (mineNow) {
           const i = hit && hit.q.at >= 0 ? hit.q.at : ST.findIndex((st) => Math.abs(st.x - x) < 18 && y > st.y - 48 && y < st.y + 28);
           if (i > -1) {
@@ -4027,7 +4129,8 @@
         if (hit && worked(hit.q)) {                                                                // being worked on: help, never pull them away
           ripple(x, y, true);
           if (live.workers[who] !== hit.q.at) { beep(440); const i = hit.q.at, p = spotFor(i); return walk(p.x, p.y, { st: i }); }
-          beep(520); return say(s.hold ? 'Ještě chvilku!' : 'Drž Pracuj!');
+          beep(520); if (busyAt(who)) { spray(who, 3); perform('nudge', 1); }                     // one more stroke, then a point down at Pracuj
+          return say(s.hold ? 'Ještě chvilku!' : 'Drž Pracuj!');
         }
         if (hit) {                                                                                 // a customer to take: one waiting, or one left at a place
           ripple(x, y, true); beep(520); if (!s.took) { s.took = true; view.tip.textContent = ''; }
@@ -4039,14 +4142,41 @@
         ripple(x, y, false); walk(x, y, null);
       },
       update(dt) {
-        if (s.over) return;
         s.t = clock(live);
+        for (const b of s.bits) { b.x += b.vx * dt; b.y += b.vy * dt; b.vy += b.g * dt; }        // (the bits fly on after the end too)
+        s.bits = s.bits.filter((b) => s.t - b.at < b.life);
+        if (s.over) return;                                                                       // (the clock runs on for the hops of joy)
         for (const b of [s.me, s.mate]) {
           if (!b.to) continue;
           const dx = b.to.x - b.x, dy = b.to.y - b.y, d = Math.hypot(dx, dy), step = SPEED * dt;
-          if (d <= step) { b.x = b.to.x; b.y = b.to.y; b.to = null; if (b === s.me) arrive(); }
+          if (Math.abs(dx) > 0.5) b.face = Math.sign(dx);
+          if (d <= step) { b.x = b.to.x; b.y = b.to.y; b.to = null; b.stop = s.t; if (b === s.me) arrive(); }   // (stopping: a squash)
           else { b.x += dx / d * step; b.y += dy / d * step; if (b === s.me && s.me.stray) s.me.walked.push([s.t, step]); }
         }
+        for (const [w, b] of [[who, s.me], [mate(), s.mate]]) {
+          if (b.next && s.t >= b.next) { b.press = b.next; b.antic = 0; b.next = 0; }
+          if (b.act && s.t - b.act.at >= ACTS[b.act.a]) { b.face = b.act.then || b.act.d; b.act = null; }   // the act done: facing where it left them
+          const work = busyAt(w) && !b.to && !b.act, k = work ? stroke(w, b) : 0;                // each stroke landing: two more bits off the work
+          if (k && !b.k) spray(w, 2);
+          if (!k && b.k) b.up = s.t; b.k = k; if (work) b.face = facing(w, b);
+        }
+        // Led by the hand, as on a rope: never more than ROPE px from the hero, at their depth and 2 px nearer, a step
+        // behind (so both faces show: the hero's looks ahead, theirs at the hero); but 2 px further back while the hero
+        // walks their way or past them, so the hero passes in front, whole. Standing still, they step aside to stand by
+        // the hero rather than on them. Off the hand: forgotten.
+        for (const c of live.cust) {
+          if (!c.by) { delete s.lead[c.id]; continue; }
+          const b = body(c.by);
+          let L = s.lead[c.id];
+          if (!L) { const w = s.walks[c.id], p = w && walked(w); L = s.lead[c.id] = p ? { x: p.x, y: p.y } : { x: b.x + facing(c.by, b) * ROPE, y: b.y + 2 }; }   // just taken: from their chair by the door, or up out of the one at a place, beside the hero
+          const x0 = L.x;
+          L.x = clamp(L.x, b.x - ROPE, b.x + ROPE);
+          const past = Math.abs(L.x - b.x) < ROPE - 3 || (b.to && Math.sign(b.to.x - b.x) === Math.sign(L.x - b.x));
+          const dy = L.dy === undefined ? 2 : L.dy; L.dy = dy + clamp((past ? -2 : 2) - dy, -60 * dt, 60 * dt); L.y = b.y + L.dy;
+          if (!b.to && Math.abs(L.x - b.x) < ROPE) { const side = Math.sign(L.x - b.x) || -b.face; L.x += clamp(b.x + side * ROPE - L.x, -SPEED * dt, SPEED * dt); }
+          L.moved = Math.abs(L.x - x0) > 0.01;
+        }
+        for (const id in s.walks) if (!live.cust.some((c) => c.id === +id && c.at === -2)) delete s.walks[id];
         // Mamka does not like running about her salon. Only real running about counts: to and fro over the bare floor, four
         // times or more and most of six seconds on end. Walking to customers and places never does, nor looking for the
         // place with a customer by the hand.
@@ -4060,8 +4190,6 @@
           const i = c.at; s.emit[i] = (s.emit[i] || 0) + dt * hands(i).reduce((a, w) => a + (quick(w) ? 9 : 3), 0);
           for (; s.emit[i] >= 1; s.emit[i]--) { const h = head(c, where(c)); s.bits.push({ ...BITS[ST[i].k](), x: h.x + Math.round((Math.random() - 0.5) * 8), y: h.y, at: s.t }); }
         }
-        for (const b of s.bits) { b.x += b.vx * dt; b.y += b.vy * dt; b.vy += b.g * dt; }
-        s.bits = s.bits.filter((b) => s.t - b.at < b.life);
         if (s.hold && busyAt(who) && (s.tick -= dt) <= 0) { s.tick = 0.28; beep(TICK[ST[live.workers[who]].k]); }
         s.cash += (live.coins - s.cash) * Math.min(1, dt * 5); if (Math.abs(live.coins - s.cash) < 1) s.cash = live.coins;
         // "Pomoz!" over the partner while they work alone at a job that a second pair of hands would get done sooner,
@@ -4109,17 +4237,38 @@
           }]);
         }
         if (sc.cast) things.push([286, () => K.figure(sc.cast[0], 178, 286 - (s.t - s.joy < 0.5 ? Math.round(Math.sin((s.t - s.joy) / 0.5 * Math.PI) * 6) : 0), s.t - s.joy < 0.5 ? 'joy' : s.shout && s.t - s.shout < 2 ? 'front' : 'three', s.t, true)]);   // Mamka keeps an eye on things from the corner, and jumps for joy at every customer who pays
-        // at work: standing at the customer with the tool of the job in hand, going to and fro (quicker, with a bob, while Pracuj is held)
-        // the tool of the job, small, in the hand that works (no card over the face): shampoo, scissors, dye, the dryer
+        // The heroes, acting out what they do (facing(), stroke() and the acts above): running on a walk, the act of the
+        // moment, strokes at work with the tool of the job in the fist (shampoo, scissors, dye, the dryer; a coin at the till),
+        // or standing and breathing; a squash on stopping and on each press of Pracuj, hops, and at the end hops of joy or
+        // dizzy. At work they are drawn in front of the one they work on.
         const TOOL = { wash: 'shampoo', cut: 'scissors', dye: 'dye', dry: 'dryer' };
-        const tool = (w, b) => {
-          if (!busyAt(w)) return; const st = ST[live.workers[w]], d = st.x < b.x ? -1 : 1, q = quick(w) ? 24 : 10, a = quick(w) ? 3 : 2;
-          const tx = b.x + d * 9 + Math.round(Math.sin(s.t * q) * a), ty = b.y - 17 - bob(w) + Math.round(Math.cos(s.t * q) * (a - 1));
-          if (TOOL[st.k] && K.has('salonkit', TOOL[st.k])) K.figure('salonkit', tx, ty + 6, TOOL[st.k], 0, d < 0, 0.18); else icon(st.k, tx, ty);
+        const kid = (w, b, lag) => {
+          const flip = facing(w, b) < 0, a = b.act, u = a ? s.t - a.at : 9, work = busyAt(w) && !b.to;   // (the breath's clock: + 9 s, as a frame must not come from a time below 0, the countdown's)
+          let pose = 'stand', fr = K.loop(s.t + 9 + lag, 1.5), y = b.y, squash = s.t - b.stop < 0.06, wig = 0, k = -1;
+          if (s.over) { if (s.lost) { pose = 'dizzy'; fr = s.t; } else { pose = 'cheer'; fr = 0; y -= Math.round(Math.abs(Math.sin((s.t + lag) * Math.PI * 2.2)) * 4); } }
+          else if (b.to) { pose = 'run'; fr = s.t * 0.7; }
+          else if (a && (a.a === 'take' || a.a === 'point')) { pose = 'point'; fr = K.frame(a.up ? 0 : 1); }
+          else if (a && (a.a === 'shrug' || a.a === 'look')) { pose = 'shrug'; fr = 0; if (a.a === 'shrug') wig = [0, 1, 0, -1][Math.floor(u / 0.05) % 4]; }
+          else if (a && a.a === 'nudge') { if (u < 0.08 && work) k = 1; else { pose = 'point'; fr = K.frame(1); if (u > 0.2 && u < 0.32) y += 1; } }
+          else if (work) { k = stroke(w, b); const v = struck(b); if (v >= 0 && v < 0.08) squash = true; }
+          if (k >= 0) { pose = (STROKE[w] || STROKE.ken)[k][0]; fr = K.frame(STROKE[w] ? STROKE[w][k][1] : k); y += k; }   // the tool up at the head, then struck (the body dips 1 px)
+          if (b.hop && !s.over) { const v = s.t - b.hop.at; if (v < b.hop.dur) y -= Math.round(Math.sin(v / b.hop.dur * Math.PI) * b.hop.h); else if (v < b.hop.dur + 0.06) squash = true; }
+          const x = Math.round(b.x); y = Math.round(y); b.shown = { pose, k, flip, x, y, squash, wig };   // (what shows, for the tests)
+          ctx.save(); ctx.translate(x, y); if (squash) ctx.scale(1.04, 0.96);                      // the squash: 2 px lower, wider
+          if (wig) {                                                                              // the shrug's shake of the head: the head drawn by itself, 1 px aside
+            ctx.save(); ctx.beginPath(); ctx.rect(-40, -34, 80, 40); ctx.clip(); K.hero(w, 0, 0, pose, fr, flip); ctx.restore();
+            ctx.beginPath(); ctx.rect(-40, -90, 80, 56); ctx.clip(); K.hero(w, wig, 0, pose, fr, flip);
+          } else K.hero(w, 0, 0, pose, fr, flip);
+          ctx.restore();
+          const led = leading(w); if (led && !s.over) holdHands(led, x, y);
+          if (k < 0) return;
+          const kind = ST[live.workers[w]] && ST[live.workers[w]].k, h = strokeHand(w, k, flip), tx = x + h.x * (squash ? 1.04 : 1), ty = y + h.y * (squash ? 0.96 : 1);
+          if (TOOL[kind] && K.has('salonkit', TOOL[kind])) K.figure('salonkit', tx, ty + 4, TOOL[kind], 0, kind === 'dry' ? !flip : flip, 0.18);   // (the dryer's nozzle to the head)
+          else if (kind) icon(kind, tx, ty);
         };
-        const bob = (w) => (busyAt(w) && quick(w) ? Math.round(Math.abs(Math.sin(s.t * 12))) : 0);
-        if (mateHere()) things.push([s.mate.y, () => { K.hero(mate(), s.mate.x, s.mate.y - bob(mate()), s.mate.to ? 'run' : 'stand', s.mate.to ? s.t * 0.7 : s.t, s.mate.to ? s.mate.to.x < s.mate.x : busyAt(mate()) && ST[live.workers[mate()]].x < s.mate.x); tool(mate(), s.mate); }]);
-        things.push([s.me.y, () => { K.hero(who, s.me.x, s.me.y - bob(who), s.lost ? 'dizzy' : s.me.to ? 'run' : 'stand', s.me.to ? s.t * 0.7 : s.t, s.me.to ? s.me.to.x < s.me.x : busyAt(who) && ST[live.workers[who]].x < s.me.x); tool(who, s.me); }]);
+        const depth = (w, b) => { const c = busyAt(w) && live.cust.find((q) => q.at === live.workers[w]), p = c && where(c); return p ? Math.max(b.y, (p.how === 'back' ? BACK + 25 : p.y) + 0.5) : b.y; };
+        if (mateHere()) things.push([depth(mate(), s.mate), () => kid(mate(), s.mate, 0.3)]);
+        things.push([depth(who, s.me), () => kid(who, s.me, 0)]);
         things.sort((a, b) => a[0] - b[0]).forEach(([, f]) => f());
         // How far the work has got, on top of everyone: a card with the job and a thick bar filling smoothly, with arrows
         // running through it while the work goes quicker (Pracuj held, or both at it). Left alone, the card rises and
