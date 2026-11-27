@@ -2646,7 +2646,7 @@
     })();
     const s = { t: 0, over: false, lost: false, hit: [-9, -9, -9, -9], no: [-9, -9, -9, -9], bad: -9, badPad: -1, badDot: -1, sent: new Map(), block: false,
       shownAt: 0, sounded: -1, cued: sn.listenAt <= Net.now() ? sn.listenAt : 0, seen: sn.n, round: sn.round, joy: -9, alan: -9, kit: [-9, -9, -9, -9],
-      cheer: -9, jump: -9, told: {}, waveX: null, wave: -9, spark: null, tapAt: 0, say: null, help: null, party: 0, fill: -1, endIn: 0, parts: [], notes: [] };
+      cheer: -9, jump: -9, sad: -9, told: {}, waveX: null, wave: -9, spark: null, tapAt: 0, say: null, help: null, party: 0, fill: -1, endIn: 0, parts: [], notes: [] };
     let live = sn, shownLives = -1, shownTip = null;
     const view = stage('<span class="lives"></span><span class="meter"><i></i></span>', '');
     view.tip.classList.add('up');
@@ -2697,8 +2697,8 @@
     const unshout = () => K.ui.querySelectorAll('.praise').forEach((e) => e.remove());
     const shout = (text) => { unshout(); cheer(text); };                                  // big words never pile up on each other
     const slip = (p, i) => { unshout(); s.bad = s.t; s.badPad = p; s.badDot = i; beep(150, 110); say('Vedle! Poslouchej znovu.', 1.6); };
-    const refuse = (p, text) => { s.no[p] = s.t; wait(who); tell('no'); beep(140); say(text, 1.2); };   // not now: a shake and why, never nothing
-    const tell = (k) => { if (s.t - (s.told[k] || -9) > 0.35) { s.told[k] = s.t; Net.send({ type: 'fx', k }); } };   // for the other phone: how this hero reacts
+    const refuse = (p, text, to) => { s.no[p] = s.t; wait(who, to); tell('no', to); beep(140); say(text, 1.2); };   // not now: a shake and why, never nothing
+    const tell = (k, to) => { if (s.t - (s.told[k] || -9) > 0.35) { s.told[k] = s.t; Net.send({ type: 'fx', k, to }); } };   // for the other phone: how this hero reacts
     const finish = () => {
       const won = !s.lost, two = mateHere();
       view.end(won, won ? 'Sedí to!' : two ? 'Rozhodilo vás to.' : 'Rozhodilo tě to.', won ? (two ? 'Rytmus máte v ruce.' : 'Rytmus máš v ruce.') : two ? 'Zkuste to ještě jednou.' : 'Zkus to ještě jednou.');
@@ -2723,18 +2723,19 @@
     // A stroke, the moment the pad is touched (on the other phone when the room tells it): 40 ms the sticks up, until
     // 160 ms the hit (a stick on the drum's head, the drum dips, flashes in its pad's colour, throws sparks; the bass
     // drum is kicked; the cymbal is struck from below and shivers), back to rest by 280 ms; a slip then shrugs, oops.
-    // A drum on the other side is turned to for the stroke.
+    // A drum on the other side is turned to for the stroke (and the hero turns back after it). A tap that has to wait
+    // points at whom to wait for: up at Alan while he plays, across at the other one on their turn.
     const F = 208, side = (w) => (!mateHere() || w === 'ken' ? -1 : 1);
     const spot = (w) => W / 2 + side(w) * 46, face = (w) => (side(w) > 0 ? -1 : 1);     // where each stands, and which way they look (1: right)
     const kitOf = (w) => (mateHere() ? (w === 'ken' ? [0, 1] : [2, 3]) : [0, 1, 2, 3]);
     const behind = (p) => p === 3 || (p === 2 && !mateHere());
     const drumX = (w, p) => { const d = face(w); return spot(w) + (p === 0 ? d * 12 : p === 3 ? -d * (K.hand(w, 'drum', 0).x + 5) : (behind(p) ? -d : d) * 13); };
-    const kid = { ken: { at: -9, p: 0, k: 0, bad: false, no: -9, tip: -9, spark: -9 }, kel: { at: -9, p: 0, k: 0, bad: false, no: -9, tip: -9, spark: -9 } };
+    const kid = { ken: { at: -9, p: 0, k: 0, bad: false, no: -9, to: 'alan', tip: -9, spark: -9 }, kel: { at: -9, p: 0, k: 0, bad: false, no: -9, to: 'alan', tip: -9, spark: -9 } };
     const hit = (w, p, ok) => {                                                         // a stroke by w on pad p
       const h = kid[w]; h.at = s.t - h.at < 0.28 ? s.t - 0.04 : s.t;                     // during one: straight to the hit, so quick tapping keeps up
       h.p = p; h.k = 1 - h.k; h.bad = !ok; s.kit[p] = h.at + 0.04;                     // hands take turns; the drum is hit at 40 ms
     };
-    const wait = (w) => { kid[w].no = s.t; s.jump = s.t; };                                 // not now: a look at whom to wait for, and the arrow jumps
+    const wait = (w, to) => { kid[w].no = s.t; kid[w].to = to === 'mate' ? 'mate' : 'alan'; s.jump = s.t; };   // not now: pointing at whom to wait for, and the arrow jumps
     // The pictures from the strahov sheet, and the tom, also as a silhouette in a colour: the flash of a drum struck
     const SHEET = new Image(); SHEET.src = K.asset(`assets/sprites/${(K.sprites.strahov || {}).file || 'strahov.png'}`);
     const tints = {};
@@ -2796,8 +2797,16 @@
         clipY(0, top + 10, () => { piece('tom', x, top + 12, 0.5); if (flash(a)) piece('tom', x, top + 12, 0.5, PADS[1].c, flash(a)); });
       }
     };
-    // Twirling drumsticks over a raised fist (when they cheer)
-    const twirl = (x, y, t) => { if (!K.has('strahov', 'sticks')) return; ctx.save(); ctx.translate(Math.round(x), Math.round(y)); ctx.rotate(t * 14); K.figure('strahov', 0, 5, 'sticks', 0, false, 0.2); ctx.restore(); };
+    // A drumstick in a hand at (x, y) that the pose has drawn empty: a line of half-pixel steps (ax, ay), from step j0 to
+    // j1 (negative: behind the hand), light wood edged darker like the drawn ones. When they cheer, one twirls about its
+    // middle in each raised fist.
+    const stick = (x, y, ax, ay, j0, j1) => {
+      for (const [c, k] of [['#B8783A', 1], ['#F7C37B', 0.5]]) { ctx.fillStyle = c; for (let j = j0; j <= j1; j++) ctx.fillRect(Math.round((x + ax * j) * 2) / 2, Math.round((y + ay * j) * 2) / 2, k, k); }
+    };
+    const twirl = (x, y, t) => stick(x, y, Math.cos(t * 14) * 0.5, Math.sin(t * 14) * 0.5, -6, 6);
+    // Pointing (up at Alan, across at the other one): a stick along the finger, the other in the back fist (measured on
+    // the drawn frames like K.hand, facing right); the drums lowered at the pads: both sticks down from the hands.
+    const POINT = [[0.36, -0.35], [0.5, 0]], BACK = { ken: [[-5, -26], [-6, -24]], kel: [[-8, -15], [-6, -15]] };
     // The hero, as a stroke, a slip, a refusal or the beat has them now (the kit is drawn after, in front of the legs)
     const body = (w, x, y, pose, f, flip, sx, sy) => {
       if (sx === 1 && sy === 1) return K.hero(w, x, y, pose, f, flip);
@@ -2816,30 +2825,46 @@
         if (h.bad && u >= 0.15) {                                                         // oops: a shrug, the head shaken three times, a drop of sweat
           pose = K.pose(w, 'shrug', 'stand'); f = K.frame(0); y = F;
           x = hx + [1, -1, 1, -1, 1, -1][Math.min(5, Math.floor((u - 0.15) / 0.075))]; sweat = u - 0.15;
-        } else if (u < 0.04) { pose = 'drum'; f = K.frame(0); y = F - 1; flip = back ? d > 0 : d < 0; }     // the sticks up
-        else if (u < 0.16) {
-          flip = back ? d > 0 : d < 0; y = F;
-          if (p === 0) { pose = 'drum'; f = K.frame(0); y = F + 1; }                                       // the kick: down 1 px
-          else if (p === 3) { pose = 'drum'; f = K.frame(0); x = hx + (flip ? -1 : 1); }                   // the cymbal: struck from below
-          else {                                                                                           // the snare or the tom: the stick on its head
-            const hasHit = K.has(w, 'drumhit'); pose = hasHit ? 'drumhit' : 'drum'; f = K.frame(hasHit ? h.k : 1); sx = 1.05; sy = 0.95;
-            const tip = K.hand(w, pose, hasHit ? h.k : 1, flip), c = drumX(w, p) - hx, lean = tip.x * sx < c - 4 ? c - 4 - tip.x * sx : tip.x * sx > c + 4 ? c + 4 - tip.x * sx : 0;
-            x = hx + clamp(Math.round(lean), -5, 5);
-            if (h.spark !== h.at) {                                                                        // three sparks off the drum's head
-              h.spark = h.at;
-              for (let k = 0; k < 3; k++) s.parts.push({ x: x + tip.x * sx, y: F - 22, vx: (k - 1) * 45 + (Math.random() - 0.5) * 20, vy: -60 - Math.random() * 30, g: 520, life: 0.24, c: [PADS[p].c, '#FFF8E7', '#FFD43A'][k] });
+        } else {
+          flip = back ? d > 0 : d < 0;                                                    // a drum behind: turned to until the stroke is over
+          if (u < 0.04) { pose = 'drum'; f = K.frame(0); y = F - 3; }                    // the wind-up: the sticks up, higher than ready
+          else if (u < 0.16) {
+            y = F;
+            if (p === 3) { pose = 'drum'; f = K.frame(0); x = hx + (flip ? -1 : 1); }   // the cymbal: struck from below
+            else {                                       // the snare or the tom: the stick on its head; the kick: the same crouch, a stamp (the front foot on the pedal behind the bass drum)
+              const hasHit = K.has(w, 'drumhit'), k = !hasHit ? 1 : w === 'kel' ? 0 : h.k;   // Kendrick's hands take turns; Kellyn's other frame strikes behind her
+              pose = hasHit ? 'drumhit' : 'drum'; f = K.frame(k); sx = 1.05; sy = 0.95;
+              if (p === 0) y = F + 1;
+              else {
+                const tip = K.hand(w, pose, k, flip), c = drumX(w, p) - hx, lean = tip.x * sx < c - 4 ? c - 4 - tip.x * sx : tip.x * sx > c + 4 ? c + 4 - tip.x * sx : 0;
+                x = hx + clamp(Math.round(lean), -5, 5);
+                if (h.spark !== h.at) {                                                   // three sparks off the drum's head
+                  h.spark = h.at;
+                  for (let j = 0; j < 3; j++) s.parts.push({ x: x + tip.x * sx, y: F - 22, vx: (j - 1) * 45 + (Math.random() - 0.5) * 20, vy: -60 - Math.random() * 30, g: 520, life: 0.24, c: [PADS[p].c, '#FFF8E7', '#FFD43A'][j] });
+                }
+              }
             }
-          }
-        } else { pose = 'drum'; f = K.frame(0); y = F; }                                  // back to rest
+          } else { pose = 'drum'; f = K.frame(0); y = F; }                                // the follow-through, back to rest
+        }
       }
-      else if (s.t - h.no < 0.4) { pose = 'drum'; f = K.frame(1); y = F + (Math.floor((s.t - h.no) / 0.1) % 2); }   // wait: looking at whom to wait for, a bob
-      else if (s.t - h.tip < 0.4) { pose = 'drum'; f = K.frame(1); y = F + 1; }          // the drums are down there: the sticks tipped at them
+      else if (s.t - h.no < 0.4) {                                                       // wait: pointing at whom to wait for, with a hop
+        const v = s.t - h.no; pose = K.pose(w, 'point', 'drum'); f = K.frame(h.to === 'mate' ? 1 : 0);
+        y = F - (v < 0.24 ? Math.round(Math.sin((v / 0.24) * Math.PI) * 3) : 0);
+      }
+      else if (s.t - h.tip < 0.4) { pose = K.pose(w, 'stand', 'drum'); f = K.frame(0); y = F + 1; }   // the drums are down there: the sticks lowered at them
       else if (turn === w) { f = K.frame(0); y = F - 1; }                                // your turn: the sticks up, ready
       body(w, x, y, pose, f, flip, sx, sy);
-      if (cheer >= 0) for (let k = 0; k < 2; k++) { const p = K.hand(w, 'cheer', k, flip); twirl(x + p.x, y + p.y - 3, cheer + k * 0.3); }
+      const dir = flip ? -1 : 1;
+      if (cheer >= 0) for (let k = 0; k < 2; k++) { const p = K.hand(w, 'cheer', k, flip); twirl(x + p.x, y + p.y - 1, cheer + k * 0.3); }
+      if (pose === 'point') {
+        const k = h.to === 'mate' ? 1 : 0, p = K.hand(w, 'point', k, flip), b = BACK[w][k];
+        stick(x + p.x, y + p.y, dir * POINT[k][0], POINT[k][1], -3, 9);
+        stick(x + dir * b[0], y + b[1], dir * (w === 'kel' ? -0.2 : -0.15), w === 'kel' ? 0.45 : -0.48, -1, 11);
+      }
+      if (pose === 'stand') { const p = K.hand(w, 'stand', 0, flip); stick(x + p.x, y + p.y, dir * 0.34, 0.37, -1, 12); stick(x + p.x - dir, y + p.y, dir * 0.2, 0.46, -1, 12); }
       if (pose === 'shrug') for (const b of [1, -1]) {                                   // the sticks still in the open hands
         const p = K.hand(w, 'shrug', 0, flip), hx0 = x + p.x * b + (b < 0 ? (flip ? -1 : 1) : 0), hy0 = y + p.y + (b < 0 ? 1 : 0);
-        ctx.fillStyle = '#C98A45'; for (let j = 0; j < 9; j++) ctx.fillRect(Math.round((hx0 + Math.sign(p.x) * b * j * 0.45) * 2) / 2, Math.round((hy0 - 1 - j * 0.35) * 2) / 2, 1, 1);
+        stick(hx0, hy0 - 1, Math.sign(p.x) * b * 0.45, -0.35, 0, 8);
       }
       if (sweat >= 0) { const dx = Math.round(x + d * 9), dy = Math.round(F - 46 + sweat * 9); rect(dx, dy, 2, 2, '#7FC8F8'); rect(dx, dy, 1, 1, '#E8F7FF'); }   // a drop of sweat
       kitDraw(w);
@@ -2864,21 +2889,21 @@
         live = n; paint();
       },
       over(won) {
-        s.over = true; s.lost = !won; paint();
+        s.over = true; s.lost = !won; if (!won) s.sad = s.t; paint();
         if (won) { s.party = s.t; s.endIn = 1.7; shout('Bravo!'); } else s.endIn = 0.9;     // a moment to see it, then the card
       },
-      fx(m) { const w = m.from || mate(); if (m.k === 'no') wait(w); if (m.k === 'tip') kid[w].tip = s.t; },
+      fx(m) { const w = m.from || mate(); if (m.k === 'no') wait(w, m.to); if (m.k === 'tip') kid[w].tip = s.t; },
       down(x, y) {
         if (s.over) return;
         if (y < BAND) {                                                                   // the drums in the picture are only a picture
-          if (listening()) { wait(who); tell('no'); return say('Nejdřív poslouchej!'); }
+          if (listening()) { wait(who, 'alan'); tell('no', 'alan'); return say('Nejdřív poslouchej!'); }
           kid[who].tip = s.t; tell('tip'); s.wave = s.t; s.waveX = spot(who); beep(300); return say('Bubny jsou dole!');   // the sticks point down, a ripple from here
         }
         const p = clamp(Math.floor(x / PW), 0, 3);
-        if (listening() || s.block) return refuse(p, 'Nejdřív poslouchej!');
-        if (!mine(p)) return refuse(p, `Ten má ${heroName(padOwner(p))}`);
-        const i = myNext();
-        if (i < 0 || nextUp() !== i) return refuse(p, nextUp() >= 0 && mateHere() ? `Teď hraje ${heroName(mate())}` : 'Počkej chvilku');   // all played: the room is about to answer
+        if (listening() || s.block) return refuse(p, 'Nejdřív poslouchej!', 'alan');
+        if (!mine(p)) return refuse(p, `Ten má ${heroName(padOwner(p))}`, 'mate');
+        const i = myNext(), theirs = nextUp() >= 0 && mateHere();
+        if (i < 0 || nextUp() !== i) return refuse(p, theirs ? `Teď hraje ${heroName(mate())}` : 'Počkej chvilku', theirs ? 'mate' : 'alan');   // all played: the room is about to answer
         strike(p); hit(who, p, p === live.pattern[i]);
         Net.send({ type: 'ev', e: 'pad', p, i, a: live.attempt, at: Net.now() });           // which stroke it is meant for, so the order it arrives in does not matter
         if (p === live.pattern[i]) { s.sent.set(i, s.t); s.tapAt = Net.now(); if (nextUp() < 0) s.cheer = s.t; }   // the round's last stroke: a cheer at once
@@ -2892,7 +2917,7 @@
         if (s.block && s.t - s.bad > 3) s.block = false;
         if (s.party) {                                                                    // won: a little drum fill and confetti
           const u = s.t - s.party, k = Math.floor(u / 0.13);
-          if (k > s.fill && k < 6) { s.fill = k; strike([0, 1, 2, 1, 2, 3][k]); }
+          if (k > s.fill && k < 6) { s.fill = k; const q = [0, 1, 2, 1, 2, 3][k]; strike(q); s.kit[q] = s.t; }   // on the pads and the heroes' own drums
           if (u < 1.3) for (let j = 0; j < 2; j++) s.parts.push({ x: Math.random() * W, y: 24, vx: (Math.random() - 0.5) * 30, vy: 20 + Math.random() * 40, g: 30, life: 1.8, c: PADS[j + Math.floor(Math.random() * 3)].c });
         }
         if (s.endIn > 0 && (s.endIn -= dt) <= 0) finish();
@@ -2911,11 +2936,13 @@
         K.background(sc.bg, 0, place.look);
         const two = mateHere(), up = s.over ? -1 : nextUp(), turn = up >= 0 && !listening() && !s.block ? owner(up) : null, hint = turn && hinted(up) ? live.pattern[up] : -1;
         // Alan at his drum kit: a stroke of his showing is 120 ms of the hit, a round won or the party a hop for joy, a slip
-        // a shake of the head before he plays it again. (Without the kit's picture: Alan dipping over his drum.)
+        // a shake of the head before he plays it again, the game lost his sticks down and a slower shake. (Without the
+        // kit's picture: Alan dipping over his drum.)
         const joyAt = s.party || (s.t - s.joy < 0.9 ? s.joy : 0), hop = joyAt ? -Math.round(Math.abs(Math.sin((s.t - joyAt) * 7)) * 5) : 0;
         if (K.has('band', 'kit1') && (sc.cast || []).includes('alan')) {
-          const no = s.t - s.bad < 0.4 && !joyAt ? (Math.floor((s.t - s.bad) * 20) % 2 ? 1 : -1) : 0;
-          K.figure('band', W / 2 + no, F + (joyAt ? Math.round(hop * 0.4) : 0), joyAt ? 'kitjoy' : s.t - s.alan < 0.12 ? 'kit2' : 'kit1', 0, false, 0.42);
+          const sad = s.lost ? s.t - s.sad : -1;
+          const no = sad >= 0 ? (sad < 0.8 ? (Math.floor(sad * 7) % 2 ? 1 : -1) : 0) : s.t - s.bad < 0.4 && !joyAt ? (Math.floor((s.t - s.bad) * 20) % 2 ? 1 : -1) : 0;
+          K.figure('band', W / 2 + no, F + (joyAt ? Math.round(hop * 0.4) : sad >= 0 ? 1 : 0), joyAt ? 'kitjoy' : sad >= 0 || s.t - s.alan < 0.12 ? 'kit2' : 'kit1', 0, false, 0.42);
         } else {
           const showing = listening() && Net.now() > live.showAt - 500;
           (sc.cast || []).forEach((id, k) => K.figure(id, W / 2 + k * 26, 206 + hop + (s.t - s.alan < 0.1 ? 2 : 0), joyAt ? 'joy' : showing ? 'act' : 'three', s.t));
