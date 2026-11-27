@@ -226,7 +226,11 @@ window.WORLD = {
           talk: [['', 'Cesta vede buší. Ve stromech se něco hýbe…'], ['hero', 'Koaly! Najdeme je všechny.']] },
         // From here on they are found: stranded on the rock, waving.
         { id: 'australia-reef', name: 'Žraločí útes', at: [147, 63], label: 'left', bg: 'australia-reef', play: 'rescue', code: 'ZRALOK', ground: 246, cast: ['sami', 'zofia'],
-          rescue: { hits: 3, pull: 45, seconds: 14, land: { x: 92, y: 140, w: 18 }, green: [0.18, 0.44], jetty: 206 },
+          // hits: buoys to land on the rock (half as many again for two); lives: buoys each may lose, alone and with two;
+          // swing: how fast the needle goes (a share of the meter a second), at the first throw and at the last; lunge: seconds
+          // between the shark's dashes at the jetty; pull: taps to bring the raft over (four fifths more for two), in `seconds`,
+          // while the shark drags it back at `drain` taps a second now and then. green: where the needle sends a buoy into the ring (land.x ± land.w).
+          rescue: { hits: 4, lives: [4, 3], swing: [0.5, 0.95], lunge: [8, 11], pull: 36, seconds: 24, drain: 3, land: { x: 92, y: 140, w: 18 }, green: [0.18, 0.44], jetty: 206 },
           talk: [['', 'Támhle někdo mává! Na skále uprostřed moře, a kolem krouží žralok.'], ['hero', 'Hodíme jim záchranné kruhy!']] },
         // After the rescue: Sami is an architect, and his house in Sydney is waiting to be built.
         { id: 'australia-sydney', name: 'Sydney', at: [98, 228], label: 'left', bg: 'australia-sydney', play: 'tower', code: 'JERAB', cast: ['sami', 'zofia'],

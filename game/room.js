@@ -147,6 +147,24 @@
     sway(t, n) { return (4 + n * 1.5) * Math.sin(t * (1.4 + n * 0.08)) + course.wind(t, n); },
     wind(t, n) { return n >= 7 ? (n - 6) * 2.4 * Math.sin(t * 0.35 + 1) : 0; },
     slack(base, n) { return Math.max(8, base - n * 0.5); },
+    // The shark at the reef, the same on both phones. During the throws it circles and now and then dashes at the jetty
+    // (`lunges`, seconds into the game; a buoy thrown just then is knocked away): only once a buoy has been caught,
+    // and more often for the last one (`late`). During the pull it bites the raft and drags it back (`surges`,
+    // seconds after the pull starts, each `len` long), the last one longest; `drain` is how fast it drags, in taps a second.
+    rescue(seed, sc, two) {
+      const cfg = sc.rescue, r = rng(seed), lunges = [], surges = [];
+      for (let at = 5 + r() * 2; at < 600; at += cfg.lunge[0] + r() * (cfg.lunge[1] - cfg.lunge[0])) {
+        lunges.push({ at, late: false });
+        lunges.push({ at: at + cfg.lunge[0] / 2, late: true });                       // in between, only for the last buoy
+      }
+      for (let at = 4.5 + r() * 1.5; at < cfg.seconds - 4; at += 5.5 + r() * 1.5) surges.push({ at, len: 2.2 });
+      if (surges.length) surges[surges.length - 1].len = 3;                              // the finale: the longest tug
+      return { lunges, surges, drain: cfg.drain * (two ? 1.2 : 1) };
+    },
+    // How far the shark has dragged the raft back between two moments (ms of the room's clock), with the pull begun at `from`.
+    dragged(plan, from, a, b) {
+      return plan.surges.reduce((sum, q) => sum + Math.max(0, Math.min(b, from + (q.at + q.len) * 1000) - Math.max(a, from + q.at * 1000)), 0) / 1000 * plan.drain;
+    },
     // Padlocks: on the picture's spots, never two on one spot at the same time (or anywhere, for a picture without spots).
     // The first one (with two, one each) waits until it is shot, so nobody loses before they have found out what to do;
     // the rest come `after` seconds after the first one opens. The first of them come slowly; then they come quicker
@@ -246,7 +264,10 @@
         Object.assign(sn, { two, got: [], stung: [], paid: [], cost: { ken: 0, kel: 0 }, have: 0, at: {}, lifted: false, need, bigPart: Math.round(need * ((sc.collect.big && sc.collect.big.part) || 0)), lives: two ? 4 : 3, tideAt: null });
       }
       if (sc.play === 'tower') Object.assign(sn, { floors: [96], crane: 96, need: Math.round(sc.tower.need * (two ? 1.3 : 1)), lives: two ? 5 : 4, n: 0, last: null, busyUntil: 0, endAt: 0, endPhase: null, holding: false, lifts: 0 });
-      if (sc.play === 'rescue') Object.assign(sn, { stage: 'throw', hits: 0, needHits: sc.rescue.hits * (two ? 2 : 1), lives: two ? 4 : 3, pull: 0, needPull: Math.round(sc.rescue.pull * (two ? 2 : 1)), pullAt: 0 });
+      // the reef: each has lifebuoys of their own to lose (`left`), so one who runs out leaves the throwing to the other;
+      // `lives` is all of them together. The pull: `tugs` counts each one's taps, `pull` how far the raft has come by `pullT`.
+      if (sc.play === 'rescue') { const n = sc.rescue.lives[two ? 1 : 0]; Object.assign(sn, { two, stage: 'throw', hits: 0, needHits: Math.round(sc.rescue.hits * (two ? 1.5 : 1)), left: { ken: n, kel: n }, lives: two ? 2 * n : n, misses: 0,
+        pull: 0, pullAt: 0, pullT: 0, needPull: Math.round(sc.rescue.pull * (two ? 1.8 : 1)), tugs: { ken: 0, kel: 0 }, tugAt: { ken: 0, kel: 0 }, lastTug: null, lastTugAt: 0, turns: 0, combo: 0, comboAt: 0 }); }
       if (sc.play === 'salon') Object.assign(sn, { lives: two ? 4 : 3, need: Math.round(sc.salon.need * (two ? 1.6 : 1)), served: 0, coins: 0, cust: [], next: 0, tt: 0, workers: { ken: null, kel: null } });
       // the flat: every piece in the heap, nobody holding anything; two get a fifth more time before night
       if (sc.play === 'flat') Object.assign(sn, { seconds: Math.round(sc.flat.seconds * (two ? 1.2 : 1)), no: null, wonAt: 0,
@@ -368,6 +389,7 @@
       if (k === 'drums') return sn.hits >= sn.marks[2] ? 3 : sn.hits >= sn.marks[1] ? 2 : 1;   // how much of the whole song they played, the two of them
       if (k === 'flat') { const u = ((sn.wonAt || now()) - sn.startAt) / 1000 / sn.seconds; return u <= 0.5 ? 3 : u <= 0.8 ? 2 : 1; }   // how much daylight was left
       if (k === 'echo') return by(sn.misses + sn.hints, sn.two ? 4 : 3);                // slips, and strokes played only once the drum was shown
+      if (k === 'rescue') return by(sn.misses, Math.floor(sn.maxLives / 2));               // buoys handed back do not undo a miss
       if (sn.maxLives) return by(sn.maxLives - sn.lives, Math.floor(sn.maxLives / 2));
       return 3;
     }
@@ -519,10 +541,34 @@
           else if (sn.lives <= 0) { sn.endAt = now() + 1000; sn.endPhase = 'lost'; }
         }
       }
+      // The reef. A caught buoy counts for both; a lost one (in the sea, or knocked away by the shark) is the thrower's
+      // own, and the scene is lost only when nobody has one left. A catch hands a buoy back to a partner who has none.
       if (kind === 'rescue') {
-        if (sn.stage === 'throw' && m.e === 'hit') { if (++sn.hits >= sn.needHits) { sn.stage = 'pull'; sn.pullAt = now() + 2400; } }   // 3, 2, 1, pull!
-        if (sn.stage === 'throw' && m.e === 'miss') { if (--sn.lives <= 0) sn.phase = 'lost'; }
-        if (sn.stage === 'pull' && m.e === 'pull' && now() >= sn.pullAt) { sn.pull += clamp(m.n | 0, 0, 12); if (sn.pull >= sn.needPull) sn.phase = 'won'; }
+        const other = who === 'ken' ? 'kel' : 'ken';
+        if (sn.stage === 'throw' && m.e === 'hit' && sn.left[who] > 0) {
+          if (sn.two && sn.left[other] <= 0) { sn.left[other] = 1; sn.lives++; }
+          if (++sn.hits >= sn.needHits) { sn.stage = 'pull'; sn.pullAt = now() + 2400; sn.pullT = sn.pullAt; sn.tugAt = { ken: sn.pullAt, kel: sn.pullAt }; }   // 3, 2, 1, pull!
+        }
+        if (sn.stage === 'throw' && m.e === 'miss' && sn.left[who] > 0) { sn.left[who]--; sn.misses++; if (--sn.lives <= 0) sn.phase = 'lost'; }
+        if (sn.stage === 'pull' && m.e === 'pull' && now() >= sn.pullAt) {
+          const n = clamp(m.n | 0, 0, 12), plan = course.rescue(sn.seed, sc, sn.two);
+          sn.pull = Math.max(0, sn.pull - course.dragged(plan, sn.pullAt, sn.pullT, now())); sn.pullT = now();   // what the shark took back since
+          // one pulling while the other has let go of the rope: the longer since the other's last tap (from 0.4 s to
+          // 1.2 s), the more each tap counts, up to as much as for one player alone; so a partner who wanders off, or
+          // taps only now and then, never makes it harder than playing alone
+          const idle = (now() - sn.tugAt[other]) / 1000, k = sn.two ? 1 + (sn.needPull / sc.rescue.pull - 1) * clamp((idle - 0.4) / 0.8, 0, 1) : 1;
+          sn.tugs[who] += n; sn.pull += n * k;
+          // pulling in turn (hej, rup!): a turn is a single tap that takes the rope over from the other, 0.18 s to a second
+          // after their tug (two hammering away at once mostly tap over each other or twice in a row, which starts it
+          // again); from the third turn in a row on (one, two, one, two), each turn is one tug more (at most one every 0.3 s)
+          if (sn.two && n) {
+            const gap = now() - sn.lastTugAt;
+            sn.turns = n === 1 && sn.lastTug === other && gap >= 180 && gap < 1000 ? sn.turns + 1 : 0;
+            if (sn.turns >= 3 && now() - sn.comboAt >= 300) { sn.pull++; sn.combo = (now() - sn.comboAt < 1200 ? sn.combo : 0) + 1; sn.comboAt = now(); }
+          }
+          if (n) { sn.lastTug = who; sn.lastTugAt = now(); sn.tugAt[who] = now(); }
+          if (sn.pull >= sn.needPull) sn.phase = 'won';
+        }
       }
       // Moving in: a piece is taken (a free one, one at a time; the phone says so every second or so while it holds it),
       // let go (back to the heap, or, when the phone says `park`, left standing at its place the wrong way round, for
@@ -587,7 +633,7 @@
       // A pause stops the game's clock: on carrying on, every moment the game keeps is moved on by the pause.
       if (m.type === 'pause') { if (sn && sn.phase === 'play' && !sn.paused) { sn.paused = now(); sn.pausedBy = who; } }
       else if (m.type === 'resume') {
-        if (sn && sn.paused) { const d = now() - sn.paused; for (const k of ['startAt', 'busyUntil', 'hideAt', 'pullAt', 'power', 'showAt', 'listenAt', 'endAt', 'finAt']) if (sn[k]) sn[k] += d; sn.paused = 0; }
+        if (sn && sn.paused) { const d = now() - sn.paused; for (const k of ['startAt', 'busyUntil', 'hideAt', 'pullAt', 'pullT', 'power', 'showAt', 'listenAt', 'endAt', 'finAt']) if (sn[k]) sn[k] += d; sn.paused = 0; }
       }
       // A save code typed in (see game.js): how far they had got, added to what is here.
       else if (m.type === 'load' && m.places && typeof m.places === 'object') merge({ places: m.places, round: S.save.round });
