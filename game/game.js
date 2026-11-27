@@ -363,7 +363,7 @@
         const card = add(`<div class="card"><h2>${esc(sc.name)}</h2><p>Tahle část se teprve staví.</p><button class="btn">Dál</button></div>`);
         card.querySelector('button').addEventListener('click', () => { beep(520, 660); Net.send({ type: 'done' }); });
       }
-      if (sn.phase === 'play' && !act) act = { run: Runner, platform: Platform, drums: Drums, shoot: Shoot, echo: Echo, find: Find, salon: Salon, memory: Memory, collect: Collect, rescue: Rescue, tower: Tower }[sc.play](sc, place, sn);
+      if (sn.phase === 'play' && !act) act = { run: Runner, platform: Platform, drums: Drums, shoot: Shoot, echo: Echo, find: Find, salon: Salon, memory: Memory, collect: Collect, rescue: Rescue, tower: Tower, flat: Flat }[sc.play](sc, place, sn);
       if (act) act.sync(sn);
       if (act && (sn.phase === 'won' || sn.phase === 'lost') && was !== sn.phase) act.over(sn.phase === 'won');
       const held = K.ui.querySelector('.card.pause');
@@ -387,6 +387,7 @@
       get act() { return act; },
       down(x, y) { if (act && sn.phase === 'play' && !sn.paused) act.down(x, y); },      // games answer the moment a finger lands, not when it lifts
       move(x, y, dx) { if (act && act.move && !sn.paused) act.move(x, y, dx); },
+      up(x, y, tapped) { if (act && act.up) act.up(x, y, tapped); },                   // always heard, paused or not: whatever is held is let go
       tap(x, y) { if (act && act.tap) { if (!sn.paused) act.tap(x, y); } else if (!act && box) box.click(); },
       update(dt) {
         t += dt; if (act && !sn.paused) act.update(dt);                                   // paused: everything stands still
@@ -1904,6 +1905,447 @@
     };
   }
 
+  // Moving in (Byt). The flat is seen like a dollhouse: the bedroom above, the living room below. What was found on the
+  // kerb waits in a heap on a moving blanket along the bottom. Take a piece and it hops up above the finger and grows to
+  // its real size; its place lights up (a faint dashed silhouette of it, with an arrow over it), and near it the piece
+  // is drawn in: let go and it drops into place with a thud and a puff of dust. Let go anywhere else and it slides back
+  // to the heap. A tap turns a piece round: the bed and the plant must face the way their silhouettes do (left at their
+  // place the wrong way round, they wait there for a tap). The rug goes down first, for the sofa and the table to stand
+  // on. All the while the sun goes down in the windows and the rooms grow dim; the lamp, once it stands, lights the
+  // living room. Everything in before night: the lights come on, and Sami and Žofia come in.
+  // With two, both drag at once, each on their own phone. A piece one of them holds has their colour on both phones and
+  // the other cannot take it; where it is being dragged is sent over a few times a second. The room says what counts.
+  const FLAT = {
+    COL: { ken: '#3E7BD6', kel: '#F0448F' },                                                   // Kendrick blue, Kellyn pink
+    look: (k, placed) => (k === 'rugroll' ? (placed ? ['kerb', 'rug'] : ['furniture', 'rugroll']) : k === 'bed' ? ['kerb', 'bed'] : ['furniture', k]),
+    size(k, placed) { const [a, b] = FLAT.look(k, placed), sp = K.sprites[a]; return (sp && sp.sizes && sp.sizes[b]) || [60, 60]; },
+    // a piece with its feet at (x, y): f < 0 turns it round, sx and sy squash it (a thud, a turn half done)
+    draw(k, placed, x, y, size, f, sx = 1, sy = 1) {
+      const [sheet, pose] = FLAT.look(k, placed); if (!K.has(sheet, pose)) return;
+      ctx.save(); ctx.translate(Math.round(x), Math.round(y)); ctx.scale((f < 0 ? -1 : 1) * sx, sy); K.figure(sheet, 0, 0, pose, 0, false, size); ctx.restore();
+    },
+    order: (a, b) => (b.k === 'rugroll') - (a.k === 'rugroll') || a.y - b.y,
+    // everything in its place, as the flat stands once they have moved in (the rug first, then from the back forward)
+    furnish(sc) {
+      Room.course.flat(1, sc).pieces.sort(FLAT.order).forEach((p) => FLAT.draw(p.k, true, p.x, p.y, p.size, p.face || 1));
+    },
+  };
+  // Little pictures drawn pixel by pixel: '#' ink, 'o' the fill colour.
+  function bits(rows, x, y, fill) {
+    rows.forEach((row, j) => { for (let i = 0; i < row.length; i++) if (row[i] !== '.') rect(Math.round(x) + i, Math.round(y) + j, 1, 1, row[i] === '#' ? INK : fill); });
+  }
+  const HAND = ['...##.......', '..#oo#......', '..#oo#......', '..#oo####...', '..#oo#oo####', '###oooooo#o#', '#o#oooooooo#', '#ooooooooo#.', '.#oooooooo#.', '..#ooooooo#.', '...#######..'];
+  const TURN = ['#############', '#ooo#ooooooo#', '#oo##ooooooo#', '#o#########o#', '#oo##ooooooo#', '#ooo#ooooooo#', '#ooooooo#ooo#', '#ooooooo##oo#', '#o#########o#', '#ooooooo##oo#', '#ooooooo#ooo#', '#############'];
+  const DOWN = ['#########', '#ooooooo#', '.#ooooo#.', '..#ooo#..', '...#o#...', '....#....'];
+
+  function Flat(sc, place, sn) {
+    const who = me(), L = Room.course.flat(sn.seed, sc), P = L.pieces, N = P.length, COL = FLAT.COL;
+    const SNAP = 18, CARRY = 6, ROOMS = 142;                     // SNAP: how near its place a piece drops in; CARRY: the finger holds it this far above its feet
+    const PANES = [[141, 16, 188, 100], [4, 148, 49, 226]];       // the window panes: the bedroom's on the right, the living room's on the left
+    const LAMP = P.findIndex((p) => p.k === 'lamp');
+    const NAME = { rugroll: 'koberec' };
+    // The heap, on a moving blanket along the bottom: in the order the seed chose, each piece shrunk to fit a box of
+    // 23 x 21 and packed from left to right, every other one a little further back.
+    const small = P.map((p) => { const [w, h] = FLAT.size(p.k, false); return Math.min(23 / w, 21 / h); });
+    const wide = (id) => FLAT.size(P[id].k, false)[0] * small[id];
+    const gap = (184 - L.order.reduce((a, id) => a + wide(id), 0)) / (N - 1), heap = [];
+    L.order.reduce((x, id, i) => { heap[id] = { x: x + wide(id) / 2, y: 283 - (i % 2 ? 0 : 3) }; return x + wide(id) + gap; }, 4);
+    let live = sn;
+    const s = { t: 0, over: false, lost: false, hold: null, quiet: 0, dust: [], rings: [], tipAt: 0, seenNo: sn.no ? sn.no.n : 0, keepAt: 0, sent: '', sentAt: 0, mate: null,
+      finale: 0, lit: 0, lampAt: -9, pulse: { id: -1, at: -9 }, dusk: false, tick: 0 };
+    // Each piece as this phone shows it: where its feet are, how big, which way round, and when its little animations began.
+    // `placed` and `park` are what this phone expects before the room has answered (the room has the last word).
+    const V = P.map((p, id) => ({ x: heap[id].x, y: heap[id].y, k: small[id], f: sn.pieces[id].f, lift: 0, placed: sn.pieces[id].done, park: !!sn.pieces[id].rest, pend: 0, back: false,
+      at: { grab: -9, thud: -9, flip: -9, shake: -9, wob: -9, unroll: -9 } }));
+    const view = stage('<span class="dots"></span><span class="sky"><i></i></span>', 'Táhni věci na jejich místo.');
+    view.tip.classList.add('up'); s.tipAt = 0.01;
+    const dots = view.hud.querySelector('.dots'), sun = view.hud.querySelector('.sky i');
+    dots.innerHTML = P.map(() => '<i></i>').join('');
+    const say = (text) => { view.tip.textContent = text; s.tipAt = s.t || 0.01; };
+    const q = (id) => live.pieces[id];
+    const placed = (id) => V[id].placed;
+    const ready = (id) => P[id].after < 0 || placed(P[id].after);
+    const fits = (id, f) => !P[id].face || P[id].face === f;
+    const mine = (id) => !!s.hold && s.hold.id === id;
+    const theirs = (id) => !mine(id) && !placed(id) && !!q(id).by && q(id).by !== who;
+    const parked = (id) => !placed(id) && !mine(id) && !theirs(id) && V[id].park;
+    const home = (id) => (placed(id) || parked(id) ? { x: P[id].x, y: P[id].y, k: P[id].size } : { x: heap[id].x, y: heap[id].y, k: small[id] });
+    const pulse = (id) => { s.pulse = { id, at: s.t }; };
+    const done = () => V.filter((v) => v.placed).length;
+    let painted = '';
+    function paint() {
+      const n = done(), u = clamp(s.t / live.seconds, 0, 1), late = !s.over && live.seconds - s.t < 15, key = `${n} ${Math.round(u * 200)} ${late}`;
+      if (key === painted) return; painted = key;                                                // the bar changes only now and then
+      dots.querySelectorAll('i').forEach((d, i) => d.classList.toggle('on', i < n));
+      sun.style.left = `${Math.round(u * 1000) / 10}%`; sun.classList.toggle('moon', u > 0.8); sun.parentNode.classList.toggle('late', late);
+    }
+    paint();
+
+    // ---- the evening: the sky in the windows, the light in the rooms ----
+    // Which pixels of the picture are sky (read from the picture once: light blue or white cloud inside the panes), and a
+    // few spots on the buildings and the bridge where lights come on at night.
+    let glass = null;
+    function readGlass(img) {
+      try {
+        const c = document.createElement('canvas'); c.width = W; c.height = H;
+        const g = c.getContext('2d'); g.drawImage(img, 0, 0);
+        const d = g.getImageData(0, 0, W, H).data, sky = g.createImageData(W, H), r = K.rng(5), stars = [], lights = [];
+        PANES.forEach(([x0, y0, x1, y1], pane) => {
+          for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
+            const i = (y * W + x) * 4, R = d[i], G = d[i + 1], B = d[i + 2];
+            if (B >= 248 && R >= 80 && G >= 190) { sky.data.set([255, 255, 255, 255], i); if (r() < 0.012) stars.push([x, y, r() * 6]); continue; }
+            const frame = R < 80 && G < 85 && B < 100, leaf = G > R + 15 && G > B;
+            const city = pane ? y > 168 && y < 214 : y > 49 && y < 63 && B > R + 30;             // the towers; the harbour bridge
+            if (!frame && !leaf && city && r() < 0.05) lights.push([x, y, r() * 6, r()]);
+          }
+        });
+        const mask = document.createElement('canvas'); mask.width = W; mask.height = H; mask.getContext('2d').putImageData(sky, 0, 0);
+        return { mask, stars, lights };
+      } catch (e) { return { mask: null, stars: [], lights: [] }; }               // a picture that cannot be read: the windows stay as they are
+    }
+    // Where the evening has got to, from 0 (the start) to 1 (night): the sky's colour at the top and at the horizon, how
+    // much it covers the day in the picture, and the light in the rooms (the rooms are multiplied by it).
+    const KEYS = [[0, '#8FD3F4', '#C5EAFB', 0, '#FFFFFF'], [0.4, '#7FC4EE', '#FFE2A8', 0.3, '#FFFFFF'], [0.62, '#E9875A', '#FFC46B', 0.85, '#FFE3CC'],
+      [0.82, '#5A3F7E', '#E06A5A', 0.93, '#C2B6DA'], [1, '#141A3C', '#2B2F5E', 0.97, '#8C90C8']];
+    const rgb = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+    const mix = (a, b, e) => (typeof a === 'string' ? rgb(a) : a).map((v, i) => Math.round(v + ((typeof b === 'string' ? rgb(b) : b)[i] - v) * e));
+    const css = (c) => `rgb(${c[0]},${c[1]},${c[2]})`;
+    function evening(u) {
+      let i = 0; while (i < KEYS.length - 2 && u > KEYS[i + 1][0]) i++;
+      const a = KEYS[i], b = KEYS[i + 1], e = clamp((u - a[0]) / (b[0] - a[0]), 0, 1);
+      return { top: mix(a[1], b[1], e), low: mix(a[2], b[2], e), cover: a[3] + (b[3] - a[3]) * e, room: mix(a[4], b[4], e) };
+    }
+    const layer = document.createElement('canvas'); layer.width = W; layer.height = H;
+    const lg = layer.getContext('2d');
+    // paint something into the panes only where the picture shows sky (behind the bridge, the towers and the frames)
+    function inSky(paint, alpha) {
+      if (!glass || !glass.mask) return;
+      lg.globalCompositeOperation = 'source-over'; lg.clearRect(0, 0, W, H); paint(lg);
+      lg.globalCompositeOperation = 'destination-in'; lg.drawImage(glass.mask, 0, 0);
+      ctx.save(); ctx.globalAlpha = alpha; ctx.drawImage(layer, 0, 0); ctx.restore();
+    }
+    const disc = (g, cx, cy, r, col) => { g.fillStyle = col; for (let dy = -r; dy <= r; dy++) { const w = Math.round(Math.sqrt(r * r - dy * dy)); g.fillRect(Math.round(cx) - w, Math.round(cy) + dy, 2 * w + 1, 1); } };
+    function sky(ev) {
+      // in bands four pixels high, darker at the top, as the sky is painted in the picture
+      inSky((g) => PANES.forEach(([x0, y0, x1, y1]) => { for (let y = y0; y < y1; y += 4) { g.fillStyle = css(mix(ev.top, ev.low, Math.min(1, (y - y0) / (y1 - y0 - 20)))); g.fillRect(x0, y, x1 - x0, 4); } }), ev.cover);
+    }
+    function sunAndStars(u) {
+      // the sun sinks in the bedroom window behind the bridge into the harbour; then the moon rises in the other one
+      if (u > 0.22 && u < 0.8) { const e = (u - 0.22) / 0.58; inSky((g) => { disc(g, 172, 24 + e * 50, 6, css(mix('#FFE45C', '#FF7A3A', e))); disc(g, 172, 24 + e * 50, 3, css(mix('#FFF6C0', '#FFB060', e))); }, 1); }
+      if (u > 0.72) { const e = clamp((u - 0.72) / 0.28, 0, 1); inSky((g) => { disc(g, 30, 206 - e * 40, 5, '#F4F0DC'); g.fillStyle = '#D8D2B8'; g.fillRect(28, 204 - e * 40, 2, 2); g.fillRect(32, 207 - e * 40, 2, 1); }, Math.min(1, e * 3)); }
+      const night = clamp((u - 0.7) / 0.25, 0, 1); if (!night || !glass) return;
+      for (const [x, y, ph] of glass.stars) if (Math.sin(s.t * 2 + ph) > -0.4) rect(x, y, 1, 1, `rgba(255,248,231,${night * 0.9})`);
+      for (const [x, y, ph, k] of glass.lights) if (k < night) rect(x, y, 1, 1, Math.sin(s.t * 1.3 + ph) > -0.8 ? '#FFD27A' : '#E0A84A');   // the city's lights come on one by one
+    }
+    // The rooms grow dim; the lamp, once it stands, lights the living room warmly; at the end every light is on.
+    const WARM = '#FFF0D8', LAMPLIT = '#FFE0B8';
+    function dim(u, ev) {
+      const lamp = placed(LAMP), night = clamp((u - 0.45) / 0.55, 0, 1);
+      const up = mix(ev.room, WARM, s.lit), down = mix(lamp ? mix(ev.room, LAMPLIT, 0.75) : ev.room, WARM, s.lit);
+      ctx.save(); ctx.globalCompositeOperation = 'multiply';
+      ctx.fillStyle = css(up); ctx.fillRect(0, 0, W, ROOMS); ctx.fillStyle = css(down); ctx.fillRect(0, ROOMS, W, H - ROOMS);
+      ctx.restore();
+      if (!lamp) return;
+      const p = P[LAMP], flash = clamp(1 - (s.t - s.lampAt) / 0.5, 0, 1), a = Math.max(0.25 + night * 0.75, s.lit) + flash;   // switched on: a bright moment
+      const cy = p.y - FLAT.size('lamp', true)[1] * p.size + 6;                                                  // the shade
+      ctx.save(); ctx.beginPath(); ctx.rect(0, ROOMS + 4, W, 282 - ROOMS - 4); ctx.clip(); ctx.globalCompositeOperation = 'lighter';
+      for (const [r, al] of [[52, 0.035], [36, 0.05], [22, 0.07], [11, 0.09]]) disc(ctx, p.x, cy, r, `rgba(255,178,92,${al * a})`);
+      ctx.restore();
+    }
+
+    // ---- the silhouettes: a piece's shape, filled, and a dashed line round it, one game pixel each like the picture ----
+    const sheets = {}, shapes = {};
+    const sheetImg = (name) => { if (!sheets[name]) { sheets[name] = new Image(); sheets[name].src = K.asset(`assets/sprites/${K.sprites[name].file}`); } return sheets[name]; };
+    function shape(k, size) {
+      const key = k + size; if (shapes[key]) return shapes[key];
+      const [sheet, pose] = FLAT.look(k, true), sp = K.sprites[sheet]; if (!sp) return null;
+      const img = sheetImg(sheet); if (!img.complete || !img.naturalWidth) return null;      // still loading: next time
+      const w = Math.ceil(sp.w * size), h = Math.ceil(sp.h * size), c = document.createElement('canvas'); c.width = w; c.height = h;
+      const g = c.getContext('2d'); g.imageSmoothingEnabled = false; g.drawImage(img, sp.poses[pose][0] * sp.w, 0, sp.w, sp.h, 0, 0, w, h);
+      const d = g.getImageData(0, 0, w, h).data, fill = g.createImageData(w, h), dash = g.createImageData(w, h);
+      const on = (x, y) => x >= 0 && y >= 0 && x < w && y < h && d[(y * w + x) * 4 + 3] > 110;
+      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+        if (!on(x, y)) continue;
+        fill.data.set([255, 255, 255, 255], (y * w + x) * 4);
+        if ((!on(x - 1, y) || !on(x + 1, y) || !on(x, y - 1) || !on(x, y + 1)) && ((x + y) >> 1) % 2 === 0) dash.data.set([255, 255, 255, 255], (y * w + x) * 4);
+      }
+      const canvas = (data) => { const e = document.createElement('canvas'); e.width = w; e.height = h; e.getContext('2d').putImageData(data, 0, 0); return e; };
+      return (shapes[key] = { fill: canvas(fill), dash: canvas(dash), ox: Math.floor(sp.w / 2) * size, oy: sp.h * size, top: FLAT.size(k, true)[1] * size });
+    }
+    const tmp = document.createElement('canvas'), tg = tmp.getContext('2d');
+    function stencil(c, col, alpha, sh, x, y, f) {                    // a shape drawn all in one colour
+      if (tmp.width < c.width || tmp.height < c.height) { tmp.width = Math.max(tmp.width, c.width); tmp.height = Math.max(tmp.height, c.height); }
+      tg.globalCompositeOperation = 'source-over'; tg.clearRect(0, 0, tmp.width, tmp.height); tg.drawImage(c, 0, 0);
+      tg.globalCompositeOperation = 'source-in'; tg.fillStyle = col; tg.fillRect(0, 0, c.width, c.height);
+      ctx.save(); ctx.globalAlpha = alpha; ctx.translate(Math.round(x), Math.round(y)); if (f < 0) ctx.scale(-1, 1);
+      ctx.drawImage(tmp, 0, 0, c.width, c.height, -sh.ox, -sh.oy, c.width, c.height); ctx.restore();
+    }
+    // A place: faint while waiting, lit and pulsing with an arrow when it is where the piece in hand goes (or what has to
+    // go first), green when the piece is close enough to drop in. The partner's goal shows in their colour.
+    function ghost(id, how, quiet) {
+      const p = P[id], sh = shape(p.k, p.size); if (!sh) return;
+      const f = p.face || V[id].f, beat = 0.5 + 0.5 * Math.sin(s.t * 9);
+      if (how === 'wait') { stencil(sh.fill, INK, 0.13, sh, p.x, p.y, f); stencil(sh.dash, '#FFF8E7', 0.85, sh, p.x, p.y, f); }
+      if (how === 'later') { stencil(sh.fill, INK, 0.06, sh, p.x, p.y, f); stencil(sh.dash, '#FFF8E7', 0.4, sh, p.x, p.y, f); }
+      if (how === 'aim') { stencil(sh.fill, '#FFD43A', 0.3 + 0.3 * beat, sh, p.x, p.y, f); stencil(sh.dash, INK, 0.8, sh, p.x, p.y, f); if (!quiet) arrow(p.x, p.y - sh.top - 4); }
+      if (how === 'near') { stencil(sh.fill, '#7CE07C', 0.7, sh, p.x, p.y, f); stencil(sh.dash, '#1FA463', 1, sh, p.x, p.y, f); }
+      if (how === 'mate') { stencil(sh.fill, COL[mate()], 0.18, sh, p.x, p.y, f); stencil(sh.dash, COL[mate()], 0.9, sh, p.x, p.y, f); }
+    }
+    const arrow = (x, y) => bits(DOWN, x - 4, y - 6 - Math.round(Math.abs(Math.sin(s.t * 6)) * 3), '#FFD43A');
+    const turnBadge = (x, y) => bits(TURN, x - 6, y - 12 - Math.round(Math.abs(Math.sin(s.t * 5)) * 2), '#FFD43A');
+
+    // ---- a piece, with its little animations ----
+    function piece(id) {
+      const v = V[id], p = P[id], t = s.t, isIn = placed(id), ease = (at, len) => clamp((t - at) / len, 0, 1);
+      let sx = 1, sy = 1, dx = 0, dy = -Math.round(v.lift * 3);
+      const g = ease(v.at.grab, 0.3); if (g < 1) { const b = Math.sin(g * Math.PI); sx *= 1 + 0.14 * b; sy *= 1 + 0.14 * b; dy -= Math.round(b * 3); }    // taken: a hop
+      const th = ease(v.at.thud, 0.32); if (th < 1) { const b = Math.sin(th * Math.PI) * (1 - th); sy *= 1 - 0.24 * b; sx *= 1 + 0.14 * b; }   // put down: squashed, and up again
+      const fl = ease(v.at.flip, 0.2); if (fl < 1) sx *= 2 * fl - 1;                                                    // turned: it narrows and opens the other way round
+      const sk = ease(v.at.shake, 0.4); if (sk < 1) dx += Math.round(Math.sin(sk * 40) * 2.5 * (1 - sk));               // no: a shake
+      const wb = ease(v.at.wob, 0.5); if (wb < 1) dx += Math.round(Math.sin(wb * 22) * 2 * (1 - wb));                   // back in the heap: a wobble
+      const by = mine(id) ? who : theirs(id) ? q(id).by : null;
+      if (by) {                                                                                                         // in someone's hand: their colour under it
+        const [w] = FLAT.size(p.k, false), hw = Math.max(4, Math.round(w * v.k * 0.42));
+        rect(v.x - hw, v.y - 1, 2 * hw, 3, COL[by]); rect(v.x - hw + 2, v.y - 2, 2 * hw - 4, 5, COL[by]);
+      }
+      const un = ease(v.at.unroll, 0.45);
+      if (p.k === 'rugroll' && isIn && un < 1) {                                                                          // the rug unrolls from the left
+        const [w, h] = FLAT.size('rugroll', true), rw = w * p.size, x0 = p.x - rw / 2, edge = Math.round(x0 + rw * un);
+        ctx.save(); ctx.beginPath(); ctx.rect(x0 - 1, p.y - h * p.size - 2, edge - x0 + 1, h * p.size + 4); ctx.clip(); FLAT.draw(p.k, true, p.x, p.y, p.size, v.f); ctx.restore();
+        rect(edge - 2, p.y - h * p.size - 1, 4, h * p.size + 1, '#A4302A'); rect(edge - 1, p.y - h * p.size, 1, h * p.size - 1, '#D9564A');
+        return;
+      }
+      FLAT.draw(p.k, isIn, v.x + dx, v.y + dy, v.k, v.f, sx, sy);
+    }
+    // The thud of a piece going in, on this phone at once (or when the room says the partner put one in): a squash,
+    // dust puffing out both ways along the floor, and +1 in the colour of whoever did it. The rug unrolls.
+    function landed(id, w) {
+      const v = V[id], p = P[id], [pw, ph] = FLAT.size(p.k, true), half = pw * p.size / 2;
+      v.at.thud = s.t; if (p.k === 'rugroll') v.at.unroll = s.t;
+      for (let i = 0; i < 12; i++) { const dir = i % 2 ? 1 : -1; s.dust.push({ x: p.x + dir * half * (0.5 + Math.random() * 0.5), y: p.y - 1, vx: dir * (12 + Math.random() * 26), vy: -(4 + Math.random() * 16), at: s.t }); }
+      drum('kick'); beep(523, 784);
+      plus('+1', p.x, p.y - ph * p.size - 4, COL[w] || '#FFD43A');
+      if (id === LAMP) { s.lampAt = s.t; beep(1319); }
+      const n = done(); if (n === 1) cheer('Super!'); else if (n === 5) cheer('Paráda!');
+      paint();
+    }
+
+    // ---- taking, dragging and letting go ----
+    // The piece under the finger: one in the heap, one left standing at its place, or one the partner holds (to say so);
+    // pieces already in only bob. A finger near the heap takes the nearest piece there, so small fingers never miss.
+    function pick(x, y) {
+      const box = (id) => { const v = V[id], [w, h] = FLAT.size(P[id].k, placed(id)), pad = v.k < 0.3 ? 6 : 3; return [v.x - w * v.k / 2 - pad, v.x + w * v.k / 2 + pad, v.y - h * v.k - pad - 3, v.y + pad]; };
+      for (const loose of [true, false]) {
+        let best = null, bd = 1e9;
+        for (let id = 0; id < N; id++) {
+          if (placed(id) === loose) continue;
+          const [x0, x1, y0, y1] = box(id); if (x < x0 || x > x1 || y < y0 || y > y1) continue;
+          const d = Math.hypot(x - V[id].x, y - (y0 + y1) / 2); if (d < bd) { bd = d; best = id; }
+        }
+        if (best === null && loose && y > 256) for (let id = 0; id < N; id++) { const d = Math.abs(V[id].x - x); if (!placed(id) && !parked(id) && !theirs(id) && d < 16 && d < bd) { bd = d; best = id; } }
+        if (best !== null) return best;
+      }
+      return null;
+    }
+    function putIn(id) {                                 // close enough, the right way round: in it goes at once here; the room confirms
+      const v = V[id];
+      v.placed = true; v.park = false; v.pend = s.t; landed(id, who);
+      Net.send({ type: 'ev', e: 'place', id, x: Math.round(v.x), y: Math.round(v.y), f: v.f });
+    }
+    function letGo(id, near) {                           // back to the heap (or left standing at its place, the wrong way round)
+      const v = V[id], p = P[id];
+      v.park = near && !fits(id, v.f); v.back = !v.park;
+      Net.send({ type: 'ev', e: 'drop', id, x: Math.round(near ? p.x : v.x), y: Math.round(near ? p.y : v.y), f: v.f });
+    }
+    // the room said no (or this phone saw it would): back it goes, and why
+    function refused(id, why) {
+      const v = V[id];
+      if (why === 'taken') { if (mine(id)) s.hold = null; v.at.shake = s.t; beep(180); return say(`To nese ${heroName(mate())}.`); }
+      v.placed = false; v.pend = 0; v.back = true; beep(220, 175);
+      if (why === 'order') { pulse(P[id].after); say(`Nejdřív ${NAME[P[P[id].after].k] || 'to druhé'}!`); }
+      else if (why === 'face') { v.park = true; v.back = false; say('Klepnutím otočíš.'); }
+      else pulse(id);
+    }
+    // What to do next, shown by a hand: on this phone's list, the first piece that is free and may go in now. With two,
+    // Kendrick's list starts in the bedroom (the bed has to be turned) and Kellyn's with the rug, so they split the work.
+    const LIST = (who === 'ken' && mateHere() ? ['bed', 'shelf', 'chair', 'rugroll', 'lamp', 'armchair', 'plant', 'sofa', 'table'] : ['rugroll', 'sofa', 'table', 'lamp', 'armchair', 'plant', 'bed', 'shelf', 'chair'])
+      .map((k) => P.findIndex((p) => p.k === k));
+    const next = () => [...P.keys()].find(parked) ?? LIST.find((id) => id >= 0 && !placed(id) && ready(id) && !theirs(id) && !mine(id));   // one waiting for a tap comes first
+
+    return {
+      s, kind: 'flat',
+      peek: () => ({ t: s.t, over: s.over, holding: s.hold ? s.hold.id : null, next: next(), pieces: P.map((p, id) => {
+        const v = V[id], [, h] = FLAT.size(p.k, placed(id));
+        return { id, k: p.k, done: placed(id), by: q(id).by, face: p.face, f: v.f, ready: ready(id), parked: parked(id), at: { x: Math.round(v.x), y: Math.round(v.y - h * v.k / 2) }, to: { x: p.x, y: p.y - CARRY } };
+      }) }),
+      sync(n) {
+        live = n;
+        n.pieces.forEach((r, id) => {
+          const v = V[id];
+          if (r.done) { if (!v.placed) { v.placed = true; landed(id, r.who || mate()); } v.pend = 0; v.park = false; return; }
+          if (r.by !== who && !mine(id) && !v.pend) {                                    // what nobody here holds, the room knows best
+            v.park = !!r.rest;
+            if (r.f !== v.f) { v.f = r.f; v.at.flip = s.t; }
+          }
+        });
+        if (s.hold && n.pieces[s.hold.id].by && n.pieces[s.hold.id].by !== who) refused(s.hold.id, 'taken');      // both took it at once: the other was first
+        if (s.mate && n.pieces[s.mate.id].by !== mate()) s.mate = null;
+        if (n.no && n.no.n !== s.seenNo) { s.seenNo = n.no.n; if (n.no.who === who && n.no.why !== 'taken') refused(n.no.id, n.no.why); }
+        paint();
+      },
+      fx(m) {
+        if (m.k !== 'move') return;
+        const id = m.id | 0, f = m.f === -1 ? -1 : 1; if (!P[id]) return;
+        s.mate = { id, x: +m.x || 0, y: +m.y || 0 };
+        if (V[id].f !== f && !mine(id)) { V[id].f = f; V[id].at.flip = s.t; }
+      },
+      over(won) {
+        s.over = true; s.lost = !won; s.hold = null; paint();
+        if (!won) return view.end(false, 'Setmělo se.', 'Zkuste to znovu.');
+        s.finale = Math.max(0.01, s.t); cheer('Nastěhováno!'); beep(1047, 1319, 1568);
+        setTimeout(() => { if (view.hud.isConnected) view.end(true, 'Nastěhováno!', 'Všechno je na svém místě.'); }, 2900);   // first the lights and the visitors
+      },
+      down(x, y) {
+        if (s.over || y < 22) return;
+        const id = pick(x, y);
+        if (id === null) { s.rings.push({ x, y, at: s.t }); s.quiet = 99; return beep(330); }                       // nothing there: a ripple, and the hand shows what to do
+        const v = V[id];
+        if (placed(id)) { v.at.thud = s.t; return beep(784, 988); }                                                    // in already: it bobs
+        if (s.t < 0) { v.at.shake = s.t; beep(180); return say('Ještě chvilku…'); }
+        if (theirs(id)) { v.at.shake = s.t; beep(180); return say(`To nese ${heroName(q(id).by)}.`); }
+        s.hold = { id, fx: x, fy: y, sx: x, sy: y, ox: v.x - x, oy: v.y - y, at: s.t, moved: false, parked: parked(id), still: s.t, lx: x, ly: y };
+        v.at.grab = s.t; v.back = false; s.quiet = 0; beep(523, 698);
+        Net.send({ type: 'ev', e: 'grab', id }); s.keepAt = s.t;
+        if (!ready(id)) { pulse(P[id].after); say(`Nejdřív ${NAME[P[P[id].after].k] || 'to druhé'}!`); }      // the rug first: its place lights up
+      },
+      move(x, y) {
+        const h = s.hold; if (!h) return; h.fx = x; h.fy = y;
+        if (Math.hypot(x - h.sx, y - h.sy) > 4) h.moved = true;
+        if (Math.hypot(x - h.lx, y - h.ly) > 3) { h.still = s.t; h.lx = x; h.ly = y; }
+      },
+      up(x, y, tapped) {
+        const h = s.hold; if (!h) return;
+        s.hold = null; s.quiet = 0;
+        const id = h.id, v = V[id], p = P[id];
+        if (s.over) return;
+        if (live.paused) { v.back = true; return; }                                                                    // let go during a pause: it just goes back
+        if (tapped && !h.moved) {                                                                                      // a tap: turned round, where it was
+          v.f = -v.f; v.at.flip = s.t; if (p.face && fits(id, v.f)) beep(698, 880, 1175); else beep(698, 523);     // turned the way its place wants: a happy note
+          if (h.parked && fits(id, v.f) && ready(id)) return putIn(id);                                                // now it fits: in it goes
+          return letGo(id, h.parked);
+        }
+        if (Math.hypot(v.x - p.x, v.y - p.y) <= SNAP) {
+          if (!ready(id)) { letGo(id, false); return refused(id, 'order'); }
+          if (!fits(id, v.f)) { letGo(id, true); v.at.wob = s.t; beep(330, 440); return say('Klepnutím otočíš.'); }   // waits at its place for a tap
+          return putIn(id);
+        }
+        letGo(id, false); beep(330, 262); pulse(id);                                                                    // not here: back to the heap, and its place blinks
+      },
+      update(dt) {
+        s.t = clock(live);
+        const u = clamp(s.t / live.seconds, 0, 1);
+        if (!s.hold) s.quiet += dt;
+        for (let id = 0; id < N; id++) {
+          const v = V[id], p = P[id], held = mine(id), other = theirs(id);
+          let tx, ty, tk, rate;
+          if (held) {                                                                                                  // follows the finger, hopping up above it
+            const h = s.hold, e = clamp((s.t - h.at) / 0.18, 0, 1);
+            tx = h.fx + h.ox * (1 - e); ty = h.fy + h.oy * (1 - e) + CARRY * e; tk = p.size; rate = 30;
+            const d = Math.hypot(tx - p.x, ty - p.y), pull = ready(id) ? clamp(1 - d / (SNAP * 1.6), 0, 1) * 0.6 : 0;   // near its place it is drawn in
+            tx += (p.x - tx) * pull; ty += (p.y - ty) * pull;
+          } else if (other) { const m = s.mate && s.mate.id === id ? s.mate : null, hm = home(id); tx = m ? m.x : hm.x; ty = m ? m.y : hm.y - 4; tk = m ? p.size : hm.k; rate = 14; }
+          else { const hm = home(id); tx = hm.x; ty = hm.y; tk = hm.k; rate = placed(id) ? 30 : 11; }
+          v.x += (tx - v.x) * (1 - Math.exp(-dt * rate)); v.y += (ty - v.y) * (1 - Math.exp(-dt * rate)); v.k += (tk - v.k) * (1 - Math.exp(-dt * 12));
+          if (v.back && Math.hypot(tx - v.x, ty - v.y) < 1) { v.back = false; v.at.wob = s.t; }                       // landed back in the heap: a wobble
+          v.lift += ((held || other ? 1 : 0) - v.lift) * (1 - Math.exp(-dt * 16));
+          if (v.placed && v.pend && s.t - v.pend > 4 && !q(id).done) refused(id, 'far');                               // no answer from the room: try again
+        }
+        if (s.hold && !s.over && s.t - s.hold.still > 8) {                                                             // held still for long: it goes back, and its place blinks,
+          const id = s.hold.id; s.hold = null; letGo(id, false); pulse(id); s.quiet = 99; beep(330, 262);              // so nobody keeps a piece from the other for long
+        }
+        if (s.hold && !s.over) {                                                                                       // still holding it: the room hears so now and then
+          if (s.t - s.keepAt > 1.2) { s.keepAt = s.t; Net.send({ type: 'ev', e: 'grab', id: s.hold.id }); }
+          const v = V[s.hold.id], at = `${Math.round(v.x)},${Math.round(v.y)},${v.f}`;
+          if (mateHere() && at !== s.sent && Net.now() - s.sentAt > 70) { s.sent = at; s.sentAt = Net.now(); Net.send({ type: 'fx', k: 'move', id: s.hold.id, x: Math.round(v.x), y: Math.round(v.y), f: v.f }); }
+        }
+        if (!s.over && s.t > 0) {
+          const left = live.seconds - s.t;
+          if (u > 0.6 && !s.dusk) { s.dusk = true; say('Stmívá se!'); beep(440, 330); }
+          if (left <= 10 && Math.ceil(left) !== s.tick) { s.tick = Math.ceil(left); beep(988); }                   // the last ten seconds tick away
+        }
+        if (s.finale) s.lit = clamp((s.t - s.finale) / 0.6, 0, 1);
+        s.dust = s.dust.filter((d) => s.t - d.at < 0.6); for (const d of s.dust) { d.x += d.vx * dt; d.y += d.vy * dt; d.vy += 60 * dt; d.vx *= 1 - dt * 3; }
+        s.rings = s.rings.filter((r) => s.t - r.at < 0.4);
+        if (s.tipAt && s.t - s.tipAt > 3) { view.tip.textContent = ''; s.tipAt = 0; }
+        paint();
+      },
+      draw() {
+        const img = K.picture(sc.bg); if (!img) return K.background(sc.bg);
+        if (!glass) glass = readGlass(img);
+        const u = s.lost ? 1 : clamp(s.t / live.seconds, 0, 1), ev = evening(u), t = s.t;
+        ctx.drawImage(img, 0, 0);
+        sky(ev);
+        // what stands in the rooms, from the back to the front, the rug under everything; the dark comes over them
+        const inRoom = [...P.keys()].filter((id) => placed(id)).sort((a, b) => FLAT.order(P[a], P[b]));
+        for (const id of inRoom) piece(id);
+        dim(u, ev);
+        sunAndStars(u);
+        // where things go: the place for the piece in hand lit up (or the rug's, if that has to go first), and the hint's
+        const hold = s.hold ? s.hold.id : -1, hv = hold >= 0 ? V[hold] : null;
+        const near = hold >= 0 && ready(hold) && Math.hypot(hv.x - P[hold].x, hv.y - P[hold].y) <= SNAP;
+        const tip = !s.over && hold < 0 ? next() : undefined, showHint = tip !== undefined && s.t > 0.3 && (s.quiet > 5 || done() === 0);
+        const pulsing = s.t - s.pulse.at < 1.6 ? s.pulse.id : -1;
+        for (let id = 0; id < N; id++) {
+          if (placed(id) || parked(id) || s.over) continue;
+          const goal = id === hold ? (ready(id) ? (near && fits(id, hv.f) ? 'near' : 'aim') : 'later') : null;   // green: let go and it is in
+          const blocker = hold >= 0 && !ready(hold) && P[hold].after === id;
+          ghost(id, goal || (blocker || id === pulsing || (showHint && id === tip) ? 'aim' : theirs(id) ? 'mate' : ready(id) ? 'wait' : 'later'), id === hold && near);   // no arrow once it is there
+        }
+        // left standing at their place the wrong way round: they wait for a tap
+        for (let id = 0; id < N; id++) if (parked(id)) { piece(id); if (!s.over) turnBadge(P[id].x + 8, P[id].y - P[id].size * FLAT.size(P[id].k, true)[1]); }
+        // the heap: a moving blanket with two boxes, and what is still on it
+        if (done() < N && !s.finale) {
+          rect(3, 263, 186, 21, '#4C5772'); rect(3, 263, 186, 1, '#76829F'); rect(3, 283, 186, 1, '#3A4258');
+          for (let x = 6; x < 188; x += 7) for (let y = 266; y < 282; y += 5) rect(x + ((y / 5) % 2 ? 3 : 0), y, 2, 1, '#5E6B8C');
+          if (K.has('kerb', 'box')) { K.figure('kerb', 46, 273, 'box', 0, false, 0.3); K.figure('kerb', 148, 274, 'box', 0, true, 0.28); }
+        }
+        for (let id = 0; id < N; id++) if (!placed(id) && !parked(id) && !mine(id) && !theirs(id)) piece(id);
+        for (let id = 0; id < N; id++) if (theirs(id)) piece(id);
+        if (hold >= 0) {
+          piece(hold);
+          if (near && !fits(hold, hv.f)) turnBadge(hv.x + 10, hv.y - P[hold].size * FLAT.size(P[hold].k, false)[1] - 2);   // close, but the wrong way round
+        }
+        for (const d of s.dust) { const a = 1 - (t - d.at) / 0.6; rect(d.x, d.y, 2, 2, `rgba(233,220,194,${a})`); }
+        for (const r of s.rings) { const e = (t - r.at) / 0.4, rad = 2 + e * 7; for (let k = 0; k < 12; k++) { const a = k / 12 * Math.PI * 2; rect(r.x + Math.cos(a) * rad, r.y + Math.sin(a) * rad, 1, 1, `rgba(255,248,231,${1 - e})`); } }
+        if (showHint) hint(tip);
+        if (s.finale) visitors();
+      },
+    };
+
+    // The hand that shows what to do: it takes the piece from the heap and carries a pale copy of it to its place; a piece
+    // the wrong way round it taps instead, for turning.
+    function hint(id) {
+      const v = V[id], p = P[id], c = (s.t % 2.6) / 2.6, hx = (x, y, a) => { ctx.save(); ctx.globalAlpha = a; bits(HAND, x - 3, y, '#FFF8E7'); ctx.restore(); };
+      const [, h] = FLAT.size(p.k, parked(id)), from = { x: v.x, y: v.y - h * v.k / 2 };
+      if (!fits(id, v.f)) { const press = c % 0.5 < 0.2 ? 2 : 0; turnBadge(v.x + 8, v.y - h * v.k); return hx(from.x, from.y + press, 1); }
+      const e = clamp((c - 0.15) / 0.5, 0, 1), m = e < 0.5 ? 2 * e * e : 1 - 2 * (1 - e) * (1 - e), fade = c > 0.85 ? (1 - c) / 0.15 : 1;
+      const x = from.x + (p.x - from.x) * m, y = from.y + (p.y - h * p.size / 2 - from.y) * m;
+      if (c > 0.15) { ctx.save(); ctx.globalAlpha = 0.55 * fade; FLAT.draw(p.k, false, x, y + h * (v.k + (p.size - v.k) * m) / 2 + 2, v.k + (p.size - v.k) * m, v.f); ctx.restore(); }
+      hx(x, y + (c < 0.15 ? 2 : 0), fade);
+    }
+    // At the end Sami and Žofia come in at the door and are thrilled; the two of them cheer at the front.
+    function visitors() {
+      const u = s.t - s.finale, walk = clamp((u - 0.3) / 1.3, 0, 1), there = walk >= 1;
+      (sc.cast || []).forEach((id, i) => {
+        if (!K.sprites[id]) return;
+        const x = 176 - (176 - (128 + i * 30)) * walk, y = 252 + (276 - 252) * walk + i * 2, hop = there ? Math.round(Math.abs(Math.sin(u * 6 + i * 1.7)) * 5) : Math.round(Math.abs(Math.sin(u * 9 + i))) * 1;
+        if (u > 0.3) K.figure(id, x, y - hop, there ? 'cheer' : 'run', u * 0.8, there, 0.42);        // walking in faces left; then they turn to the room
+      });
+      const kids = mateHere() ? [who, mate()] : [who];
+      kids.forEach((w, i) => { const hop = Math.round(Math.abs(Math.sin(u * 6 + i * 2)) * 6); K.hero(w, 40 + i * 30, 279 - hop, 'cheer', u, i === 1); });
+    }
+  }
+
   // ---- a place is finished: the people are free, and now they can be named ----
   const Rescued = (place) => {
     let t = 0;
@@ -1918,6 +2360,7 @@
       draw() {
         const sc = place.scenes[place.scenes.length - 1], gy = sc.ground || GROUND, two = mateHere();
         K.background(sc.bg, 0, place.look);
+        if (sc.play === 'flat' && K.picture(sc.bg)) FLAT.furnish(sc);                     // the flat they have just moved into
         K.hero(me(), two ? 30 : 52, gy - Math.abs(Math.sin(t * 6)) * 6, 'cheer', t);
         if (two) K.hero(mate(), 66, gy - Math.abs(Math.sin(t * 6 + 2)) * 6, 'cheer', t);
         place.saves.forEach((sv, i) => {

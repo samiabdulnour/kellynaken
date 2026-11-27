@@ -147,3 +147,14 @@ button{font:inherit;color:inherit}
   text-shadow:.08em .08em 0 var(--ink);animation:rise .8s steps(5) forwards}
 .card .stars{font-size:2em;line-height:1;color:var(--yellow);letter-spacing:.1em;text-shadow:.06em .06em 0 var(--ink);margin:-.2em 0 -.1em}
 .pin .st{display:block;font-size:.85em;line-height:1;color:#B8862A;letter-spacing:.05em}
+/* Moving in (Byt): a square for every piece, green once it stands in its place; and the evening as a strip of sky from
+   day to night with the sun on it, which turns into the moon and blinks when night is close. */
+.dots{display:flex;gap:.2em}
+.dots i{width:.7em;height:.7em;background:var(--ink-soft)}
+.dots i.on{background:var(--green);box-shadow:0 0 0 .1em var(--paper)}
+.sky{position:relative;flex:1;max-width:9em;height:.75em;margin:0 .6em;border:.17em solid var(--paper);
+  background:linear-gradient(90deg,#8FD3F4 0 38%,#F6A55B 58%,#7A4B8F 78%,#141A3C 95%)}
+.sky i{position:absolute;top:50%;width:1.25em;height:1.25em;margin:-.625em 0 0 -.625em;background:var(--yellow);
+  clip-path:polygon(30% 0,70% 0,100% 30%,100% 70%,70% 100%,30% 100%,0 70%,0 30%)}
+.sky i.moon{background:var(--paper)}
+.sky.late i{animation:blink .5s steps(2,jump-none) infinite}

@@ -191,12 +191,23 @@ const K = (() => {
   requestAnimationFrame(frame);
 
   // ---- input, in screen pixels ----
+  // A scene may also hear the finger lift (`up`, with whether it was only a tap), for things dragged and let go. The
+  // canvas keeps the finger while it is down, so a drag over the bar or out of the picture still ends here.
   const at = (e) => { const r = canvas.getBoundingClientRect(); return { x: ((e.clientX - r.left) / r.width) * W, y: ((e.clientY - r.top) / r.height) * H }; };
-  canvas.addEventListener('pointerdown', (e) => { down = at(e); down.px = down.x; if (scene && scene.down) scene.down(down.x, down.y); });
-  canvas.addEventListener('pointermove', (e) => { if (!down) return; const p = at(e); if (scene && scene.move) scene.move(p.x, p.y, p.x - down.px); down.px = p.x; });
-  const lift = (e) => { if (!down) return; const p = at(e); if (Math.hypot(p.x - down.x, p.y - down.y) < 5 && scene && scene.tap) scene.tap(p.x, p.y); down = null; };
+  canvas.addEventListener('pointerdown', (e) => {
+    down = at(e); down.px = down.x; down.py = down.y;
+    try { canvas.setPointerCapture(e.pointerId); } catch (x) { /* not every browser */ }
+    if (scene && scene.down) scene.down(down.x, down.y);
+  });
+  canvas.addEventListener('pointermove', (e) => { if (!down) return; const p = at(e); if (scene && scene.move) scene.move(p.x, p.y, p.x - down.px); down.px = p.x; down.py = p.y; });
+  const lift = (e) => {
+    if (!down) return; const p = at(e), tapped = Math.hypot(p.x - down.x, p.y - down.y) < 5;
+    if (tapped && scene && scene.tap) scene.tap(p.x, p.y);
+    if (scene && scene.up) scene.up(p.x, p.y, tapped);
+    down = null;
+  };
   canvas.addEventListener('pointerup', lift);
-  canvas.addEventListener('pointercancel', () => { down = null; });
+  canvas.addEventListener('pointercancel', () => { if (down && scene && scene.up) scene.up(down.px, down.py, false); down = null; });
 
   // ---- the UI layer: real text and buttons on top of the pixels ----
   function add(html) { const t = document.createElement('template'); t.innerHTML = html.trim(); const el = t.content.firstElementChild; ui.appendChild(el); return el; }
