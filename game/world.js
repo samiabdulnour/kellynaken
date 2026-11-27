@@ -31,7 +31,7 @@
 //   collect run along the beach picking up what the waves wash in, and keep away from the jellyfish
 //   rescue  throw lifebuoys to the people on the rock, then pull them across before the shark gets there
 //   tower   build a house storey by storey: drive the crane to the stack, pick a storey up, bring it over the house and
-//           let it go; with two, one drives the crane and the other works the hook
+//           let it go; with two, one drives the crane and the other works the hook. A crane standing still calms the swing.
 //   shoot   padlocks appear on the `spots` of the picture and slip away: tap one to shoot at it (with two, each has their own colour). Kendrick fires a puck with his hockey stick,
 //           Kellyn throws her white bunny. One that blinks may be saved by either. The first waits until it is shot; then they
 //           come from `every` to `fast` seconds apart; after `need` a big golden padlock comes down at `gold` [x, y], to be hit by both at once
@@ -234,7 +234,10 @@ window.WORLD = {
           talk: [['', 'Támhle někdo mává! Na skále uprostřed moře, a kolem krouží žralok.'], ['hero', 'Hodíme jim záchranné kruhy!']] },
         // After the rescue: Sami is an architect, and his house in Sydney is waiting to be built.
         { id: 'australia-sydney', name: 'Sydney', at: [98, 228], label: 'left', bg: 'australia-sydney', play: 'tower', code: 'JERAB', cast: ['sami', 'zofia'],
-          tower: { need: 15, slack: 15, stack: 16 },   // `stack`: where the storeys wait on the ground, to be picked up one by one                // 14 storeys on the lobby; the higher, the harder (room.js: course.sway, course.slack)
+          // 14 storeys on the lobby (two: 16), the last one the crown; the higher, the harder (room.js: course.sway, course.slack).
+          // `stack`: where the storeys wait on the ground, to be picked up one by one (clear of the picture's edge);
+          // `check`: every so many storeys a flag, where a lost game goes on from.
+          tower: { need: 15, two: 17, slack: 15, stack: 24, check: 5 },
           talk: [['sami', 'Díky, že jste nás zachránili! Víte, že jsem architekt?'], ['sami', 'Navrhl jsem v Sydney nový dům. Jenže stavba se zasekla a sám ho nepostavím.'],
             ['zofia', 'Kendrick bude řídit jeřáb a Kellyn bude pouštět patra. Spolu to zvládnete!'], ['hero', 'Jdeme stavět!']] },
         // The new flat is empty. In Sydney people put furniture they no longer need out on the kerb: walk the street of

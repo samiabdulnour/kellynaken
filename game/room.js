@@ -142,11 +142,14 @@
       return { items, big };
     },
     // Sami's tower gets harder as it grows; n is how many storeys already stand on the lobby. The storey on the hook
-    // swings further and faster, from the eighth storey the wind pushes it slowly to one side and back (the crane has
-    // to lean against it), and it has to land ever closer to the middle of the one below.
-    sway(t, n) { return (4 + n * 1.5) * Math.sin(t * (1.4 + n * 0.08)) + course.wind(t, n); },
-    wind(t, n) { return n >= 7 ? (n - 6) * 2.4 * Math.sin(t * 0.35 + 1) : 0; },
-    slack(base, n) { return Math.max(8, base - n * 0.5); },
+    // swings further (and a little faster), from the ninth storey the wind pushes it slowly to one side and back (the
+    // crane has to lean against it), and it has to land ever closer to the middle of the one below. `amp` (0 to 1) is
+    // how hard it swings just now: driving the crane makes it swing, standing still calms it (game.js); the phase
+    // comes from the shared clock, so both phones see it swing alike.
+    swing(n) { return { a: 5 + n * 1.1, w: 1.5 + n * 0.04 }; },
+    sway(t, n, amp = 1) { const g = course.swing(n); return amp * g.a * Math.sin(t * g.w) + course.wind(t, n); },
+    wind(t, n) { return n >= 8 ? (n - 7) * 1.6 * Math.sin(t * 0.35 + 1) : 0; },
+    slack(base, n) { return Math.max(9, base - n * 0.4); },
     // The shark at the reef, the same on both phones. During the throws it circles and now and then dashes at the jetty
     // (`lunges`, seconds into the game; a buoy thrown just then is knocked away): only once a buoy has been caught,
     // and more often for the last one (`late`). During the pull it bites the raft and drags it back (`surges`,
@@ -263,7 +266,8 @@
         const need = Math.round(sc.collect.need * (two ? 1.5 : 1));
         Object.assign(sn, { two, got: [], stung: [], paid: [], cost: { ken: 0, kel: 0 }, have: 0, at: {}, lifted: false, need, bigPart: Math.round(need * ((sc.collect.big && sc.collect.big.part) || 0)), lives: two ? 4 : 3, tideAt: null });
       }
-      if (sc.play === 'tower') Object.assign(sn, { floors: [96], crane: 96, need: Math.round(sc.tower.need * (two ? 1.3 : 1)), lives: two ? 5 : 4, n: 0, last: null, busyUntil: 0, endAt: 0, endPhase: null, holding: false, lifts: 0 });
+      // the tower: two build a little higher (`two`), and a flag every `check` storeys is where a lost game goes on from (see 'retry')
+      if (sc.play === 'tower') Object.assign(sn, { floors: [96], crane: 96, need: two ? sc.tower.two || sc.tower.need : sc.tower.need, lives: two ? 5 : 4, n: 0, last: null, busyUntil: 0, endAt: 0, endPhase: null, holding: false, lifts: 0, check: 0, from: 0 });
       // the reef: each has lifebuoys of their own to lose (`left`), so one who runs out leaves the throwing to the other;
       // `lives` is all of them together. The pull: `tugs` counts each one's taps, `pull` how far the raft has come by `pullT`.
       if (sc.play === 'rescue') { const n = sc.rescue.lives[two ? 1 : 0]; Object.assign(sn, { two, stage: 'throw', hits: 0, needHits: Math.round(sc.rescue.hits * (two ? 1.5 : 1)), left: { ken: n, kel: n }, lives: two ? 2 * n : n, misses: 0,
@@ -395,6 +399,7 @@
       if (k === 'flat') { const u = ((sn.wonAt || now()) - sn.startAt) / 1000 / sn.seconds; return u <= 0.5 ? 3 : u <= 0.8 ? 2 : 1; }   // how much daylight was left
       if (k === 'echo') return by(sn.misses + sn.hints, sn.two ? 4 : 3);                // slips, and strokes played only once the drum was shown
       if (k === 'rescue') return by(sn.misses, Math.floor(sn.maxLives / 2));               // buoys handed back do not undo a miss
+      if (k === 'tower' && sn.from) return Math.min(2, by(sn.maxLives - sn.lives, Math.floor(sn.maxLives / 2)));   // built on from a flag: not all of it cleanly
       if (sn.maxLives) return by(sn.maxLives - sn.lives, Math.floor(sn.maxLives / 2));
       return 3;
     }
@@ -541,9 +546,12 @@
           // where the storey hung when she let it go, as her phone saw it (the room hears the crane only now and then)
           const t = (now() - sn.startAt) / 1000, seen = +m.x, hook = Number.isFinite(seen) ? clamp(seen, 0, 192) : sn.crane + course.sway(t, sn.floors.length - 1), off = hook - sn.floors[sn.floors.length - 1];
           const ok = Math.abs(off) <= course.slack(sc.tower.slack, sn.floors.length - 1);
-          sn.last = { n: ++sn.n, x: hook, ok, perfect: Math.abs(off) <= 2.5 };
+          sn.last = { n: ++sn.n, x: hook, x0: Number.isFinite(+m.x0) ? clamp(+m.x0, 0, 192) : hook, ok, perfect: ok && Math.abs(off) <= 2.5 };   // x0: where it hung when let go
           if (ok) sn.floors.push(hook); else sn.lives--;
-          sn.busyUntil = now() + 1100;
+          if (sn.last.perfect && sn.lives < sn.maxLives) { sn.lives++; sn.last.back = true; }      // a perfect landing gives a lost heart back
+          const every = sc.tower.check || 5, built = sn.floors.length - 1;
+          if (ok && built % every === 0 && built < sn.need - 1) sn.check = built;              // a flag: a lost game goes on from here
+          sn.busyUntil = now() + 700;                                                    // while it falls
           if (sn.floors.length >= sn.need) { sn.endAt = now() + 1000; sn.endPhase = 'won'; }
           else if (sn.lives <= 0) { sn.endAt = now() + 1000; sn.endPhase = 'lost'; }
         }
@@ -671,6 +679,8 @@
       // Pexeso lost: another go with the same cards on the table, the pairs found staying found; only the wrong guesses start again.
       else if (m.type === 'retry' && sn && sn.phase === 'lost' && sc.play === 'memory') { start(sn.index, true); Object.assign(S.scene, { deck: sn.deck, done: sn.done, before: (sn.before || 0) + sn.misses }); }
       else if (m.type === 'retry' && sn && sn.phase === 'lost') start(sn.index, true);
+      // the tower, lost and started again: on from its last flag
+      if (m.type === 'retry' && S.scene !== sn && sc && sc.play === 'tower' && sn.check) Object.assign(S.scene, { floors: sn.floors.slice(0, sn.check + 1), check: sn.check, from: sn.check });
       push();
     }
 

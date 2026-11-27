@@ -3880,130 +3880,344 @@
     };
   }
 
-  // The tower: Sami's house in Sydney goes up storey by storey. Kendrick drives the crane along its arm (drag), and
-  // Kellyn lets each storey go (tap) when it hangs over the top of the house; the higher the house, the more the
-  // storey swings on the hook. A storey that misses falls off. On one device, one player does both.
+  // The tower: Sami's house in Sydney goes up storey by storey. Kendrick drives the crane along its arm (◀ ▶, or a
+  // finger on the picture), and Kellyn works the hook (the big button, or a tap anywhere): down to the pile for a storey,
+  // and over the house she lets it go. On one device, one player does both. The storey swings on its rope: driving
+  // makes it swing harder, a crane that stands still lets it calm down, so the driver can steady it for the one who
+  // lets go. The button turns green when letting go now lands the storey. A press answers at once on its own phone (the
+  // hook goes down, the storey falls) and the room only confirms it; a press that cannot work now shakes the button and
+  // says why. Every fifth storey gets a flag: a lost game goes on from there. A perfect landing gives a heart back.
   function Tower(sc, place, sn) {
-    const cfg = sc.tower, who = me(), GY = 236, SH = 25, JIB = 30, CABLE = 30, SW = 40;
+    const cfg = sc.tower, who = me(), GY = 236, SH = 25, JIB = 30, CABLE = 26, SW = 40, HANG = 10;   // HANG: rope from the hook to the storey
     const two = () => mateHere(), steers = () => !two() || who === 'ken', drops = () => !two() || who === 'kel';
     const POSES = ['floor', 'plants', 'lights'];
-    const STACK = cfg.stack || 24, LIFT = 1;                                     // the storeys wait on the ground at STACK; fetching one takes LIFT seconds
-    const s = { t: 0, over: false, lost: false, crane: sn.crane, mateCrane: sn.crane, sent: 0, told: 0, cam: 0, fall: null, seen: 0, spark: null, target: null, lifts: sn.lifts, liftAt: -9 };
+    const STACK = cfg.stack || 24, LIFT = 1, LEAD = 0.15, LATE = 0.5, CALM = 0.4, G = 900, EVERY = cfg.check || 5;   // LEAD: how far ahead the green button looks; LATE: how long after it a press still counts (a young finger is slow)
+    // The pile stands on a platform always this high on the screen: on the ground at first; once the camera rises with
+    // the house, a hoist carries it up beside the house, so the pile and the hook fetching from it stay in sight.
+    const PILE = GY + 2, pileY = (k) => PILE - k * SH * 0.8;
+    const s = { t: 0, over: false, lost: false, crane: sn.crane, cv: 0, mateCrane: sn.crane, cx: sn.crane, px: sn.crane, v: 0, amp: CALM, lag: 0, lagV: 0,
+      sent: 0, told: 0, fxAt: 0, cam: 0, fall: null, seen: sn.last ? sn.last.n : 0, target: null, lifts: sn.lifts, liftAt: -9, grabbed: true, pend: null,
+      bits: [], bump: -9, knock: -9, shake: -9, openAt: -9, flagAt: -9, flagK: 0, litLast: -9, litX: 0, said: '', saidUntil: 0, saidIn: '', state: '', stateAt: 0, painted: '' };
     let live = sn;
-    const view = stage('<span class="lives"></span><span class="count"></span><span class="meter"><i></i></span>', '');
-    const crane = () => (steers() ? s.crane : s.mateCrane);
-    const hook = () => crane() + Room.course.sway(s.t, live.floors.length - 1);
+    const view = stage('<span class="lives"></span><span class="count"></span><span class="meter flags"><i></i></span>', '');
+    view.tip.classList.add('low');
+    const mateName = () => heroName(mate());
+    const built = () => live.floors.length - 1;                                    // storeys already standing on the lobby
+    const crane = () => (steers() ? s.crane : s.cx);
     const top = () => live.floors[live.floors.length - 1];
+    const slack = () => Room.course.slack(cfg.slack, built());
+    const wind = (t = s.t) => Room.course.wind(t, built());
+    const hookAt = (t) => crane() + s.v * (t - s.t) + s.lag + Room.course.sway(t, built(), s.amp);   // where the storey hangs, now or a moment ahead
+    const hook = () => hookAt(s.t);
     const pose = (i, n) => (i === 0 ? 'lobby' : i === n - 1 ? 'roof' : POSES[i % 3]);
+    const holding = () => (s.pend ? s.pend.k === 'pick' : live.holding);          // what this phone did counts until the room answers
+    const busy = () => Net.now() < live.busyUntil || s.t - s.liftAt < LIFT || !!(s.fall && !s.fall.landed && !s.fall.passed);
+    const overStack = () => Math.abs(crane() - STACK) <= 12;
+    const done = () => !!live.endAt || shown() >= live.need;                        // the roof is on (or the last heart gone): nothing more to fetch
+    const overHouse = () => Math.abs(crane() + s.lag + wind() - top()) <= slack();  // the swing goes back and forth over the top of the house
+    const lands = (t, k) => Math.abs(hookAt(t) - top()) <= slack() * k;
+    // green: it lands if let go now, and still will a moment from now (a child's finger is a little late)
+    const lit = () => !s.over && s.t >= 0 && !busy() && !done() && (holding() ? lands(s.t, 1) && lands(s.t + LEAD, 0.85) : overStack());
+    // how many storeys are drawn: the room's, with one that this phone has let go landing (or still falling) on top
+    const shown = () => { let k = live.floors.length; if (s.fall && s.fall.ok) k = s.fall.landed ? Math.max(k, s.fall.i + 1) : Math.min(k, s.fall.i); return k; };
+    const flags = () => Array.from({ length: Math.ceil((live.need - 1) / EVERY) - 1 }, (_, k) => (k + 1) * EVERY);
     const paint = () => {
-      hearts(view.hud.children[0], live.lives, sn.lives);
-      view.hud.children[1].textContent = `${live.floors.length - 1} / ${live.need - 1}`;          // storeys built on top of the lobby
-      view.hud.children[2].firstElementChild.style.width = clamp(live.floors.length / live.need, 0, 1) * 100 + '%';
+      // a heart goes when the storey falls past, and one given back comes when the storey lands
+      const k = shown() - 1, f = s.fall, lives = live.lives + (f && !f.ok && !f.passed && f.sure ? 1 : 0) - (f && f.back && !f.landed ? 1 : 0), key = `${lives}/${k}/${live.need}`;
+      if (key === s.painted) return; s.painted = key;
+      hearts(view.hud.children[0], lives, live.maxLives || sn.lives);
+      view.hud.children[1].textContent = `${k} / ${live.need - 1}`;                // storeys built on top of the lobby
+      const m = view.hud.children[2];
+      m.innerHTML = `<i style="width:${clamp(k / (live.need - 1), 0, 1) * 100}%"></i>` + flags().map((f) => `<b class="${k >= f ? 'on' : ''}" style="left:${f / (live.need - 1) * 100}%"></b>`).join('');
     };
-    const tip = () => { if (!s.over && !s.seen) view.tip.textContent = !two() ? 'Jeď nad hromádku, zvedni patro, přivez ho nad dům a pusť.' : steers() ? `Ty řídíš jeřáb: k hromádce pro patro a pak nad dům. ${heroName(mate())} patra zvedá a pouští.` : `Ty patra zvedáš a pouštíš. Jeřáb řídí ${heroName(mate())}.`; };
-    view.tip.classList.add('up'); paint(); tip();
-    // The arrows for whoever drives the crane, the big button for whoever lets the storeys go (alone: both).
+    const again = (el, cls) => { el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); };
+    // A short tip, for a few seconds (`say`), or the one for what is to be done now (see update).
+    const say = (text, secs = 3, state) => { s.said = text; s.saidAt = s.t; s.saidUntil = s.t + secs; s.saidIn = state || ''; view.tip.textContent = text; };   // `state`: gone once that is sorted out
+    const TIPS = {
+      solo: { fetch: 'Jeď pro další patro.', pick: 'Zvedni patro!', bring: 'Vez patro nad dům.', aim: 'Když tlačítko svítí zeleně, pusť!' },
+      drive: { fetch: 'Jeď pro další patro.', pick: () => `${mateName()} zvedá patro.`, bring: 'Vez patro nad dům.', aim: 'Zastav, ať se to nehoupe.' },
+      hook: { fetch: () => `Počkej, až ${mateName()} dojede nad hromádku.`, pick: 'Zvedni patro!', bring: () => `Počkej, až ${mateName()} dojede nad dům.`, aim: 'Když tlačítko svítí zeleně, pusť!' },
+    };
+    const role = () => (!two() ? 'solo' : steers() ? 'drive' : 'hook');
+    const tipFor = (state) => { const t = TIPS[role()][state]; return typeof t === 'function' ? t() : t || ''; };
+    // The hook cannot do that now: the button shakes, a low beep, and (when there is one) why.
+    function no(text) {
+      beep(180);
+      const b = K.ui.querySelector('.key[data-k="drop"]');
+      if (b) { again(b, 'no'); clearTimeout(s.noT); s.noT = setTimeout(() => b.classList.remove('no'), 400); }   // shaken once, it can turn green again
+      if (text) say(text, 2.5, s.state);
+    }
+    paint();
+    if (live.from) { say('Stavíte dál od vlajky!', 3); s.flagAt = clock(live); s.flagK = live.from; }   // the flag pops up now, in the countdown
+    // The arrows for whoever drives the crane, the big button for whoever works the hook (alone: both).
     const hold = (to) => ({ press: () => { if (!s.over) s.target = to; }, release: () => { s.target = null; } });
-    const keys = pad([...(steers() ? [{ id: 'left', side: 'left', ...hold(12) }, { id: 'right', side: 'left', ...hold(168) }] : []), ...(drops() ? [{ id: 'drop', label: 'Zvedni', big: true, press: () => hookIt() }] : [])]);
-    function dropIt() { if (s.over || s.t < 0 || Net.now() < live.busyUntil || !live.holding) return; beep(330); Net.send({ type: 'ev', e: 'drop', x: hook() }); }
-    function pickIt() { if (s.over || s.t < 0 || Net.now() < live.busyUntil || live.holding) return; if (Math.abs(crane() - STACK) > 12) { beep(180); view.tip.textContent = 'Nejdřív jeď jeřábem nad hromádku pater.'; s.toldAt = s.t; return; } beep(440, 520); Net.send({ type: 'ev', e: 'pick', x: crane() }); }
-    const hookIt = () => (live.holding ? dropIt() : pickIt());                       // one button: pick up, then let go
+    const keys = pad([...(steers() ? [{ id: 'left', side: 'left', ...hold(12) }, { id: 'right', side: 'left', ...hold(168) }] : []), ...(drops() ? [{ id: 'drop', label: 'Zvedni', big: true, press: () => hookIt() }] : [])], 'tower');
+    function hookIt() {
+      if (s.over) return;
+      if (s.t < 0 || busy() || done()) return no();                                // still counting down, the hook on its way, or all done
+      return holding() ? dropIt() : pickIt();
+    }
+    function pickIt() {
+      if (!overStack()) return no(steers() ? 'Nejdřív jeď nad hromádku.' : `Počkej, až ${mateName()} dojede nad hromádku.`);
+      beep(440, 520); s.liftAt = s.t; s.grabbed = false; s.pend = { k: 'pick', at: s.t }; s.litLast = -9;   // down it goes, right away
+      Net.send({ type: 'ev', e: 'pick', x: crane() });
+    }
+    function dropIt() {
+      // green is a promise: a press a moment after it went out still goes where it was green (drifting over, at most
+      // a few pixels, as it falls)
+      const now = hook(), late = s.t - s.litLast <= LATE && Math.abs(now - top()) > slack();
+      const x = late ? now + clamp(s.litX - now, -10, 10) : now, off = x - top(), ok = Math.abs(off) <= slack();
+      if (!ok && !overHouse()) return no(steers() ? 'Nejdřív jeď nad dům.' : `Počkej, až ${mateName()} dojede nad dům.`);
+      if (!ok && Math.abs(off) > slack() * 1.8) return no('Ještě ne! Počkej na zelenou.');   // nowhere near: not a storey thrown away
+      beep(330); s.openAt = s.t; s.pend = { k: 'drop', at: s.t }; s.litLast = -9;
+      fall({ x, x0: now, ok, perfect: ok && Math.abs(off) <= 2.5 }, false);
+      Net.send({ type: 'ev', e: 'drop', x, x0: now });
+    }
+    // A storey let go: it falls from where it hung, on this phone straight away; `sure` once the room has said how it went.
+    function fall(r, sure) {
+      s.fall = { x: r.x, x0: r.x0 === undefined ? r.x : r.x0, ok: r.ok, perfect: r.perfect, back: !!r.back, sure, at: s.t, i: live.floors.length, from: JIB + CABLE + HANG + SH - Math.round(s.cam), landed: false, passed: false, hearted: false };
+    }
+    function heartBack(f) {                                                         // a perfect landing gave a lost heart back
+      if (f.hearted || !f.back || !f.landed) return; f.hearted = true;
+      plus('+♥', f.x, GY - f.i * SH + Math.round(s.cam) - SH - 4, '#FF6B8A'); again(view.hud.children[0], 'gain'); beep(880, 1320);
+    }
+    function dust(x, y, n, colors, up) {
+      for (let k = 0; k < n; k++) {
+        const side = k % 2 ? 1 : -1, sp = 12 + ((k * 37) % 23);
+        s.bits.push({ x, y, vx: up ? (k - n / 2) * 9 : side * sp, vy: up ? -30 - ((k * 53) % 40) : -6 - ((k * 29) % 14), c: colors[k % colors.length], at: s.t, life: up ? 0.8 : 0.5 });
+      }
+    }
+    // The storey has landed (or gone past the top of the house): the thud, the dust, and what it means.
+    function landed(f) {
+      const y = GY - f.i * SH, x = Math.round(f.x);
+      s.bump = s.t;
+      dust(x - SW / 2, y, 6, ['#E9E2D6', '#CFC6B8']); dust(x + SW / 2, y, 6, ['#E9E2D6', '#CFC6B8']);
+      if (f.perfect) { cheer('Perfektní!'); beep(660, 880, 1100); dust(x, y - SH, 10, ['#FFD43A', '#FFF1A8', '#FFFFFF'], true); }
+      else beep(392, 523);
+      heartBack(f);
+      const k = f.i, last = k >= live.need - 1;
+      if (last) { s.saidUntil = 0; dust(x, y - SH - 10, 24, ['#FF4D4D', '#FFD43A', '#3E7BD6', '#1FA463', '#F0448F', '#FFFFFF'], true); beep(523, 659, 784, 1047); return; }
+      if (k % EVERY === 0) { s.flagAt = s.t; s.flagK = k; if (!f.perfect) cheer('Vlajka!'); if (k === EVERY) say('Kdyby to spadlo, začnete tady.', 3.5); }
+      if (k === 8) say(role() === 'hook' ? 'Fouká vítr! Pouštěj na zelenou.' : 'Fouká vítr! Drž patro nad domem.', 3.5);
+      if (k === live.need - 2) say('Už jen střecha!', 3);
+    }
+    function missed(f) {
+      s.shake = s.t; beep(220, 165, 110);
+      again(view.hud.children[0], 'hit');
+      if (Math.abs(f.x - top()) < SW) dust(f.x > top() ? top() + SW / 2 : top() - SW / 2, GY - f.i * SH, 6, ['#CFC6B8', '#9C948A']);   // it scraped the edge
+      if (drops()) say(role() === 'solo' && s.amp > 0.6 ? 'Zastav a počkej, ať se to nehoupe.' : 'Když tlačítko svítí zeleně, pusť!', 3);
+      else if (s.amp > 0.6) say('Zastav, ať se to nehoupe.', 3);                    // the driver can calm it for the next one
+    }
     function steer(x) {
+      const was = s.crane;
       s.crane = clamp(x, 12, 168);
+      if (s.crane !== x && Math.abs(s.cv) > 30) s.knock = s.t;                       // the end of the arm: a little knock
+      if (s.crane === was) return;
       const now = Net.now();
       if (now - s.sent > 60) { s.sent = now; Net.send({ type: 'fx', k: 'crane', x: s.crane }); }
       if (now - s.told > 140) { s.told = now; Net.send({ type: 'ev', e: 'crane', x: s.crane }); }
     }
+    // a line of whole pixels from (x0, y0) to (x1, y1)
+    function line(x0, y0, x1, y1, c) {
+      const n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0), 1);
+      for (let k = 0; k <= n; k++) rect(Math.round(x0 + (x1 - x0) * k / n), Math.round(y0 + (y1 - y0) * k / n), 1, 1, c);
+    }
+    const easeInOut = (u) => (u < 0.5 ? 2 * u * u : 1 - 2 * (1 - u) * (1 - u));
+    const easeOut = (u) => 1 - (1 - u) * (1 - u) * (1 - u);
     return {
       s, kind: 'tower',
-      peek: () => ({ steers: steers(), drops: drops(), crane: crane(), hook: hook(), top: top(), busy: Net.now() < live.busyUntil, floors: live.floors.length, need: live.need, holding: live.holding, stack: STACK }),
+      peek: () => ({ steers: steers(), drops: drops(), crane: crane(), hook: hook(), top: top(), busy: busy(), floors: live.floors.length, need: live.need, holding: holding(), stack: STACK,
+        lit: lit(), amp: s.amp, slack: slack(), wind: wind(), state: s.state, tip: view.tip.textContent, lives: live.lives, check: live.check }),
       steerTo: (x) => { s.target = x; },
       sync(n) {
-        if (n.last && n.last.n !== s.seen) {                           // a storey has been let go: show it falling
-          s.seen = n.last.n; if (!s.over) view.tip.textContent = '';
-          s.fall = { x: n.last.x, ok: n.last.ok, perfect: n.last.perfect, at: s.t, i: n.last.ok ? n.floors.length - 1 : -1, from: JIB + CABLE - s.cam };
-          if (n.last.perfect && !s.over) cheer('Perfektní!');
-          // a new stage of the climb: say what gets harder
-          const built = n.floors.length - 1, said = { 5: 'Výš se to víc houpe. Pouštěj, když je patro přesně nad domem!', 7: 'Fouká vítr! Jeřáb musí vítr dorovnávat.', 11: 'Už jsme skoro nahoře. Opatrně!' }[built];
-          if (said && n.last.ok && !s.over) { view.tip.textContent = said; s.toldAt = s.t; }
-          beep(...(n.last.ok ? (n.last.perfect ? [660, 880, 1100] : [520, 660]) : [200, 150]));
+        if (n.lifts !== s.lifts) {                                                   // a storey picked up: on this phone already, or now
+          s.lifts = n.lifts;
+          if (s.pend && s.pend.k === 'pick') s.pend = null; else { s.liftAt = s.t; s.grabbed = false; beep(300, 400); }
         }
-        if (n.lifts !== s.lifts) { s.lifts = n.lifts; s.liftAt = s.t; beep(300, 400, 500); }      // the hook goes down for a storey and brings it up
-        if (!steers()) s.mateCrane = n.crane;
+        if (n.last && n.last.n !== s.seen) {                                         // a storey let go
+          s.seen = n.last.n;
+          if (s.pend && s.pend.k === 'drop' && s.fall && !s.fall.sure) {             // this phone's own: the room has the last word
+            Object.assign(s.fall, { ok: n.last.ok, perfect: n.last.perfect, back: !!n.last.back, x: n.last.x, sure: true });
+            heartBack(s.fall);
+          } else { s.openAt = s.t; beep(330); fall(n.last, true); }                    // the other phone let it go
+          if (s.pend && s.pend.k === 'drop') s.pend = null;
+        }
+        if (!steers() && Net.now() - s.fxAt > 300) s.mateCrane = n.crane;             // the room hears the crane less often than the phone does
         live = n; paint();
       },
-      fx(m) { if (m.k === 'crane' && !steers()) s.mateCrane = m.x; },
-      over(won) { s.over = true; s.lost = !won; paint(); view.end(won, won ? 'Dům stojí!' : 'Spadlo to.', won ? 'Sydney má nový mrakodrap.' : 'Zkuste to ještě jednou.'); },
+      fx(m) { if (m.k === 'crane' && !steers()) { s.mateCrane = m.x; s.fxAt = Net.now(); } },
+      over(won) {
+        s.over = true; s.lost = !won; paint(); keys.mark('drop', false);
+        view.end(won, won ? 'Dům stojí!' : 'Spadlo to.', won ? 'Sydney má nový mrakodrap.' : live.check ? `Stavíte dál od ${live.check}. patra.` : 'Zkuste to ještě jednou.');
+      },
       down(x, y) {
         if (s.over || y < 22) return;
-        if (drops() && !steers()) return hookIt();                     // Kellyn: a tap anywhere works the hook
-        if (steers()) s.target = x;                                    // Kendrick: the crane heads for the finger
+        if (drops() && !steers()) return hookIt();                                   // Kellyn: a tap anywhere works the hook
+        if (steers()) s.target = x;                                                  // Kendrick: the crane heads for the finger
       },
       move(x, y) { if (!s.over && steers()) s.target = x; },
       update(dt) {
-        if (s.over) return;
         s.t = clock(live);
-        if (s.target !== null && steers()) { const d = s.target - s.crane; steer(s.crane + clamp(d, -110 * dt, 110 * dt)); if (Math.abs(d) < 0.5) s.target = null; }
-        if (drops()) {                                                       // the hook's button: Zvedni over the stack, Pusť! with a storey; lit when it is the moment
-          keys.label('drop', live.holding ? 'Pusť!' : 'Zvedni');
-          keys.mark('drop', !s.over && Net.now() >= live.busyUntil && (live.holding ? Math.abs(hook() - top()) <= Room.course.slack(cfg.slack, live.floors.length - 1) * 0.6 : Math.abs(crane() - STACK) <= 12));
+        if (!s.over) {
+          // the crane speeds up and slows down rather than jumping: it heads for the finger (or the end of the arm, while an arrow is held)
+          if (steers()) {
+            const want = s.target === null ? 0 : clamp((s.target - s.crane) * 6, -110, 110);
+            s.cv += (want - s.cv) * Math.min(1, dt * (s.target === null ? 20 : 10));   // let go: it brakes, rolling on a few pixels
+            if (Math.abs(s.cv) > 0.3) steer(s.crane + s.cv * dt); else s.cv = 0;
+            if ((s.crane <= 12 && s.cv < 0) || (s.crane >= 168 && s.cv > 0)) s.cv = 0;
+            if (s.target !== null && Math.abs(s.target - s.crane) < 0.5 && Math.abs(s.cv) < 4) s.target = null;
+          } else s.cx += (s.mateCrane - s.cx) * Math.min(1, dt * 14);                // the partner's crane, smoothed between messages
+          // the swing: driving pumps it up, standing still lets it calm down; the load trails a moving crane and swings past when it stops
+          const c = crane(), v = dt > 0 ? (c - s.px) / dt : 0; s.px = c;
+          s.v += (v - s.v) * Math.min(1, dt * 12);
+          const speed = Math.abs(s.v);
+          if (speed > 8) s.amp = Math.min(1, s.amp + dt * speed / 110 * 0.9);
+          else s.amp = CALM + (s.amp - CALM) * Math.exp(-dt / 1.6);
+          s.lagV += ((-s.v * 0.1 - s.lag) * 40 - s.lagV * 6) * dt; s.lag += s.lagV * dt;
+          if (s.pend && s.t - s.pend.at > 1.5) s.pend = null;                        // the room never took it: go by what it says
+          // the hook's button: Zvedni over the pile, Pusť! with a storey; green when it is the moment
+          if (drops()) {
+            const g = lit();
+            keys.label('drop', holding() ? 'Pusť!' : 'Zvedni'); keys.mark('drop', g);
+            if (g && holding()) { s.litLast = s.t; s.litX = hook(); }
+          }
+          // what to do now, as a tip: right away while they learn (the first two storeys), later only when it takes long
+          const state = busy() || done() ? 'busy' : !holding() ? (overStack() ? 'pick' : 'fetch') : overHouse() ? 'aim' : 'bring';
+          if (state !== s.state) { s.state = state; s.stateAt = s.t; }
+          if (s.saidIn && s.saidIn !== state && s.t - s.saidAt > 1.2) s.saidUntil = 0;     // sorted out: gone, but not before it can be read
+          let tip = '';
+          if (s.t < s.saidUntil) tip = s.said;
+          else if (state !== 'busy' && s.t > 0.5) {
+            const learning = built() < 2, wait = s.t - s.stateAt;
+            const due = state !== 'aim' ? wait > (learning ? 0.4 : 6) : role() === 'drive' ? s.amp > 0.62 && wait > 1.5 : wait > (learning ? 1.2 : 5);
+            if (due) tip = tipFor(state);
+          }
+          if (view.tip.textContent !== tip) view.tip.textContent = tip;
         }
-        if (s.toldAt && s.t - s.toldAt > 3.5) { view.tip.textContent = ''; s.toldAt = 0; }
-        const want = Math.max(0, (live.floors.length - (s.fall && s.fall.ok && s.t - s.fall.at < 0.5 ? 1 : 0)) * SH - (GY - 170));
+        // the storey in the air: has it landed, or gone past the house?
+        const f = s.fall;
+        if (f) {
+          const u = s.t - f.at, y = f.from + 0.5 * G * u * u, land = GY - f.i * SH;
+          if (f.ok && !f.landed && y >= land) { f.landed = true; f.landAt = s.t; landed(f); }
+          if (!f.ok && !f.passed && y >= land) { f.passed = true; f.passAt = s.t; missed(f); }
+          if (u > 2.2) s.fall = null;
+        }
+        // the lift: the hook reaches the pile (a clunk), then it comes up with a storey that starts to swing
+        if (!s.grabbed && s.t - s.liftAt >= LIFT * 0.4) {
+          s.grabbed = true; beep(140); s.amp = Math.max(s.amp, 0.65);
+          dust(STACK, pileY(Math.max(0, Math.min(3, live.need - live.floors.length) - 1)) - SH * 0.8 - Math.round(s.cam), 4, ['#E9E2D6', '#CFC6B8']);
+        }
+        for (const b of s.bits) { b.x += b.vx * dt; b.y += b.vy * dt; b.vy += 90 * dt; }
+        s.bits = s.bits.filter((b) => s.t - b.at < b.life);
+        const want = Math.max(0, shown() * SH - (GY - 170));                        // the camera rises with the house, easing in
         s.cam += (want - s.cam) * Math.min(1, dt * 3);
-        if (s.fall && s.t - s.fall.at > 1.2) s.fall = null;
         paint();
       },
       draw() {
+        const shake = s.t - s.shake < 0.3 ? Math.round(Math.sin(s.t * 70) * 2) : 0;
+        ctx.save(); ctx.translate(shake, 0);
         const cam = Math.round(s.cam), img = K.picture(sc.bg), back = Math.round(cam * 0.5);
         if (img) { ctx.drawImage(img, 0, back); if (back > 0) ctx.drawImage(img, 0, 0, W, 1, 0, 0, W, back + 1); }   // the sky stretches up as the camera rises
         else K.background(sc.bg, 0, place.look);
-        const sy = (y) => y + cam, n = live.need;
-        // the house so far; a storey still falling is drawn by the fall
-        live.floors.forEach((x, i) => {
-          if (s.fall && s.fall.ok && s.fall.i === i && s.t - s.fall.at < 0.45) return;
-          if (K.has('storeys', pose(i, n))) K.figure('storeys', x, sy(GY - i * SH), pose(i, n), 0, false);
+        const sy = (y) => y + cam, n = live.need, f = s.fall, ft = f ? s.t - f.at : 0;
+        const dip = s.t - s.bump < 0.12 ? 1 : 0;                                    // a landing pushes the house down a pixel
+        // the house so far (a storey still in the air is drawn by its fall; one that has landed here but not yet in the room's list, from the fall)
+        const xs = live.floors.slice();
+        if (f && f.ok && f.landed && f.i >= xs.length) xs[f.i] = f.x;
+        xs.forEach((x, i) => {
+          if (f && f.ok && f.i === i && !f.landed) return;
+          const settle = f && f.ok && f.i === i && s.t - f.landAt < 0.16 ? (s.t - f.landAt < 0.08 ? 2 : 1) : 0;   // it sinks in a little and comes back up
+          if (K.has('storeys', pose(i, n))) K.figure('storeys', x, sy(GY - i * SH) + dip + settle, pose(i, n), 0, false);
           else { rect(x - SW / 2, sy(GY - (i + 1) * SH), SW, SH, INK); rect(x - SW / 2 + 1, sy(GY - (i + 1) * SH) + 1, SW - 2, SH - 2, '#E6CFA0'); }
         });
-        // the people down on the site, who scroll away as the house rises
-        // the stack of storeys waiting on the ground, as many as are still to come (up to three)
-        const left = live.need - live.floors.length - (live.holding ? 1 : 0);
-        for (let k = 0; k < Math.min(3, left); k++) if (K.has('storeys', 'floor')) K.figure('storeys', STACK, sy(GY + 2 - k * SH * 0.8), POSES[(live.floors.length + k + 1) % 3], 0, false, 0.4);
+        // a white flash round a storey that landed perfectly
+        if (f && f.ok && f.perfect && f.landed && s.t - f.landAt < 0.18) {
+          const x = Math.round(f.x) - SW / 2, y = sy(GY - (f.i + 1) * SH);
+          rect(x - 1, y - 1, SW + 2, 1, '#FFFFFF'); rect(x - 1, y + SH, SW + 2, 1, '#FFFFFF'); rect(x - 1, y, 1, SH, '#FFFFFF'); rect(x + SW, y, 1, SH, '#FFFFFF');
+        }
+        // a flag every few storeys: where a lost game goes on from (it pops up when it is reached)
+        for (const k of flags()) {
+          if (k >= xs.length || (f && f.ok && f.i === k && !f.landed)) continue;
+          const grow = k === s.flagK ? clamp((s.t - s.flagAt) / 0.3, 0, 1) : 1;
+          const px = Math.round(xs[k]) + SW / 2 - 2, py = sy(GY - k * SH) - SH + dip, h = Math.round(14 * easeOut(grow));
+          rect(px, py - h + 4, 1, h, '#5A4A40');
+          if (h > 8) { const wave = Math.floor(s.t * 4) % 2; rect(px + 1, py - h + 4, 6, 4, '#CC2233'); rect(px + 1, py - h + 5, 6 - wave, 1, '#E8505E'); rect(px + 7 - wave, py - h + 4 + wave, 1, 4 - 2 * wave, '#CC2233'); }
+        }
+        // the pile of storeys waiting, as many as are still to come (up to three), on its platform; under a raised one the
+        // hoist's mast, down to the ground (or out of the picture)
+        const left = live.need - live.floors.length - (holding() ? 1 : 0) - (f && f.ok && !f.sure && f.i >= live.floors.length ? 1 : 0);
+        const lifting = s.t - s.liftAt < LIFT, pileN = Math.min(3, left + (lifting && !s.grabbed ? 1 : 0)), ground = Math.min(H, sy(GY + 2));
+        if (ground > PILE + 2) {
+          rect(STACK - 12, PILE + 2, 1, ground - PILE - 2, '#B8860B'); rect(STACK + 11, PILE + 2, 1, ground - PILE - 2, '#B8860B');
+          for (let y = PILE + 6; y < ground; y += 6) rect(STACK - 11, y, 22, 1, '#F2C94C');
+        }
+        rect(STACK - 15, PILE - 1, 30, 3, INK); rect(STACK - 14, PILE - 1, 28, 1, '#F2C94C');
+        for (let k = 0; k < pileN; k++) if (K.has('storeys', 'floor')) K.figure('storeys', STACK, pileY(k), POSES[(live.floors.length + k + 1) % 3], 0, false, 0.4);
         (sc.cast || []).forEach((id, i) => K.figure(id, 150 + i * 24, sy(GY + 4), 'three', s.t, true));
-        if (mateHere()) K.hero(mate(), 62, sy(GY + 6), 'stand', s.t + 0.3);
-        K.hero(who, 46, sy(GY + 6), s.lost ? 'dizzy' : 'stand', s.t);
-        const wind = Room.course.wind(s.t, live.floors.length - 1);
-        if (Math.abs(wind) > 1) for (let k = 0; k < 7; k++) {                                      // the wind, as streaks blowing across the sky
-          const dir = Math.sign(Math.cos(s.t * 0.35 + 1)) || 1, sp = 40 + Math.abs(wind) * 6, y = 44 + ((k * 37) % 150);
+        if (mateHere()) K.hero(mate(), 66, sy(GY + 6), 'stand', s.t + 0.3);
+        K.hero(who, 50, sy(GY + 6), s.lost ? 'dizzy' : 'stand', s.t);
+        const wnd = wind();
+        if (Math.abs(wnd) > 1) for (let k = 0; k < 7; k++) {                                      // the wind, as streaks blowing across the sky
+          const dir = Math.sign(Math.cos(s.t * 0.35 + 1)) || 1, sp = 40 + Math.abs(wnd) * 6, y = 44 + ((k * 37) % 150);
           const x = ((k * 53 + dir * s.t * sp) % (W + 40) + W + 40) % (W + 40) - 20;
           rect(Math.round(x), y, 14, 1, 'rgba(255,255,255,.7)'); rect(Math.round(x) + (dir > 0 ? -6 : 14), y + 2, 6, 1, 'rgba(255,255,255,.5)');
         }
         // the crane: only its arm across the top (the mast is out of the picture), the cabin, the trolley, the cable and the hook
         rect(4, JIB, 188, 5, '#B8860B'); rect(4, JIB + 1, 188, 1, '#F2C94C'); for (let x = 6; x < 190; x += 6) rect(x, JIB + 2, 1, 2, '#F2C94C');
         rect(172, JIB - 9, 18, 9, '#B8860B'); rect(174, JIB - 7, 7, 5, '#BFE3F2');                    // the cabin
-        const c = Math.round(crane()), lift = s.t - s.liftAt < LIFT ? (s.t - s.liftAt) / LIFT : -1;
-        // fetching: the cable runs down to the stack on the ground and back up with a storey
-        const deep = lift >= 0 ? Math.sin(lift * Math.PI) * (sy(GY) - JIB - CABLE - SH * 0.8) : 0;
-        const hx = lift >= 0 ? c : live.holding ? hook() : c, hy = JIB + CABLE + Math.round(deep);
-        rect(c - 5, JIB + 5, 10, 3, INK);
-        for (let k = 0; k <= 10; k++) rect(Math.round(c + (hx - c) * k / 10), Math.round(JIB + 8 + (hy - JIB - 8) * k / 10), 1, 2, '#46536A');
-        rect(Math.round(hx) - 3, hy - 1, 6, 2, INK);                                                // the hook
-        if (!live.holding && !s.over && lift < 0) for (let y = JIB + 10; y < sy(GY) - SH; y += 7) rect(STACK, y, 1, 3, 'rgba(255,212,58,.55)');   // where to fetch the next one
-        if (lift > 0.5 && K.has('storeys', 'floor')) K.figure('storeys', hx, hy + SH + 1, pose(live.floors.length, n), 0, false);   // on its way up
-        if (!s.over && Net.now() >= live.busyUntil && live.holding && live.floors.length < n) {
-          const i = live.floors.length;
-          if (K.has('storeys', pose(i, n))) K.figure('storeys', hx, hy + SH + 1, pose(i, n), 0, false);
-          // a faint line straight down, to help aim
-          for (let y = hy + SH + 4; y < sy(GY - live.floors.length * SH); y += 6) rect(Math.round(hx), y, 1, 2, 'rgba(255,248,231,.35)');
+        const knock = s.t - s.knock < 0.15 ? 1 : 0, c = Math.round(crane()) + (s.crane >= 168 ? -knock : knock);
+        const held = holding() && !lifting, aiming = held && !busy() && !s.over;
+        // where the crane should go next: a yellow arrow on the arm, and little marks running along it towards there
+        const goal = held ? Math.round(top() - wnd) : STACK;
+        if (!s.over && !busy() && !done() && Math.abs(goal - c) > (held ? 4 : 8)) {
+          const bob = Math.floor(s.t * 4) % 2;
+          for (let k = 0; k < 5; k++) { rect(goal - 5 + k, JIB - 8 - bob + k, 11 - 2 * k, 1, '#FFD43A'); rect(goal - 6 + k, JIB - 8 - bob + k, 1, 1, INK); rect(goal + 5 - k, JIB - 8 - bob + k, 1, 1, INK); }
+          rect(goal - 6, JIB - 9 - bob, 13, 1, INK);
+          const dir = Math.sign(goal - c), run = (s.t * 30) % 8;
+          for (let x = c + dir * (8 + run); dir > 0 ? x < goal - 4 : x > goal + 4; x += dir * 8) rect(Math.round(x), JIB + 2, 2, 2, '#FFFFFF');
         }
+        // fetching: the hook goes down to the pile (eased), takes a storey and brings it up; the storey starts to swing
+        const base = JIB + CABLE, u = lifting ? (s.t - s.liftAt) / LIFT : -1;
+        const pileTop = pileY(Math.max(0, Math.min(3, left + 1) - 1)) - SH * 0.8 - HANG;
+        let hx = c + s.lag * 0.5, hy = base, load = false, size = 0.5;
+        if (lifting) {
+          if (u < 0.4) hy = base + (pileTop - base) * easeInOut(u / 0.4);
+          else if (u < 0.52) hy = pileTop;
+          else { const k = (u - 0.52) / 0.48, e = easeOut(k); hy = pileTop + (base - pileTop) * e; hx = c + (hook() - c) * k * k; size = k < 0.15 ? 0.4 : k < 0.3 ? 0.45 : 0.5; }
+          load = u >= 0.4;
+          if (u >= 0.4 && u < 0.52) size = 0.4;
+        } else if (held) { hx = hook(); load = true; }
+        if (!lifting && s.t - s.liftAt < LIFT + 0.25) hy += Math.round(Math.sin((s.t - s.liftAt - LIFT) / 0.25 * Math.PI) * 2);   // the rope gives a little at the top
+        hx = Math.round(hx); hy = Math.round(hy);
+        rect(c - 5, JIB + 5, 10, 3, INK);                                                      // the trolley, its wheels turning as it goes
+        if (Math.abs(s.v) > 8) { const w = Math.floor(s.t * 12) % 2; rect(c - 4 + w, JIB + 5, 1, 1, '#F2C94C'); rect(c + 2 + w, JIB + 5, 1, 1, '#F2C94C'); }
+        line(c, JIB + 8, hx, hy - 3, '#46536A');                                               // the cable
+        rect(hx - 2, hy - 3, 5, 3, '#F2C94C'); rect(hx - 2, hy - 3, 5, 1, '#B8860B');          // the hook block
+        const open = s.t - s.openAt < 0.25;                                                     // letting go: the hook opens
+        rect(hx, hy, 1, 2, INK);
+        if (open) { rect(hx - 2, hy + 2, 2, 1, INK); rect(hx + 1, hy + 2, 2, 1, INK); } else { rect(hx - 1, hy + 2, 3, 1, INK); rect(hx - 2, hy + 1, 1, 1, INK); }
+        if (load) {
+          const i = live.floors.length + (f && f.ok && !f.sure && f.i >= live.floors.length ? 1 : 0), py = hy + HANG;
+          line(hx, hy + 2, hx - 15, py, '#46536A'); line(hx, hy + 2, hx + 15, py, '#46536A');   // the slings
+          if (K.has('storeys', pose(i, n))) K.figure('storeys', hx, py + SH * size * 2, pose(i, n), 0, false, size);
+        }
+        // aiming: the strip on top of the house where it has to land, and a line straight down from the storey (green: let go now)
+        if (aiming) {
+          const ty = sy(GY - (live.floors.length - 1) * SH) - SH, g = lit(), sl = Math.round(slack()), tx = Math.round(top());
+          rect(tx - sl, ty - 1, sl * 2 + 1, 1, g ? '#7CE07C' : 'rgba(255,248,231,.45)');
+          for (let y = hy + HANG + SH + 3; y < ty - 3; y += 5) rect(hx, y, 1, 3, g ? 'rgba(124,224,124,.9)' : 'rgba(255,248,231,.35)');
+          rect(hx - 2, ty - 3, 5, 1, g ? '#7CE07C' : 'rgba(255,248,231,.6)');
+        }
+        if (!held && !lifting && !s.over && !busy() && !done()) for (let y = JIB + 10; y < pileY(Math.max(0, pileN - 1)) - SH; y += 7) rect(STACK, y, 1, 3, 'rgba(255,212,58,.55)');   // where to fetch the next one
         // a storey on its way down: onto the house, or past it and off the screen
-        if (s.fall) {
-          const u = s.t - s.fall.at, i = s.fall.ok ? s.fall.i : live.floors.length;
-          const land = s.fall.ok ? sy(GY - i * SH) : H + 60, y0 = s.fall.from + SH + 1 + cam;    // from the hook, where it hung (`from` is on the house, not the screen)
-          const y = Math.min(land, y0 + 420 * u * u), x = s.fall.ok ? s.fall.x : s.fall.x + u * 30;
-          if (y < land || s.fall.ok) K.figure('storeys', x, y, pose(i, n), 0, false);
-          if (s.fall.ok && y >= land && s.fall.perfect && u < 1) { for (let k = 0; k < 4; k++) rect(Math.round(x - 22 + k * 14), Math.round(land - SH - 6 - (u - 0.45) * 20), 3, 3, '#FFD43A'); }
+        if (f && (!f.landed || !f.ok)) {
+          const i = f.i, land = GY - i * SH, yy = f.from + 0.5 * G * ft * ft;
+          const past = f.passed ? s.t - f.passAt : 0, side = Math.sign(f.x - top()) || 1, reach = Math.min(1, ft / Math.sqrt(Math.max(1, 2 * (land - f.from) / G)));
+          const x = f.x0 + (f.x - f.x0) * easeOut(reach) + (f.passed ? side * (40 * past + 60 * past * past) : 0);
+          if (f.ok || sy(yy) < H + SH * 2) K.figure('storeys', Math.round(x), Math.round(sy(Math.min(yy, f.ok ? land : yy))), pose(i, n), 0, false);
         }
+        for (const b of s.bits) rect(Math.round(b.x), Math.round(sy(b.y)), 2, 2, b.c);         // dust and sparkles
+        ctx.restore();
       },
     };
   }
