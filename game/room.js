@@ -186,25 +186,37 @@
       if (sc.play === 'tower') Object.assign(sn, { floors: [96], crane: 96, need: Math.round(sc.tower.need * (two ? 1.3 : 1)), lives: two ? 5 : 4, n: 0, last: null, busyUntil: 0, endAt: 0, endPhase: null, holding: false, lifts: 0 });
       if (sc.play === 'rescue') Object.assign(sn, { stage: 'throw', hits: 0, needHits: sc.rescue.hits * (two ? 2 : 1), lives: two ? 4 : 3, pull: 0, needPull: Math.round(sc.rescue.pull * (two ? 2 : 1)), pullAt: 0 });
       if (sc.play === 'salon') Object.assign(sn, { lives: two ? 4 : 3, need: Math.round(sc.salon.need * (two ? 1.6 : 1)), served: 0, coins: 0, cust: [], next: 0, tt: 0, workers: { ken: null, kel: null } });
-      if (sc.play === 'echo') { Object.assign(sn, { lives: two ? 4 : 3, round: 0, rounds: sc.echo.rounds, n: 0, last: null }); teach(sc.echo.first, 1600); }
+      if (sc.play === 'echo') { Object.assign(sn, { two, lives: two ? 4 : 3, round: 0, rounds: sc.echo.rounds, n: 0, last: null, tune: tune(sc.echo.first + sc.echo.rounds - 1, two), attempt: 0, slips: 0, misses: 0, hints: 0 }); teach(sc.echo.first, 2200); }
       if (sc.play === 'platform') Object.assign(sn, { hurts: 0, outs: 0 });
       if (sc.play === 'drums') Object.assign(sn, { hits: 0, need: Math.ceil(course.drums(sn.seed, sc).notes.length * (sc.drums.pass || 0.6) * (two ? 1.8 : 1)) });    // two need more than one could drum alone, but not so much that one must carry the other
       if (sn.lives !== undefined) sn.maxLives = sn.lives;                                   // for the stars: how many they started with
     }
-    // The echo game: a rhythm to repeat. `teach` makes one of the given length (or plays the same one again) and sets
-    // when it is shown and from when the players may answer.
-    function teach(len, wait) {
-      const sn = S.scene, sc = place().scenes[sn.index], two = both();
-      if (len) {
+    // The echo game: a rhythm to repeat, Simon-style. `tune` makes the whole rhythm once; each round plays one stroke
+    // more of it, so a round only ever asks for one new stroke. Never three of a kind in a row and the first two
+    // strokes differ; with two, both play from the first round, turns change often (never three running for one),
+    // and Kellyn, the younger, never has more strokes than Kendrick.
+    function tune(len, two) {
+      for (;;) {
         const pat = [];
-        while (pat.length < len) { const p = Math.floor(Math.random() * 4); if (pat.length > 1 && pat[pat.length - 1] === p && pat[pat.length - 2] === p) continue; pat.push(p); }
-        if (two && len > 1) { if (!pat.some((p) => p < 2)) pat[0] = Math.floor(Math.random() * 2); if (!pat.some((p) => p > 1)) pat[len - 1] = 2 + Math.floor(Math.random() * 2); }   // something for each of them
-        sn.pattern = pat;
+        while (pat.length < len) {
+          const p = Math.floor(Math.random() * 4), n = pat.length;
+          if ((n === 1 && pat[0] === p) || (n > 1 && pat[n - 1] === p && pat[n - 2] === p)) continue;
+          if (two && n > 1 && owner(pat[n - 1]) === owner(p) && owner(pat[n - 2]) === owner(p)) continue;
+          pat.push(p);
+        }
+        if (!two) return pat;
+        const fair = pat.every((_, i) => pat.slice(0, i + 1).filter((p) => owner(p) === 'kel').length <= Math.ceil((i + 1) / 2));
+        if (owner(pat[0]) !== owner(pat[1]) && fair) return pat;
       }
-      sn.step = 0;
-      sn.beat = Math.max(0.45, sc.echo.beat - sn.round * 0.035);                       // a little quicker every round
+    }
+    // `teach` sets the part of the rhythm for this round (or the same again after a slip), when it is shown and from
+    // when the players may answer. `attempt` counts the showings: a stroke meant for an earlier one is dropped.
+    function teach(len, wait) {
+      const sn = S.scene, sc = place().scenes[sn.index];
+      Object.assign(sn, { pattern: sn.tune.slice(0, len), step: 0, got: [], attempt: sn.attempt + 1 });
+      sn.beat = Math.max(0.5, sc.echo.beat - sn.round * 0.02);                         // a little quicker every round
       sn.showAt = now() + wait;
-      sn.listenAt = sn.showAt + sn.pattern.length * sn.beat * 1000 + 250;
+      sn.listenAt = sn.since = sn.showAt + len * sn.beat * 1000 + 300;                // `since`: from when the next stroke is waited for (for the hints)
     }
     // The salon runs on its own between messages: customers come in, work gets done where someone stands, patience runs out.
     const QUEUE = 3, AWAY = -1, WAITING = -2;                                       // three chairs to wait on by the door
@@ -276,6 +288,7 @@
       if (k === 'memory') return by(sn.misses - Math.floor(sn.maxMiss * 0.4), Math.floor(sn.maxMiss * 0.3));
       if (k === 'find') { const u = (now() - sn.startAt) / 1000 / sc.find.seconds; return u <= 0.6 ? 3 : u <= 0.85 ? 2 : 1; }
       if (k === 'drums') { const r = sn.hits / Math.max(1, sn.need); return r >= 1.25 ? 3 : r >= 1.1 ? 2 : 1; }
+      if (k === 'echo') return by(sn.misses + sn.hints, sn.two ? 4 : 3);                // slips, and strokes played only once the drum was shown
       if (sn.maxLives) return by(sn.maxLives - sn.lives, Math.floor(sn.maxLives / 2));
       return 3;
     }
@@ -384,13 +397,26 @@
         if (sn.stage === 'throw' && m.e === 'miss') { if (--sn.lives <= 0) sn.phase = 'lost'; }
         if (sn.stage === 'pull' && m.e === 'pull' && now() >= sn.pullAt) { sn.pull += clamp(m.n | 0, 0, 12); if (sn.pull >= sn.needPull) sn.phase = 'won'; }
       }
+      // A stroke says which place in the rhythm it is meant for (`i`) and which showing it answers (`a`), so strokes
+      // that arrive out of order still count, and one sent just before the rhythm was played again is not a mistake.
       if (kind === 'echo' && m.e === 'pad') {
-        const p = m.p | 0;
-        if (now() < sn.listenAt || p < 0 || p > 3 || (!solo && both() && owner(p) !== who)) return;     // still being shown, or not this one's drum
-        const ok = p === sn.pattern[sn.step];
-        sn.last = { p, ok, n: ++sn.n };                                                // so both devices can show and sound the stroke
-        if (!ok) { if (--sn.lives <= 0) sn.phase = 'lost'; else teach(0, 1300); }       // wrong: it is played once more
-        else if (++sn.step >= sn.pattern.length) { if (++sn.round >= sn.rounds) sn.phase = 'won'; else teach(sn.pattern.length + 1, 1500); }
+        const p = m.p | 0, i = Number.isInteger(m.i) ? m.i : sn.step, two = !solo && both(), cfg = sc.echo;
+        if (now() < sn.listenAt - 150 || p < 0 || p > 3 || (two && owner(p) !== who)) return;     // still being shown, or not this one's drum
+        if ((m.a !== undefined && m.a !== sn.attempt) || i < 0 || i >= sn.pattern.length || sn.got.includes(i)) return;
+        const ok = p === sn.pattern[i], at = Number.isFinite(m.at) ? clamp(m.at, sn.listenAt, now()) : now();   // when it was struck, by that device's clock
+        sn.last = { p, ok, n: ++sn.n, who, i };                                        // so both devices can show and sound the stroke
+        if (!ok) {                                                                     // a slip: the same rhythm is played once more; the first in a round is free
+          sn.misses++;
+          if (sn.slips++ > 0) sn.lives--;
+          if (sn.lives <= 0) sn.phase = 'lost'; else teach(sn.pattern.length, 1400);
+          return;
+        }
+        // played only after its drum had lit up as a hint (see Echo in game.js): it still counts, but not for the third star
+        const by = two ? owner(p) : who, hint = sn.round ? cfg.hint[by] : cfg.hint.first;
+        if (sn.round && at - Math.max(sn.since, sn.listenAt) > hint * 1000) sn.hints++;
+        sn.got.push(i); sn.since = Math.max(sn.since, at);
+        while (sn.got.includes(sn.step)) sn.step++;
+        if (sn.step >= sn.pattern.length) { sn.slips = 0; if (++sn.round >= sn.rounds) sn.phase = 'won'; else teach(sn.pattern.length + 1, 1700); }
       }
       if (kind === 'drums') {
         if (m.e === 'hit') sn.hits += m.n === 2 ? 2 : 1;

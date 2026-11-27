@@ -21,7 +21,7 @@
 // A scrolling picture is repeated with every other copy mirrored; `tile: 'repeat'` repeats it as it is.
 //   run     a side-scrolling dash: tap to jump the obstacles
 //   drums   notes fall down three lanes in time with the beat: tap each drum as its note reaches the line
-//   echo    a rhythm is played on four drums and has to be played back; each of them has two of the drums
+//   echo    a rhythm is played on four drums and has to be played back, one stroke longer each round; each of them has two of the drums
 //   find    koalas peek out of the trees: tap them while they show; drag to look around a wide picture
 //   salon   customers want washing, cutting, dyeing, drying and paying: lead them from place to place and work there
 //   memory  pexeso: one turns the first card over, the other turns the second looking for its pair; then they swap.
@@ -177,8 +177,9 @@ window.WORLD = {
           talk: [['', 'Velký strahovský stadion. Všechny vchody jsou zavřené a na mřížích visí zámky.']] },
         // From here on he is found: he shows the rhythm, and at the concert he plays along.
         { id: 'strahov-drums', name: 'Zkušebna', at: [18, 136], label: 'below', bg: 'strahov-drums', play: 'echo', code: 'BUBEN', cast: ['alan'],
-          echo: { rounds: 6, first: 2, beat: 0.6 },
-          talk: [['', 'Pod tribunou je zkušebna. A v ní někdo bubnuje!'], ['alan', 'Večer hraju na stadionu a kapela nikde. Zahrajete to se mnou?'], ['alan', 'Nejdřív zkouška. Já zahraju, vy to po mně zopakujete.']] },
+          // 2 strokes, then one more each round up to 7; a drum lights up as a hint after `hint` seconds of waiting
+          echo: { rounds: 6, first: 2, beat: 0.62, hint: { first: 1, ken: 3, kel: 2 } },
+          talk: [['', 'Pod tribunou je zkušebna. A v ní někdo bubnuje!'], ['alan', 'Večer hraju na stadionu a kapela nikde. Zahrajete to se mnou?'], ['alan', 'Nejdřív zkouška. Já zahraju, vy to po mně zopakujete. A pokaždé přidám jeden úder.']] },
         { id: 'strahov-concert', name: 'Koncert', at: [42, 125], label: 'right', bg: 'strahov-concert', play: 'drums', code: 'PODIUM', pickup: 'drumstick', cast: ['alan'],
           drums: { bpm: 104, beats: 96, pass: 0.62, busy: 0.35 }, say: { won: ['Stadion šílí!', 'Takový koncert tu dlouho nebyl.'] },
           talk: [['', 'Stadion je plný. Světla, pódium a vy tři.'], ['alan', 'Trefujte noty, až budou na čáře. Raz, dva, tři, čtyři!']] },

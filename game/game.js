@@ -1147,69 +1147,224 @@
     };
   }
 
-  // The echo: someone plays a rhythm on four drums, then it has to be played back in the same order. With two
-  // playing, each has two of the drums (Kendrick the left pair, Kellyn the right), so they must take turns to get
-  // it right. A wrong drum costs a life and the rhythm is played once more; each round it is one stroke longer.
+  // The echo: Alan plays a rhythm on four drums, then it has to be played back in the same order, Simon-style: every
+  // round the same rhythm with one stroke more (see teach in room.js). With two playing, each has two of the drums
+  // (Kendrick the left pair, Kellyn the right) and they take turns; whose turn it is shows in their colour, round
+  // their drums, on the dots and over their head. Every drum looks, sounds and is coloured its own way. A tap sounds,
+  // lights up and is judged on this phone at once; the room only confirms it. Waiting long on a stroke lights its
+  // drum up as a hint, on the partner's phone sooner, so one can tell the other (a hint costs the third star).
+  // A slip plays the rhythm again: the first in a round is free, every further one costs a life.
   function Echo(sc, place, sn) {
-    const who = me(), PW = W / 4, max = sn.lives, TOP = 236;
-    const PADS = [['#CC2233', 'kick'], ['#E0862E', 'tom'], ['#F0448F', 'snare'], ['#3E7BD6', 'cymbal']];
-    const s = { t: 0, over: false, lost: false, lit: [0, 0, 0, 0], bad: 0, good: 0, round: sn.round, shownAt: 0, sounded: -1, seen: 0, taps: 0, mateTaps: 0, castTaps: 0 };
-    let live = sn;
+    const cfg = sc.echo, who = me(), PW = W / 4, TOP = 230, PH = 50, BAND = 210, DOT = 213, max = sn.lives;
+    const PADS = [{ c: '#D8343F', dark: '#8E1F28', snd: 'kick', art: 'bassdrum' }, { c: '#F2B82A', dark: '#A8741A', snd: 'tom' },
+      { c: '#2FA35E', dark: '#1B6B3C', snd: 'snare', art: 'snare' }, { c: '#8A5BD6', dark: '#56368F', snd: 'cymbal', art: 'cymbal' }];
+    const OWN = { ken: '#58A6FF', kel: '#FF6FB5' };                                       // each one's colour: their turn, their dots
+    // The tom has no picture on the sheet: a floor tom drawn here, pixel by pixel, in the style of the snare.
+    const TOM = (() => {
+      const rows = ['.....kkkkkkkkkkkkkk.....', '...kkHHHHHHHHHHHHHHkk...', '..kHHHHHHHHHHHHHHHHHHk..', '.kCHHHHHHHHHHHHHHHHHHCk.', '.kCChHHHHHHHHHHHHHHhCCk.',
+        '.kcCCChhhhhhhhhhhhCCCck.', '.kLBBcCCCCCCCCCCCCcBBDk.', '.kLBBcBBBBBBBBBBBBcBBDk.', '.kLLBCBBBBBBBBBBBBCBDDk.', '.kLLBcBBBBBBBBBBBBcBDDk.',
+        '.kLLBBBBBBBBBBBBBBBBDDk.', '.kLLBBBBBBBBBBBBBBBBDDk.', '.kLLBBBBBBBBBBBBBBBBDDk.', '.kLLBcBBBBBBBBBBBBcBDDk.', '.kLLBCBBBBBBBBBBBBCBDDk.',
+        '.kLBBcBBBBBBBBBBBBcBBDk.', '.kcCCCCCCCCCCCCCCCCCCck.', '..kcccccccccccccccccck..', '...kkkkkkkkkkkkkkkkkk...', '...kg..............gk...',
+        '..kg................gk..', '..kg................gk..', '.kg..................gk.', '.kk..................kk.'];
+      const pal = { k: INK, H: '#F7E1C1', h: '#E2C49E', C: '#DDE2E8', c: '#7E8794', B: '#2F5FC0', L: '#5E8BE0', D: '#1F3F86', g: '#9AA1AB' };
+      const c = document.createElement('canvas'), g = c.getContext('2d'); c.width = rows[0].length; c.height = rows.length;
+      rows.forEach((r, j) => [...r].forEach((ch, i) => { if (pal[ch]) { g.fillStyle = pal[ch]; g.fillRect(i, j, 1, 1); } }));
+      return c;
+    })();
+    const s = { t: 0, over: false, lost: false, hit: [-9, -9, -9, -9], no: [-9, -9, -9, -9], bad: -9, badPad: -1, badDot: -1, sent: new Map(), block: false,
+      shownAt: 0, sounded: -1, cued: sn.listenAt <= Net.now() ? sn.listenAt : 0, seen: sn.n, round: sn.round, joy: -9, alan: -9, myHit: -9, mateHit: -9,
+      wave: -9, spark: null, tapAt: 0, say: null, help: null, party: 0, fill: -1, endIn: 0, parts: [], notes: [] };
+    let live = sn, shownLives = -1, shownTip = null;
     const view = stage('<span class="lives"></span><span class="meter"><i></i></span>', '');
     view.tip.classList.add('up');
-    const mine = (p) => !mateHere() || (p < 2 ? 'ken' : 'kel') === who;
+    const padOwner = (p) => (!mateHere() ? who : p < 2 ? 'ken' : 'kel');               // alone, all four are yours
+    const mine = (p) => padOwner(p) === who;
+    const owner = (i) => padOwner(live.pattern[i]);
     const listening = () => Net.now() < live.listenAt;
+    const done = (i) => live.got.includes(i) || s.sent.has(i);                          // confirmed by the room, or just played here
+    const nextUp = () => live.pattern.findIndex((p, i) => !done(i));
+    const myNext = () => live.pattern.findIndex((p, i) => !done(i) && owner(i) === who);
+    // How long a stroke waits before its drum lights up as a hint: as the room counts it for whoever plays it, and
+    // half that on the other one's phone, so the older can tell the younger first. After one of them slipped, the
+    // other sees their drums at once while the rhythm is tried again, to talk them through it.
+    const hintIn = (i) => {
+      const o = owner(i);
+      if (o !== who && s.help && s.help.who === o && s.help.attempt === live.attempt) return 0;
+      return (live.round ? cfg.hint[o] : cfg.hint.first) * (o === who ? 1000 : 500);
+    };
+    const hinted = (i) => i >= 0 && !listening() && !s.block && Net.now() - Math.max(live.since, live.listenAt, s.tapAt) > hintIn(i);
+    const say = (text, secs) => { s.say = { text, until: s.t + (secs || 1.4) }; paint(); };   // a short tip that goes away by itself
+    const tipText = () => {
+      if (s.over) return '';
+      if (s.say && s.t < s.say.until) return s.say.text;
+      if (listening()) return Net.now() >= live.showAt ? 'Poslouchej…' : live.round === live.rounds - 1 ? 'Poslední kolo!' : '';
+      const i = nextUp();
+      if (i < 0 || owner(i) === who) return '';                                         // your turn: the drums show it
+      return hinted(i) ? (owner(i) === 'kel' ? 'Pomoz jí!' : 'Pomoz mu!') : `Teď hraje ${heroName(owner(i))}`;
+    };
     const paint = () => {
-      hearts(view.hud.firstElementChild, live.lives, max);
-      view.hud.lastElementChild.firstElementChild.style.width = clamp((live.round + live.step / live.pattern.length) / live.rounds, 0, 1) * 100 + '%';
-      if (!s.over) view.tip.textContent = s.bad > 0 ? 'Vedle! Ještě jednou, poslouchej.' : s.good > 0 ? 'Správně!' : listening() ? 'Poslouchej a dívej se…' : mateHere() ? `Teď vy! Tvoje bubny jsou ${who === 'ken' ? 'vlevo' : 'vpravo'}.` : 'Teď ty!';
+      if (live.lives !== shownLives) {
+        const lost = shownLives > live.lives, el = view.hud.firstElementChild;
+        shownLives = live.lives; hearts(el, live.lives, max);
+        if (lost && el.children[live.lives]) el.children[live.lives].classList.add('gone');   // the heart just lost blinks out
+      }
+      const n = live.pattern.length, got = live.pattern.filter((p, i) => done(i)).length;
+      view.hud.lastElementChild.firstElementChild.style.width = clamp((live.round + got / n) / live.rounds, 0, 1) * 100 + '%';
+      const tip = tipText(); if (tip !== shownTip) view.tip.textContent = shownTip = tip;
+    };
+    // A drum struck, by anyone: it dips and bounces back up, flashes, throws a few sparks and a note, and sounds.
+    const strike = (p) => {
+      s.hit[p] = s.t; drum(PADS[p].snd);
+      const cx = p * PW + PW / 2;
+      for (let k = 0; k < 6; k++) s.parts.push({ x: cx, y: TOP + 8, vx: (Math.random() - 0.5) * 90, vy: -50 - Math.random() * 70, g: 260, life: 0.45, c: [PADS[p].c, '#FFF8E7', '#FFD43A'][k % 3] });
+      s.notes.push({ x: cx + 9, y: TOP + 6, t: s.t });
+    };
+    const unshout = () => K.ui.querySelectorAll('.praise').forEach((e) => e.remove());
+    const shout = (text) => { unshout(); cheer(text); };                                  // big words never pile up on each other
+    const slip = (p, i) => { unshout(); s.bad = s.t; s.badPad = p; s.badDot = i; beep(150, 110); say('Vedle! Poslouchej znovu.', 1.6); };
+    const refuse = (p, text) => { s.no[p] = s.t; beep(140); say(text, 1.2); };          // not now: a shake and why, never nothing
+    const finish = () => {
+      const won = !s.lost, two = mateHere();
+      view.end(won, won ? 'Sedí to!' : two ? 'Rozhodilo vás to.' : 'Rozhodilo tě to.', won ? (two ? 'Rytmus máte v ruce.' : 'Rytmus máš v ruce.') : two ? 'Zkuste to ještě jednou.' : 'Zkus to ještě jednou.');
+    };
+    // A little arrow pointing down, its tip at (x, y): whose turn, and which drum.
+    const arrow = (x, y, c) => {
+      const rows = [[-1, 3], [-1, 3], [-1, 3], [-4, 9], [-3, 7], [-2, 5], [-1, 3], [0, 1]];
+      x = Math.round(x); y = Math.round(y) - rows.length;
+      rows.forEach(([l, w], j) => rect(x + l - 1, y + j - 1, w + 2, 3, INK));
+      rows.forEach(([l, w], j) => rect(x + l, y + j, w, 1, c));
+    };
+    const art = (p, cx, foot, a) => {
+      if (p === 1) return ctx.drawImage(TOM, Math.round(cx) - TOM.width / 2, Math.round(foot) - TOM.height);
+      const shiver = p === 3 && a >= 0 && a < 0.4 ? (Math.floor(a * 30) % 2 ? -1 : 1) : 0;    // a cymbal shivers when struck
+      if (K.has('strahov', PADS[p].art)) K.figure('strahov', cx, foot + shiver, PADS[p].art, 0, false, 0.5);
     };
     paint();
     return {
-      s, kind: 'echo', peek: () => ({ pattern: live.pattern, step: live.step, round: live.round, listening: listening(), mine: [0, 1, 2, 3].filter(mine) }),
+      s, kind: 'echo',
+      peek: () => ({ pattern: live.pattern, step: live.step, round: live.round, attempt: live.attempt, listening: listening(), mine: [0, 1, 2, 3].filter(mine),
+        next: myNext(), myTurn: !s.block && myNext() >= 0 && nextUp() === myNext(), hint: hinted(nextUp()), block: s.block }),
       sync(n) {
-        if (n.last && n.last.n !== s.seen) {                                           // a stroke, by either of them: show it and sound it
-          s.seen = n.last.n; s.lit[n.last.p] = 0.18;
-          drum(PADS[n.last.p][1]); if (!n.last.ok) { s.bad = 1.2; beep(160, 120); }
-          if ((n.last.p < 2 ? 'ken' : 'kel') === who || !mateHere()) s.taps++; else s.mateTaps++;
+        if (n.attempt !== live.attempt) { s.sent.clear(); s.block = false; s.tapAt = 0; }      // the rhythm is played again, or a longer one
+        if (n.last && n.last.n !== s.seen) {
+          const L = n.last; s.seen = L.n;
+          if (!L.ok) s.help = { who: L.who, attempt: n.attempt };                              // the rhythm is tried again: see hintIn
+          if (L.who !== who) { strike(L.p); s.mateHit = s.t; if (!L.ok) slip(L.p, L.i); }     // the other one's stroke: shown and heard here too
+          else if (!L.ok && s.t - s.bad > 1) slip(L.p, L.i);                                   // ours, and a slip after all
         }
-        if (n.round > s.round) { s.round = n.round; s.good = 1.2; beep(660, 880); }                  // a whole rhythm played back
+        if (n.round > s.round) {                                                              // a whole rhythm played back
+          s.round = n.round;
+          if (n.phase === 'play') { s.joy = s.t; shout(['Správně!', 'Výborně!', 'Paráda!'][n.round % 3]); beep(660, 880); say(n.round === n.rounds - 1 ? 'Poslední kolo!' : 'O úder víc!', 1.6); }
+        }
         live = n; paint();
       },
-      over(won) { s.over = true; s.lost = !won; paint(); view.end(won, won ? 'Sedí to!' : 'Rozhodilo vás to.', won ? 'Rytmus máte v ruce.' : 'Zkuste to ještě jednou.'); },
+      over(won) {
+        s.over = true; s.lost = !won; paint();
+        if (won) { s.party = s.t; s.endIn = 1.7; shout('Bravo!'); } else s.endIn = 0.9;     // a moment to see it, then the card
+      },
       down(x, y) {
-        if (s.over || y < TOP - 6 || listening()) return;
+        if (s.over) return;
+        if (y < BAND) {                                                                   // the drums in the picture are only a picture
+          if (listening()) return say('Nejdřív poslouchej!');
+          s.wave = s.t; beep(300); return say('Bubny jsou dole!');
+        }
         const p = clamp(Math.floor(x / PW), 0, 3);
-        if (!mine(p)) return beep(120);                                                // the other one's drum
-        s.lit[p] = 0.1; Net.send({ type: 'ev', e: 'pad', p });
+        if (listening() || s.block) return refuse(p, 'Nejdřív poslouchej!');
+        if (!mine(p)) return refuse(p, `To hraje ${heroName(padOwner(p))}`);
+        const i = myNext();
+        if (i < 0 || nextUp() !== i) return refuse(p, mateHere() ? `Teď hraje ${heroName(mate())}` : 'Počkej chvilku');
+        strike(p); s.myHit = s.t;
+        Net.send({ type: 'ev', e: 'pad', p, i, a: live.attempt, at: Net.now() });           // which stroke it is meant for, so the order it arrives in does not matter
+        if (p === live.pattern[i]) { s.sent.set(i, s.t); s.tapAt = Net.now(); }
+        else { s.block = true; slip(p, i); }
       },
       update(dt) {
-        s.t += dt; if (s.bad > 0) s.bad -= dt; if (s.good > 0) s.good -= dt;
-        for (let i = 0; i < 4; i++) if (s.lit[i] > 0) s.lit[i] -= dt;
+        s.t += dt;
+        for (const q of s.parts) { q.vy += q.g * dt; q.x += q.vx * dt; q.y += q.vy * dt; q.life -= dt; }
+        s.parts = s.parts.filter((q) => q.life > 0); s.notes = s.notes.filter((q) => s.t - q.t < 0.7);
+        for (const [i, at] of s.sent) if (!live.got.includes(i) && s.t - at > 2.5) s.sent.delete(i);   // lost on the way: it may be played again
+        if (s.block && s.t - s.bad > 3) s.block = false;
+        if (s.party) {                                                                    // won: a little drum fill and confetti
+          const u = s.t - s.party, k = Math.floor(u / 0.13);
+          if (k > s.fill && k < 6) { s.fill = k; strike([0, 1, 2, 1, 2, 3][k]); }
+          if (u < 1.3) for (let j = 0; j < 2; j++) s.parts.push({ x: Math.random() * W, y: 24, vx: (Math.random() - 0.5) * 30, vy: 20 + Math.random() * 40, g: 30, life: 1.8, c: PADS[j + Math.floor(Math.random() * 3)].c });
+        }
+        if (s.endIn > 0 && (s.endIn -= dt) <= 0) finish();
         if (s.over) return;
-        // the rhythm being shown: each stroke lights its drum and sounds, on the room's clock so both see it together
+        // Alan's showing: each stroke lights its drum and sounds, on the room's clock, so both phones show it together
         if (live.showAt !== s.shownAt) { s.shownAt = live.showAt; s.sounded = -1; }
-        const i = Math.floor((Net.now() - live.showAt) / (live.beat * 1000));
-        if (i > s.sounded && i >= 0 && i < live.pattern.length) { s.sounded = i; s.lit[live.pattern[i]] = live.beat * 0.6; drum(PADS[live.pattern[i]][1]); s.castTaps++; }
+        const k = Math.floor((Net.now() - live.showAt) / (live.beat * 1000));
+        if (k > s.sounded && k >= 0 && k < live.pattern.length) {
+          s.sounded = k; strike(live.pattern[k]); s.alan = s.t;
+          if (live.round && k === live.pattern.length - 1) s.spark = { p: live.pattern[k], t: s.t };   // the stroke that is new this round
+        }
+        if (s.cued !== live.listenAt && !listening()) { s.cued = live.listenAt; s.wave = s.t; shout(mateHere() ? 'Teď vy!' : 'Teď ty!'); beep(523, 784); }
         paint();
       },
       draw() {
         K.background(sc.bg, 0, place.look);
-        const two = mateHere(), cast = sc.cast || [];
-        cast.forEach((id, k) => K.figure(id, W / 2 + k * 26, 206 - (s.castTaps % 2) * 2, listening() ? 'act' : 'three', s.t));   // drumming while he shows it, watching while they play
-        const side = (w) => (!two || w === 'ken' ? -1 : 1);                                 // each stands above their own drums: Kendrick left, Kellyn right
-        if (two) K.hero(mate(), W / 2 + side(mate()) * 46, 208, 'drum', s.mateTaps / 9, side(mate()) > 0);
-        K.hero(who, W / 2 + side(who) * 46, 208, s.lost ? 'dizzy' : 'drum', s.taps / 9, side(who) > 0);
-        rect(0, TOP - 14, W, H - TOP + 14, 'rgba(43,31,26,.6)');
-        for (let k = 0; k < live.pattern.length; k++) rect(W / 2 - live.pattern.length * 5 + k * 10 + 2, TOP - 10, 6, 6, k < live.step ? '#1FA463' : 'rgba(255,248,231,.35)');   // how much of it is played back
+        const two = mateHere(), up = s.over ? -1 : nextUp(), turn = up >= 0 && !listening() && !s.block ? owner(up) : null, hint = turn && hinted(up) ? live.pattern[up] : -1;
+        // Alan crouches over his drum while he shows the rhythm, dipping on every stroke; watches them; jumps for joy
+        const joyAt = s.party || (s.t - s.joy < 0.9 ? s.joy : 0), hop = joyAt ? -Math.round(Math.abs(Math.sin((s.t - joyAt) * 7)) * 5) : 0;
+        const showing = listening() && Net.now() > live.showAt - 500;
+        (sc.cast || []).forEach((id, k) => K.figure(id, W / 2 + k * 26, 206 + hop + (s.t - s.alan < 0.1 ? 2 : 0), joyAt ? 'joy' : showing ? 'act' : 'three', s.t));
+        // each hero above their own drums (Kendrick left, Kellyn right), the stick coming down as they strike
+        const side = (w) => (!two || w === 'ken' ? -1 : 1);
+        for (const w of two ? [mate(), who] : [who]) {
+          const x = W / 2 + side(w) * 46, struck = s.t - (w === who ? s.myHit : s.mateHit) < 0.15;
+          K.hero(w, x, 208 + (struck ? 1 : 0) + (s.party ? hop : 0), s.lost ? 'dizzy' : s.party ? 'cheer' : 'drum', struck ? 1 / 9 : 0, side(w) > 0);
+          if (turn === w && !s.over) arrow(x, 152 + Math.round(Math.sin(s.t * 6) * 2), OWN[w]);   // whose turn it is
+        }
+        rect(0, BAND, W, H - BAND, 'rgba(43,31,26,.6)');
+        // The dots: one per stroke, ringed in the colour of whoever plays it. They light up in the drum's colour as
+        // Alan plays and again as it is played back; the next one blinks; a slip flashes on its dot.
+        const n = live.pattern.length, x0 = Math.round(W / 2 - (n * 9 - 3) / 2);
+        if (live.round === live.rounds - 1 && !s.over) {                                    // the last round: the dots in a golden frame
+          const fx = x0 - 4, fw = n * 9 + 5;
+          rect(fx, DOT - 4, fw, 1, '#FFD43A'); rect(fx, DOT + 9, fw, 1, '#FFD43A'); rect(fx, DOT - 4, 1, 14, '#FFD43A'); rect(fx + fw - 1, DOT - 4, 1, 14, '#FFD43A');
+        }
+        for (let k = 0; k < n; k++) {
+          const x = x0 + k * 9, ring = OWN[owner(k)], next = k === up && turn, big = next && Math.sin(s.t * 8) > 0 ? 1 : 0;
+          const lit = listening() ? s.shownAt === live.showAt && k <= s.sounded : done(k), wrong = k === s.badDot && s.t - s.bad < 0.9;
+          const fresh = live.round && k === n - 1 ? s.t - s.joy : 9;                        // the new stroke's dot pops in after a moment, twinkling
+          if (fresh < 0.3) continue;
+          if (fresh < 1.1) for (let j = 0; j < 4; j++) { const an = j * Math.PI / 2 + fresh * 5; rect(Math.round(x + 2 + Math.cos(an) * 7), Math.round(DOT + 2 + Math.sin(an) * 7), 2, 2, j % 2 ? '#FFF1A8' : '#FFD43A'); }
+          rect(x - 1 - big, DOT - 1 - big, 8 + 2 * big, 8 + 2 * big, INK);
+          rect(x - big, DOT - big, 6 + 2 * big, 6 + 2 * big, ring);
+          rect(x + 1, DOT + 1, 4, 4, wrong ? (Math.floor(s.t * 10) % 2 ? '#CC2233' : '#FFF8E7') : lit ? PADS[live.pattern[k]].c : next ? ring : '#3A2C26');
+        }
         for (let p = 0; p < 4; p++) {
-          const x = p * PW + 3, on = s.lit[p] > 0, own = mine(p), shake = s.bad > 0.7 ? Math.round(Math.sin(s.t * 60) * 2) : 0, up = on ? -4 : 0;
-          if (on) rect(x - 2 + shake, TOP - 6, PW + 4, 56, '#FFF8E7');                         // the drum being played lights up whole and jumps
-          rect(x + shake, TOP + up, PW - 6, 46, INK); rect(x + 2 + shake, TOP + 2 + up, PW - 10, 40, on ? '#FFF1A8' : PADS[p][0]);
-          rect(x + 7 + shake, TOP + 8 + up, PW - 20, 8, on ? PADS[p][0] : 'rgba(255,248,231,.4)');
-          const kit = ['bassdrum', 'snare', 'snare', 'cymbal'][p];
-          if (K.has('strahov', kit)) K.figure('strahov', x + PW / 2 - 3 + shake, TOP + 42 + up, kit, 0, p === 2, 0.5);
-          if (!own) rect(x + 2 + shake, TOP + 2, PW - 10, 40, 'rgba(43,31,26,.5)');                              // the other one's drums are dimmed
+          const o = padOwner(p), a = s.t - s.hit[p], x0 = p * PW + 2, w = PW - 4;
+          const shake = s.t - s.no[p] < 0.3 || (p === s.badPad && s.t - s.bad < 0.5) ? Math.round(Math.sin(s.t * 70) * 2) : 0;
+          // struck: down for a moment, then up a little past where it was and back; "your turn": a ripple along the drums
+          const press = a >= 0 && a < 0.07 ? 2 : 0, pop = a >= 0.07 && a < 0.37 ? Math.round(3 * Math.sin((a - 0.07) / 0.3 * Math.PI)) : 0;
+          const wv = s.t - s.wave - p * 0.07, lift = wv >= 0 && wv < 0.28 ? Math.round(3 * Math.sin(wv / 0.28 * Math.PI)) : 0;
+          const x = x0 + shake, y = TOP + press - pop - lift, h = PH - press;
+          rect(x0, TOP + 3, w, PH - 3, 'rgba(43,31,26,.7)');                                 // its shadow
+          rect(x, y, w, h, INK);
+          rect(x + 2, y + 2, w - 4, h - 4, PADS[p].dark);                                      // the front edge
+          rect(x + 2, y + 2, w - 4, h - 9, PADS[p].c);                                         // the top
+          rect(x + 3, y + 3, w - 6, 1, 'rgba(255,248,231,.45)');
+          art(p, x + w / 2, y + h - 10, a);
+          if (!mine(p)) rect(x + 2, y + 2, w - 4, h - 4, 'rgba(43,31,26,.5)');                 // the other one's drums are dimmed
+          if (a >= 0 && a < 0.3) rect(x + 2, y + 2, w - 4, h - 4, `rgba(255,248,231,${(0.75 * (1 - a / 0.3)).toFixed(2)})`);
+          if (p === s.badPad && s.t - s.bad < 0.6) rect(x + 2, y + 2, w - 4, h - 4, 'rgba(204,34,51,.55)');
+          const ring = (k, c) => { rect(x - k, y - k, w + 2 * k, k, c); rect(x - k, y + h, w + 2 * k, k, c); rect(x - k, y, k, h, c); rect(x + w, y, k, h, c); };
+          if (turn === o) ring(1, OWN[o]);                                                     // whose turn: their drums ringed in their colour
+          if (hint === p) {                                                                    // taking long: the drum to strike pulses, with an arrow
+            const on = Math.sin(s.t * 9) > -0.3;
+            if (on) { ring(2, OWN[o]); rect(x + 2, y + 2, w - 4, h - 9, 'rgba(255,248,231,.3)'); }
+            arrow(x + w / 2, y - 2 - Math.round(Math.abs(Math.sin(s.t * 6)) * 3), OWN[o]);
+          }
+          if (s.spark && s.spark.p === p && s.t - s.spark.t < 0.8) {                           // sparkles round the drum that is new this round
+            const u = s.t - s.spark.t;
+            for (let j = 0; j < 6; j++) { const an = j / 6 * Math.PI * 2 + u * 4, r = 16 + u * 12; rect(Math.round(x + w / 2 + Math.cos(an) * r) - 1, Math.round(y + h / 2 + Math.sin(an) * r * 0.8) - 1, 2, 2, j % 2 ? '#FFF1A8' : '#FFD43A'); }
+          }
+        }
+        for (const q of s.parts) rect(q.x, q.y, 2, 2, q.c);
+        if (K.has('strahov', 'note')) for (const q of s.notes) {
+          const u = s.t - q.t; ctx.globalAlpha = Math.max(0, 1 - u / 0.7);
+          K.figure('strahov', q.x, q.y - Math.round(u * 26), 'note', 0, false, 0.3); ctx.globalAlpha = 1;
         }
       },
     };
