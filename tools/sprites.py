@@ -396,7 +396,7 @@ OBJECT_ROWS = {                                  # code: (name in the game, what
     'P12': ('salonkit', ['scissors', 'comb', 'brush', 'dryer', 'spray', 'dye', 'curlers', 'clip', 'mirror', 'shampoo']),
     'P13': ('dog', ['stand', 'trot1', 'trot2', 'sit', 'bark', 'sniff']),          # praděda Václav's Yorkshire terrier
     'P14': ('voyage', ['ship', 'smoke', 'gull1', 'gull2']),                        # the intro to Australia: the refugee ship
-    'P21': ('bondi', ['castle', 'castle2', 'rocks', 'esky', 'boards', 'chair', 'umbrella', 'boat']),       # the walk along Bondi Beach: things to climb (a big and a small sandcastle, a lifeguard's high chair, a beach umbrella to bounce on, a washed-up boat)
+    'P23': ('bondi', ['castle', 'castle2', 'rocks', 'esky', 'boards', 'chair', 'umbrella', 'boat']),       # the walk along Bondi Beach: things to climb (a big and a small sandcastle, a lifeguard's high chair, a beach umbrella to bounce on, a washed-up boat)
     'P22': ('bondilife', ['crab1', 'crab2', 'crabhide', 'scrap', 'wave', 'gull', 'gullup', 'gulldown', 'gulldive', 'gullpaper']),   # its crabs (walking, hiding in the sand), a scrap of the message, a wave washing in, and silver gulls
 }
 

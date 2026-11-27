@@ -537,7 +537,7 @@
     // The things to climb are pictures (tools/sprites.py: P17 in the street, P18 on the hill), each fitted to its
     // block's width and standing on whatever is under it; the stone terraces are tiled from the stone wall picture.
     const PROP = { car1: 'street', car2: 'street', bench: 'street', bin: 'street', wall: 'street', boulder: 'hill', logs: 'hill', box: 'kerb', tv: 'kerb' };
-    // On the beach (P21, the 'bondi' sheet) each is drawn at its own size, not fitted to its block: [size, where its
+    // On the beach (P23, the 'bondi' sheet) each is drawn at its own size, not fitted to its block: [size, where its
     // middle is across the block]. The rocks come out a little wider than they stand, so a pile of them overlaps.
     const BONDI = { castle: [0.75, 0.5], castle2: [0.75, 0.55], rocks: [0.8, 0.5], esky: [0.6, 0.53], chair: [0.9, 0.5], boat: [1, 0.49] };
     L.blocks.forEach((b, i) => { const c = b.x + b.w / 2; b.base = L.blocks.slice(0, i).reduce((m, o) => (c > o.x && c < o.x + o.w ? Math.max(m, o.h) : m), 0); });
