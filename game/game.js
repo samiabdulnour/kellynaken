@@ -106,6 +106,12 @@
     const c = sp.faces, u = f * (c.scale || 1) / 8;                                // drawn finer faces come with a scale
     return `<span class="face" style="width:${c.w * u}em;height:${c.h * u}em;background-image:url(${K.asset(`assets/sprites/${c.file}`)});background-size:${c.w * c.n * u}em ${c.h * u}em;background-position:${-mood * c.w * u}em 0"></span>`;
   };
+  // While a hero's hands are busy with something else (a cheer), Kendrick's stick lies and Kellyn's bunny sits at their
+  // feet, in front of them (the title, the story screen).
+  const gearAtFeet = (w, x, footY, flip) => {
+    const k = w === 'ken' ? 'stick' : 'bunny';
+    if (K.has('things', k)) K.figure('things', x + (w === 'ken' ? 7 : 11) * (flip ? -1 : 1), footY, k, 0, flip, w === 'ken' ? 0.5 : 0.45);
+  };
 
   // ---- which screen is up: the room says where everyone is, and both devices follow ----
   let shown = null, away = false;               // away: looking at the album, which is one's own business
@@ -139,14 +145,20 @@
 
   // ---- title: the logo, and who is playing ----
   const Title = {
-    t: 0, note: '', timers: [],
+    t: 0, note: '', timers: [], hop: null,       // hop: the one whose name was tapped, and when: a cheer before joining
     enter() {
+      this.hop = null;
       add(`<div class="logo">${esc(WORLD.title).replace(' a ', '<br>a ')}<small>${esc(WORLD.subtitle)}</small></div>`);
       if (INSPECT) add('<p class="tip up">Zkušební verze: hraješ sám a všechno je odemčené.</p>');
       const pick = add(`<div class="pick"><p>${esc(this.note || (INSPECT ? 'Za koho hraješ?' : 'Kdo hraje?'))}</p><div>
         <button class="btn red" data-who="ken">${face('ken', 3)}${esc(WORLD.heroes.ken.name)}</button>
         <button class="btn pink" data-who="kel">${face('kel', 3)}${esc(WORLD.heroes.kel.name)}</button></div></div>`);
-      pick.addEventListener('click', (e) => { const b = e.target.closest('[data-who]'); if (b) { beep(520, 660); this.join(b.dataset.who); } });
+      // The tapped hero jumps for joy at once (0.4 s), then the game connects.
+      pick.addEventListener('click', (e) => {
+        const b = e.target.closest('[data-who]'); if (!b || this.hop) return;
+        beep(520, 660); this.hop = { who: b.dataset.who, at: this.t };
+        this.timers.push(setTimeout(() => { if (K.scene === Title) this.join(b.dataset.who); }, 400));
+      });
       draft('title');
     },
     // Take a seat in the room. The server may be asleep, so say so rather than look broken.
@@ -159,9 +171,16 @@
     },
     leave() { this.timers.forEach(clearTimeout); },
     update(dt) { this.t += dt; },
+    // Up on the terrace wall, clear of the buttons: the two of them resting with the stick and the bunny, breathing out
+    // of step; every 4 s one of them (in turn) jumps for joy, and a tapped name makes that one jump.
     draw() {
       K.background('title', 0, { sky: '#1B2A5C', far: '#3A2F5B', far2: '#4A3B6B', ground: '#3A2F33', line: '#5B4A4E' });
-      K.hero('ken', 64, 210, 'cheer', this.t); K.hero('kel', 128, 210, 'cheer', this.t, true);      // up on the terrace wall, clear of the buttons
+      const t = this.t, h = this.hop, turn = (t - 2) % 4, whose = Math.floor((t - 2) / 4) % 2 ? 'kel' : 'ken';
+      [['ken', 64, false, 0], ['kel', 128, true, 0.3]].forEach(([w, x, flip, lag]) => {
+        const len = h ? 0.4 : 0.5, u = h ? (h.who === w ? t - h.at : -1) : t > 2 && whose === w ? turn : -1;
+        if (u >= 0 && u < len) { K.hero(w, x, 210 - Math.round(Math.sin((u / len) * Math.PI) * (h ? 5 : 4)), 'cheer', t, flip); gearAtFeet(w, x, 210, flip); }
+        else K.hero(w, x, 210, K.pose(w, 'idle', 'cheer'), K.loop(t + lag, 1.5), flip);
+      });
     },
   };
 
@@ -344,16 +363,32 @@
   // ---- playing one scene: the story lines, then the game, then on to the next. The room says which part is on. ----
   const Play = (place, first) => {
     const sc = place.scenes[first.index], who = me();
-    let sn = first, was = null, line = -1, box = null, act = null, t = 0, lineAt = 0, go = null;
+    let sn = first, was = null, line = -1, box = null, act = null, t = 0, lineAt = 0, go = null, saidAt = 0;   // saidAt: when the line now up appeared
+    const nods = { ken: -9, kel: -9 }, heard = {};                    // a hero who taps on (read it) nods: at once on their phone, on the other when the room says so
+    // For the story screen (draw): the lines on which a grown-up shows something (their act: Sami holds out his plans,
+    // Žofia points at the kerb, Alan plays, Mamka reads out the jobs), and Žofia's line giving out the crane jobs.
+    const SHOWS = /^(Navrhl jsem|Seznam máte|V Sydney lidi|Nejdřív zkouška|Trefujte noty|Umýt, ostříhat)/;
+    const crane = sc.play === 'tower' ? sc.talk.findIndex((l) => /řídit jeřáb/.test(l[1])) : -1;
+    // The crane's remote held at the hands (a yellow box, its stick on top, an antenna with a blinking tip, as in the
+    // tower game), and Kellyn's button on a post (a grey post, a yellow cap at her hands).
+    const remote = (x, y) => {
+      x = Math.round(x); y = Math.round(y);
+      rect(x - 5, y - 3, 10, 7, INK); rect(x - 4, y - 2, 8, 5, '#FFD43A'); rect(x - 1, y - 4, 2, 1, INK);
+      rect(x + 3, y - 7, 1, 4, INK); rect(x + 3, y - 8, 1, 1, Math.floor(t * 3) % 2 ? '#CC2233' : '#FFF8E7');
+    };
+    const post = (x, y) => { rect(x - 1, y - 14, 2, 14, '#7A6F6A'); rect(x, y - 14, 1, 14, '#5B524E'); rect(x - 4, y - 17, 8, 3, INK); rect(x - 3, y - 17, 6, 2, '#FFD43A'); };
     const speaker = (key) => (key === 'hero' ? heroName() : key ? (place.saves.find((s) => s.id === key) || { name: key }).name : '');
     function paint() {
       if (sn.phase === 'talk' && (was !== 'talk' || line !== sn.line)) {
         if (box) box.remove();
         const [key, text, about, show] = sc.talk[sn.line], at = sn.line;           // `about`: someone the line tells of, shown with it
         if (!show || !sc.talk[sn.line - 1] || sc.talk[sn.line - 1][3] !== show) lineAt = t;   // the same picture over two lines stays as it is
+        saidAt = t;                                                                  // the speaker acts it out (draw), on both phones at once
+        if (was === 'talk' && mateHere() && !heard[mate()]) nods[mate()] = t;     // the partner's tap was the one that turned the page
         box = add(`<div class="say">${about ? face(about, 0) : key === 'hero' ? face(who, 0) : key ? face(key, 3) : ''}${key ? `<b>${esc(speaker(key))}</b>` : ''}<p>${esc(text)}</p><i>&gt;</i></div>`);
-        box.addEventListener('click', () => { beep(440); Net.send({ type: 'next', line: at }); });        // either of them may tap; the line number stops a double tap skipping one
+        box.addEventListener('click', () => { beep(440); nods[who] = t; Net.send({ type: 'next', line: at }); });        // either of them may tap; the line number stops a double tap skipping one
       }
+      if (sn.phase === 'talk') for (const w of ['ken', 'kel']) { const r = !!(sn.read && sn.read[w]); if (r && !heard[w] && t - nods[w] > 0.3) nods[w] = t; heard[w] = r; }
       if (box && sn.phase === 'talk') {                                                // read it: wait for the other one to finish reading
         const done = !!(sn.read && sn.read[who]);
         box.classList.toggle('read', done); box.querySelector('i').textContent = done ? `Čeká se na ${heroName(mate())}…` : '>';
@@ -407,13 +442,36 @@
         K.background(sc.bg, 0, place.look);
         const gy = (sc.ground || GROUND) - 10;                                // a little further back, clear of the speech box
         const rock = sc.play === 'rescue' && sc.rescue.land;
-        (sc.cast || []).forEach((id, i) => (rock ? K.figure(id, rock.x - 10 + i * 20, rock.y - 4 - Math.round(Math.abs(Math.sin(t * 4 + i * 1.7)) * 3), 'cheer', t, true, 0.31) : K.figure(id, 146 + i * 26, gy, 'stand', t, true)));
-        const board = sc.run && sc.run.board && K.has('aussie', 'surfboard');
-        const e = Math.min(1, t / 1.2), came = 1 - (1 - e) * (1 - e), on = e < 1;                 // walking in from the left as the scene opens
-        const at = (x) => Math.round(-26 + (x + 26) * came), pose = on ? (board ? 'surf' : 'run') : 'stand';
-        if (mateHere()) { if (board) K.figure('aussie', at(98) - 2, gy + 4, 'surfboard', 0, true, 0.48); K.hero(mate(), at(98), gy, pose, on ? t * 0.7 : t + 0.3); }
-        if (board) K.figure('aussie', at(56) - 2, gy + 4, 'surfboard', 0, true, 0.48);
-        K.hero(who, at(56), gy, pose, on ? t * 0.7 : t);
+        // Every new line (the room's, so both phones at once): a grown-up who speaks faces us ('front'), bobbing 1 px every
+        // 120 ms for 0.8 s, and on a line that shows something does their act for 0.4 s; the other grown-up turns to them.
+        const said = sn.phase === 'talk' && sc.talk[sn.line], key = said ? said[0] : '', u = t - saidAt, cast = sc.cast || [], speaks = cast.indexOf(key);
+        cast.forEach((id, i) => {
+          if (rock) return K.figure(id, rock.x - 10 + i * 20, rock.y - 4 - Math.round(Math.abs(Math.sin(t * 4 + i * 1.7)) * 3), 'cheer', t, true, 0.31);
+          const x = 146 + i * 26, talking = i === speaks, bob = talking && u < 0.8 ? Math.floor(u / 0.12) % 2 : 0;
+          K.figure(id, x, gy - bob, talking ? (u < 0.4 && SHOWS.test(said[1]) ? 'act' : 'front') : 'stand', t, speaks < 0 || talking || 146 + speaks * 26 < x);
+        });
+        // The two of them come in from the left as the scene opens (with the stick and the bunny where they play with
+        // them, on the board at sea), land with a squash, and rest, breathing out of step; at a line of theirs they
+        // jump for joy. In Sydney, once Žofia has given out the jobs, Kendrick holds the crane's remote and Kellyn
+        // stands by her button (alone: the remote).
+        const board = sc.run && sc.run.board && K.has('aussie', 'surfboard'), gear = ['platform', 'shoot', 'find'].includes(sc.play);
+        const e = Math.min(1, t / 1.2), came = 1 - (1 - e) * (1 - e), on = e < 1, landed = t - 1.2, joy = t - Math.max(saidAt, 1.26);    // walking in from the left as the scene opens
+        const at = (x) => Math.round(-26 + (x + 26) * came), jobs = crane >= 0 && said && sn.line >= crane;
+        const kid = (w, x, lag) => {
+          let pose = K.pose(w, gear ? 'idle' : 'stand', 'stand'), f = K.loop(t + lag, 1.5), y = gy;
+          if (on) { pose = board ? 'surf' : gear ? K.pose(w, 'carry', 'run') : 'run'; f = t * 0.7; }
+          else if (key === 'hero' && joy >= 0 && joy < 0.5) { pose = 'cheer'; f = 0; y -= Math.round(Math.sin((joy / 0.5) * Math.PI) * 3); }
+          else if (t - nods[w] < 0.2) y -= Math.round(Math.sin(((t - nods[w]) / 0.2) * Math.PI) * 2);           // the nod: read it, on we go
+          if (board) K.figure('aussie', x - 2, gy + 4, 'surfboard', 0, true, 0.48);
+          if (!on && landed < 0.06) { ctx.save(); ctx.translate(x, y); ctx.scale(1.08, 0.92); K.hero(w, 0, 0, pose, f); ctx.restore(); }   // the landing squash
+          else K.hero(w, x, y, pose, f);
+          if (gear && pose === 'cheer') gearAtFeet(w, x, gy, false);
+          if (!jobs) return;
+          if (w === (mateHere() ? 'ken' : who)) { const p = K.hand(w, pose === 'cheer' ? 'cheer' : 'stand', 1); remote(x + p.x, y + p.y); }
+          else post(x + 13, gy);
+        };
+        if (mateHere()) kid(mate(), at(98), 0.3);
+        kid(who, at(56), 0);
       },
     };
   };
@@ -4721,7 +4779,8 @@
         K.hero(me(), two ? 30 : 52, gy - Math.abs(Math.sin(t * 6)) * 6, 'cheer', t);
         if (two) K.hero(mate(), 66, gy - Math.abs(Math.sin(t * 6 + 2)) * 6, 'cheer', t);
         place.saves.forEach((sv, i) => {
-          if (K.sprites[sv.id]) K.figure(sv.id, 118 + i * 40, gy - Math.round(Math.abs(Math.sin(t * 5 + i * 1.7)) * 5), 'cheer', t, true);   // hopping for joy
+          const hop = Math.round(Math.max(0, Math.sin(t * 6 + i * 1.7)) * 6);                  // jumping for joy: arms up in the air, a rest on the floor between
+          if (K.sprites[sv.id]) K.figure(sv.id, 118 + i * 40, gy - hop, hop > 2 ? 'joy' : 'cheer', t, true);
           else { rect(104 + i * 26, gy - 30, 12, 30, INK); rect(105 + i * 26, gy - 29, 10, 28, '#FFD43A'); }
         });
       },

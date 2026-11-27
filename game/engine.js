@@ -222,5 +222,31 @@ const K = (() => {
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
   const has = (sheet, pose) => !!(sprites[sheet] && sprites[sheet].poses && sprites[sheet].poses[pose]);
-  return { W, H, GROUND, INK, has, ctx, ui, clamp, hash, rng, rect, beep, drum, music, hush, loadTune, asset, preload, save, write, hasBg, picture, background, sprites, figure, hero: figure, prop, go, add, esc, get scene() { return scene; }, get tune() { return tune ? { name: tune.name, volume: Math.round(tune.gain.gain.value * 100) / 100 } : null; } };
+
+  // ---- acting it out: the heroes' sheets run at 9 frames a second (figure() shows frames[floor(t * 9) % n]) ----
+  // K.hero(w, x, y, pose, K.frame(k)) shows frame k of a pose; K.loop(t, fps) runs a pose at another speed (a breath:
+  // K.loop(t, 1.5)); K.pose(w, want, alt) is `want` once it is drawn for that sheet and `alt` until then.
+  const frameOf = (k) => (k + 0.5) / 9, loop = (t, fps) => (t * fps) / 9, pose = (who, want, alt) => (has(who, want) ? want : alt);
+  // Where the working hand is (or the tip of what it holds), from the feet, facing right, at the sheets' size 0.5:
+  // measured on the drawn frames, one [x, y] per frame of the pose. Hands together: stand (empty, for a remote, a
+  // shell, a buoy), Kendrick's idle (on top of the stick); throw: the hand behind the head, then the hand let go;
+  // tap: the fist up, then struck; heave: the grip low, then pulled back; lift: between the hands; point: the
+  // fingertip; drumhit and drum: the tip of the stick that is down (drumhit) or up (drum); cheer: the back fist, then
+  // the front one; run: the front fist. Kendrick's stick poses (carry, swing, shoot, aim, airgear) give the blade;
+  // Kellyn's bunny poses (idle, carry, swing, aim, airgear 0) the bunny; her airgear 1 is her hand flung back.
+  const HANDS = {
+    ken: { stand: [[2, -23]], idle: [[5, -31]], carry: [[26, -3], [29, -4], [26, -3], [29, -4]], throw: [[-12, -32], [17, -37]], tap: [[11, -38], [15, -22]],
+      heave: [[10, -13], [12, -23]], lift: [[1, -52], [0, -51]], point: [[17, -42], [20, -33]], drumhit: [[9, -21], [19, -21]], drum: [[14, -41], [15, -42]],
+      shrug: [[13, -30]], swing: [[28, -3]], airgear: [[-17, -3], [25, -7]], shoot: [[26, -9]], aim: [[-18, -45]], cheer: [[-10, -39], [12, -41]],
+      run: [[12, -27], [11, -30], [13, -27], [11, -28]] },
+    kel: { stand: [[5, -19]], idle: [[8, -27]], carry: [[-6, -26], [-4, -28], [-6, -26], [-4, -28]], throw: [[-4, -35], [14, -38]], tap: [[-2, -40], [12, -21]],
+      heave: [[1, -9], [13, -22]], lift: [[2, -40], [2, -39]], point: [[13, -38], [16, -28]], drumhit: [[10, -20], [11, -21]], drum: [[17, -43], [18, -42]],
+      shrug: [[12, -27]], swing: [[-14, -27]], airgear: [[9, -22], [-12, -19]], shoot: [[19, -31]], aim: [[-12, -26]], cheer: [[-8, -39], [14, -40]],
+      run: [[11, -24], [11, -24], [11, -23], [12, -25]] },
+  };
+  function hand(who, p, k, flip, size) {
+    const all = HANDS[who] || HANDS.ken, at = all[p] || all.stand, n = at.length, [x, y] = at[(((k | 0) % n) + n) % n], s = (size || 0.5) / 0.5;
+    return { x: (flip ? -x : x) * s, y: y * s };
+  }
+  return { W, H, GROUND, INK, has, ctx, ui, clamp, hash, rng, rect, beep, drum, music, hush, loadTune, asset, preload, save, write, hasBg, picture, background, sprites, figure, hero: figure, frame: frameOf, loop, pose, hand, prop, go, add, esc, get scene() { return scene; }, get tune() { return tune ? { name: tune.name, volume: Math.round(tune.gain.gain.value * 100) / 100 } : null; } };
 })();
