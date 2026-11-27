@@ -94,6 +94,7 @@ button{font:inherit;color:inherit}
 .face{display:inline-block;flex:none;background-repeat:no-repeat;image-rendering:pixelated;image-rendering:crisp-edges}
 .btn .face{display:block;margin:0 auto .35em}
 .say .face{float:left;margin:0 .75em .25em 0}
+.tip .face{vertical-align:-.3em;margin-right:.2em}
 .card .line{display:flex;align-items:center;gap:.6em;text-align:left}
 .album .face{display:block;margin:.2em auto .5em}
 .power{color:var(--yellow)}
@@ -147,6 +148,8 @@ button{font:inherit;color:inherit}
 @keyframes rise{to{transform:translateY(-1.5em);opacity:0}}
 .plus{position:absolute;margin:0;transform:translate(-50%,-100%);font-size:1.1em;font-weight:700;color:var(--yellow);pointer-events:none;
   text-shadow:.08em .08em 0 var(--ink);animation:rise .8s steps(5) forwards}
+/* Pop-up texts let taps through to the game under them (#ui > * above would catch them). */
+#ui > .plus, #ui > .praise, #ui > .go{pointer-events:none}
 .card .stars{font-size:2em;line-height:1;color:var(--yellow);letter-spacing:.1em;text-shadow:.06em .06em 0 var(--ink);margin:-.2em 0 -.1em}
 .pin .st{display:block;font-size:.85em;line-height:1;color:#B8862A;letter-spacing:.05em}
 /* Nábytek: the list of furniture under the bar, grey until found, then in colour with a tick. The door asks for what is

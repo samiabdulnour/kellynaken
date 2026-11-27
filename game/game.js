@@ -1326,115 +1326,374 @@
     };
   }
 
-  // The shot: targets pop up around the scene and slip away again after a moment. Tap where the shot should go.
+  // The shot: padlocks pop up around the scene and slip away again after a moment. Tap one to shoot at it.
   // Kendrick fires a puck with his hockey stick, flat and fast. Kellyn takes turns lobbing her white bunny in an
-  // arc and throwing a star. They stand at either side and shoot at the same targets; each device sees its own
-  // hero on the left. Whoever hits a target first gets it, and the ones that get away cost them both.
+  // arc and throwing a star. They stand at either side; each device sees its own hero on the left. With two, every
+  // padlock is someone's, in their colour and with their face on it (Kendrick's blue, Kellyn's pink); one that
+  // blinks is about to slip away, and then either of them may save it. The ones that get away cost them both.
+  // The first one waits until it is shot. Once enough are open, a big golden padlock comes down: both throw at it within
+  // two seconds of each other (alone: hit it three times).
   function Shoot(sc, place, sn) {
-    const cfg = sc.shoot, who = me(), GY = sc.ground || GROUND, BODY = 26, G = 420, max = sn.lives;
+    const cfg = sc.shoot, who = me(), GY = sc.ground || GROUND, BODY = 26, G = 420, max = sn.lives, BLINK = 0.9, REACH = 20;
+    // A padlock out of time takes SLIP seconds to slip away before it counts as gone: long enough for the partner's
+    // last-moment shot to reach this phone first. TOGETHER: how close their two throws at the golden padlock must be.
+    const SLIP = 0.5, TOGETHER = 2;
     const hand = (w, x, dir) => (w === 'ken' ? { x: x + dir * 28, y: GY - 4 } : { x: x + dir * 20, y: GY - 34 });   // where a shot leaves: the blade of the stick, or her hand
     const mine = hand(who, BODY, 1), theirs = hand(mate(), W - BODY, -1);
-    const { targets } = Room.course.shoot(sn.seed, sc, sn.every);
-    const s = { t: 0, over: false, lost: false, shots: [], pops: [], cool: 0, swing: 0, mateSwing: 0, thrown: 0, again: null, got: new Set(), told: new Set(), asked: false, said: false, seen: 0 };
+    const { targets } = Room.course.shoot(sn.seed, sc, sn.every, sn.need, sn.two);
+    const s = { t: 0, over: false, lost: false, shots: [], pops: [], drops: [], sparks: [], marks: [], cool: 0, swing: 0, mateSwing: 0, thrown: 0, again: null, next: null,
+      open: new Set(), told: new Set(), asked: false, said: false, seen: 0, mine: 0, streak: 0, tapAt: 0, nudge: {}, quake: -9, tip: '', tipUntil: Infinity, helped: false, gold: null, painted: '' };
     let live = sn;
-    // With two playing, each has their own padlocks, marked with their colour: Kendrick's red, Kellyn's pink.
-    const COLOUR = { ken: '#CC2233', kel: '#F0448F' }, owner = (tg) => (tg.id % 2 ? 'kel' : 'ken'), own = (tg) => !mateHere() || owner(tg) === who;
-    const view = stage('<span class="lives"></span><span class="count"></span><span class="meter"><i></i></span>', mateHere() ? `Klepni na zámek s ${who === 'ken' ? 'červenou' : 'růžovou'} cedulkou. To jsou tvoje.` : 'Klepni na zámek a sestřel ho.');
-    const paint = () => { hearts(view.hud.firstElementChild, live.lives, max); view.hud.children[1].textContent = `${live.hits} / ${live.need}`; view.hud.lastElementChild.firstElementChild.style.width = clamp(live.hits / live.need, 0, 1) * 100 + '%'; };
-    const tx = (tg) => tg.x + Math.sin(s.t * 2 + tg.phase) * (cfg.sway || 0);
-    const done = (tg) => s.got.has(tg.id) || live.hit.includes(tg.id) || live.missed.includes(tg.id);
-    const up = (tg) => tg.born <= s.t && s.t - tg.born <= cfg.stay && !done(tg);
-    const aimedAt = (tg) => !done(tg) && s.shots.some((sh) => sh.real && sh.aim === tg.id) && s.t - tg.born <= cfg.stay + 0.9;   // a shot on its way still counts
+    // Whose a padlock is (alone, every one is yours), in their colour, which is also on the floor under each hero.
+    const COLOUR = { ken: '#2A62D8', kel: '#E23C86' }, ownerOf = (tg) => tg.owner || who, own = (tg) => ownerOf(tg) === who;
+    const RAMP = { ken: ['#0B1A4A', '#163FA0', '#2A62D8', '#4F8BF2', '#A9CBFF'], kel: ['#4A0A26', '#A81E5E', '#E23C86', '#F56FAA', '#FFC2DE'], white: ['#7A6F6A', '#E8DCC4', '#FFF8E7', '#FFFFFF', '#FFFFFF'] };
+    const view = stage('<span class="lives"></span><span class="count"></span><span class="meter"><i></i></span>', '');
+    // A line of advice that goes away by itself after `secs` (0: stays until something else is said).
+    const say = (html, secs) => { if (s.tip !== html) { view.tip.innerHTML = html; s.tip = html; } s.tipUntil = secs ? s.t + secs : Infinity; };
+    say(sn.two ? `${face(who, 3, 0.6)} Tvoje zámky jsou ${who === 'ken' ? 'modré' : 'růžové'}.` : 'Klepni na zámek.', 0);
+    const paint = () => {
+      const key = `${live.lives}/${live.hits}/${live.need}`; if (key === s.painted) return; s.painted = key;
+      hearts(view.hud.firstElementChild, live.lives, max); view.hud.children[1].textContent = `${live.hits} / ${live.need}`; view.hud.lastElementChild.firstElementChild.style.width = clamp(live.hits / live.need, 0, 1) * 100 + '%';
+    };
+    const outBack = (u) => 1 + 2.7 * (u - 1) ** 3 + 1.7 * (u - 1) ** 2;                    // eased out, overshooting a little and settling
+    const tx = (tg) => tg.x + Math.sin(s.t * 2 + tg.phase) * tg.sway;
+    // The first padlock opens (here, or as the room says): the rest come from then on, and a first one still waiting
+    // (with two, the other's) starts its time.
+    let go = Infinity;
+    const goFrom = (at) => { if (at === go) return; go = at; for (const tg of targets) if (!tg.wait) tg.born = go + tg.after; };
+    const left = (tg) => tg.stay - (s.t - (tg.wait ? go : tg.born));                   // how long before it slips away
+    const done = (tg) => s.open.has(tg.id) || live.hit.includes(tg.id) || live.missed.includes(tg.id);
+    const goldAt = () => (live.gold ? live.gold.at : Infinity);
+    const up = (tg) => tg.born <= s.t && left(tg) > 0 && !done(tg) && tg.born < goldAt();
+    const helpable = (tg) => !own(tg) && left(tg) < BLINK;                               // the partner's, blinking: either of them may save it
+    const mayHit = (tg) => own(tg) || helpable(tg);
+    const coming = (tg) => !done(tg) && !s.told.has(tg.id) && s.shots.some((sh) => sh.aim === tg.id);   // a shot on its way (either hero's) still counts
+    const slipping = (tg) => tg.born <= s.t && left(tg) <= 0 && !done(tg) && !s.told.has(tg.id) && tg.born < goldAt();
+    // The golden padlock: half a second after the last one opens it drops in and bounces, then sways from side to side.
+    const GOLD = cfg.gold || [96, 120];
+    const goldSpot = () => {
+      const u = s.t - goldAt() - 0.5, f = clamp(u / 0.7, 0, 1), fall = f < 0.75 ? (f / 0.75) ** 2 : 1 - 0.1 * Math.sin((f - 0.75) / 0.25 * Math.PI);
+      return { x: GOLD[0] + Math.sin(Math.max(0, u - 0.7) * 1.3) * 28, y: -30 + (GOLD[1] + 30) * fall };
+    };
+    const goldUp = () => !!s.gold && s.t >= s.gold.at + 1.2;
+    const spotOf = (aim) => (aim === 'gold' ? goldSpot() : { x: tx(targets[aim]), y: targets[aim].y });
     const pickAt = () => (sc.pickup && !live.picked && s.t > 2 ? { x: W + 12 - (((s.t - 2) * 24) % (W + 24)), y: 64 + Math.sin(s.t * 3) * 6 } : null);   // drifts across until it is hit
-    // One shot from `from` towards (x, y). Only one's own shots can hit anything; the other hero's are for show.
+
+    // The padlock from the sheet, recoloured once its picture is in: each kid's in their own colour (dark to light, by
+    // how light each pixel is), a white one to flash with, and the gold one as it is drawn. A light rim round each,
+    // so it stands out on the dark sofa and the pale wall alike.
+    const arts = {}, RIM = 3; let sheet = null;
+    function lockArt(key) {
+      if (arts[key]) return arts[key];
+      const sp = K.sprites.prague; if (!sp || !K.has('prague', 'padlock')) return null;
+      if (!sheet) { sheet = new Image(); sheet.src = K.asset(`assets/sprites/${sp.file}`); }
+      if (!sheet.complete || !sheet.naturalWidth) return null;
+      const cw = sp.w + 2 * RIM, ch = sp.h + 2 * RIM, c = document.createElement('canvas'); c.width = cw; c.height = ch;
+      const g = c.getContext('2d'), ramp = RAMP[key];
+      g.drawImage(sheet, sp.poses.padlock[0] * sp.w, 0, sp.w, sp.h, RIM, RIM, sp.w, sp.h);
+      const d = g.getImageData(0, 0, cw, ch), p = d.data, solid = (x, y) => x >= 0 && y >= 0 && x < cw && y < ch && p[(y * cw + x) * 4 + 3] === 255;
+      if (ramp) for (let i = 0; i < p.length; i += 4) {
+        if (!p[i + 3]) continue;
+        const l = (0.299 * p[i] + 0.587 * p[i + 1] + 0.114 * p[i + 2]) / 255, hex = ramp[l < 0.25 ? 0 : l < 0.45 ? 1 : l < 0.62 ? 2 : l < 0.78 ? 3 : 4];
+        for (let k = 0; k < 3; k++) p[i + k] = parseInt(hex.slice(1 + k * 2, 3 + k * 2), 16);
+      }
+      const rim = [];
+      for (let y = 0; y < ch; y++) for (let x = 0; x < cw; x++) if (!solid(x, y) && [[-2, 0], [2, 0], [0, -2], [0, 2], [-1, -1], [1, -1], [-1, 1], [1, 1]].some(([a, b]) => solid(x + a, y + b))) rim.push((y * cw + x) * 4);
+      for (const i of rim) p.set([255, 248, 231, 255], i);
+      g.putImageData(d, 0, 0);
+      return (arts[key] = c);
+    }
+    // A padlock with its middle at (x, y), `k` its size; `lift`: how far its shackle has sprung up (on the sheet the
+    // shackle is above row 30, the middle at row 36). Placed on the canvas's own pixels, which are half the picture's.
+    const half = (v) => Math.round(v * 2) / 2;
+    function drawLock(key, x, y, k, lift) {
+      const art = lockArt(key), CUT = 30 + RIM, MID = 36 + RIM;
+      if (!art) {                                                                          // no picture (yet): a stand-in padlock, in the colour
+        const c = RAMP[key] ? RAMP[key][2] : '#E6B340', h = Math.round(k / 0.36 * 8);
+        rect(x - h * 0.6, y - h * 1.6 - (lift || 0), h * 1.2, h, '#7A5320'); rect(x - h, y - h * 0.7, h * 2, h * 1.6, '#7A5320'); rect(x - h + 1, y - h * 0.7 + 1, h * 2 - 2, h * 1.6 - 2, c);
+        return;
+      }
+      const x0 = half(x - art.width / 2 * k), top = half(y - MID * k), cut = half(y + (CUT - MID) * k), bottom = half(y + (art.height - MID) * k), w = half(art.width * k), up = Math.round(lift || 0);
+      ctx.drawImage(art, 0, 0, art.width, CUT, x0, top - up, w, cut - top);
+      ctx.drawImage(art, 0, CUT, art.width, art.height - CUT, x0, cut, w, bottom - cut);
+    }
+    const disc = (x, y, r, c) => { for (let dy = -r; dy < r; dy++) { const w = Math.round(Math.sqrt(r * r - (dy + 0.5) ** 2)); rect(x - w, y + dy, 2 * w, 1, c); } };
+    // Whose padlock it is: the owner's face on it, like a sticker, ringed in their colour.
+    const heads = {};
+    function badge(w, x, y) {
+      const c = K.sprites[w] && K.sprites[w].faces;
+      disc(x, y, 6, COLOUR[w]); disc(x, y, 5, '#FFF8E7');
+      if (!c) return;
+      const img = heads[w] || (heads[w] = Object.assign(new Image(), { src: K.asset(`assets/sprites/${c.file}`) }));
+      if (!img.complete || !img.naturalWidth) return;
+      const k = 10 / Math.max(c.w, c.h);
+      ctx.drawImage(img, 3 * c.w, 0, c.w, c.h, half(x - c.w * k / 2), half(y - c.h * k / 2), half(c.w * k), half(c.h * k));
+    }
+    // The colour of whoever stands there: a patch of it on the floor round their feet.
+    function floor(x, c) {
+      [12, 17, 19, 19, 17, 12].forEach((w, i) => rect(x - w, GY - 3 + i, 2 * w, 1, INK));
+      [10, 16, 18, 16, 10].forEach((w, i) => rect(x - w, GY - 2 + i, 2 * w, 1, c));
+    }
+    // Four corners closing in on what a shot is going for, or opening out where a tap found nothing.
+    function corners(x, y, rx, ry, c) {
+      for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+        const cx = Math.round(x + sx * rx), cy = Math.round(y + sy * ry);
+        rect(sx < 0 ? cx + 1 : cx - 3, cy + 1, 4, 1, INK); rect(cx + 1, sy < 0 ? cy + 1 : cy - 3, 1, 4, INK);
+        rect(sx < 0 ? cx : cx - 4, cy, 4, 1, c); rect(cx, sy < 0 ? cy : cy - 4, 1, 4, c);
+      }
+    }
+    // An arrow pointing down at (x, y): what to tap.
+    function arrow(x, y, c) {
+      x = Math.round(x); y = Math.round(y);
+      rect(x - 3, y - 11, 7, 6, INK); for (let i = 0; i < 5; i++) rect(x - 5 + i, y - 6 + i, 11 - 2 * i, 1, INK);
+      rect(x - 2, y - 10, 5, 5, c); for (let i = 0; i < 4; i++) rect(x - 4 + i, y - 6 + i, 9 - 2 * i, 1, c);
+    }
+    // A burst of sparks from (x, y), from the moment `at`.
+    function burst(x, y, c, at = s.t, n = 6) {
+      for (let k = 0; k < n; k++) { const a = (k / n) * Math.PI * 2 + 0.4, v = 55 + (k % 3) * 20; s.sparks.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 25, at, c: k % 2 ? '#FFD43A' : c }); }
+    }
+    // A padlock opens: a white flash, its shackle springs up, then it drops, with sparks in the colour of whoever opened it.
+    function open(tg, by, delay = 0) {
+      s.open.add(tg.id);
+      const x = tx(tg), y = tg.y;
+      s.drops.push({ x, y, at: s.t + delay, vx: ((tg.id % 3) - 1) * 16, key: ownerOf(tg) });
+      burst(x, y, COLOUR[by], s.t + delay);
+    }
+    const puff = (x, y) => s.pops.push({ x, y, at: s.t, kind: 'dust' });
+    // Opened by the partner (their shot landing here, or the room saying so, whichever comes first).
+    function theyOpened(tg) {
+      open(tg, mate()); if (go === Infinity) goFrom(s.t);
+      if (sn.two && own(tg)) say(`${face(mate(), 3, 0.6)} ${heroName(mate())} ti ${mate() === 'kel' ? 'pomohla' : 'pomohl'}!`, 1.6);
+    }
+    // Opened by one's own shot: the room counts it. Every fifth in a row is cheered; saving the partner's is said so.
+    function opened(tg, kind) {
+      const x = tx(tg), saved = !own(tg);
+      open(tg, who); s.mine++; s.streak++; if (go === Infinity) goFrom(s.t);
+      s.pops.push({ x, y: tg.y, at: s.t, kind });
+      Net.send({ type: 'ev', e: 'hit', id: tg.id, at: s.t }); beep(780, 1040);                // when: the first one sets the others going
+      plus(saved ? 'Zachráněno!' : '+1', clamp(x, saved ? 34 : 12, W - (saved ? 34 : 12)), Math.max(34, tg.y - 12));   // clear of the bar at the top
+      if (s.mine === 1 && !saved && s.tipUntil === Infinity) say('', 0);                  // the first advice has done its job
+      if (s.streak % 5 === 0) cheer({ 5: 'Pět za sebou!', 10: 'Deset za sebou!', 15: 'Patnáct za sebou!' }[s.streak] || 'Paráda!');
+    }
+    // One got away: a puff, a heart rising out of it, and the picture jolts.
+    function gone(tg) { s.pops.push({ x: tx(tg), y: tg.y, at: s.t, kind: 'gone' }); beep(200, 150); s.streak = 0; s.quake = s.t; }
+    // The golden padlock is hit, by this hero or (as this phone sees it) the other one; `at`: when that shot was thrown.
+    function goldHit(by, real, at) {
+      const p = goldSpot();
+      s.gold.hit = s.t; burst(p.x, p.y, COLOUR[by], s.t, 8);
+      if (by !== who) { s.gold.mate = Math.max(s.gold.mate, at); return beep(660, 880); }
+      s.gold.mine = at; s.gold.n++; beep(880, 1175);
+      plus(sn.two ? '+1' : `${s.gold.n}`, clamp(p.x, 12, W - 12), p.y - 22);
+      if (real && !s.over) Net.send({ type: 'ev', e: 'gold', at });                          // when it was thrown, by the shared clock: the room checks the two seconds
+    }
+    // Enough are open: whatever is still up springs open by itself, one after another, and the golden padlock comes.
+    function startGold(at) {
+      s.gold = { at, mine: -9, mate: -9, hit: -9, n: 0, lift: 0 };
+      let k = 0;
+      for (const tg of targets) { if (tg.born > s.t) break; if (!done(tg) && !s.told.has(tg.id)) open(tg, ownerOf(tg), 0.1 + 0.08 * k++); }
+      cheer('Zlatý zámek!'); beep(523, 659, 784, 1047);
+      say(sn.two ? 'Trefte ho oba naráz!' : 'Trefuj! Ještě třikrát.', 0);
+    }
+
+    // One shot from `from`: right at a padlock (`aim`: its id, or 'gold'), following it as it sways until it lands
+    // on it; or, with nothing near the finger, towards (x, y) and on. Only one's own shots open anything.
     function fire(w, from, x, y, real, star, aim) {
       const dx = x - from.x, dy = y - from.y, back = live.item === 'boomerang', d = Math.hypot(dx, dy) || 1;
       const kind = w === 'ken' ? 'puck' : star ? 'star' : 'bunny';
-      if (kind !== 'bunny' || back) {                                                     // straight and fast; with the boomerang it turns round and comes home
+      if (aim !== null && !back) {                                                        // the bunny goes in an arc, the rest straight
+        const T = kind === 'bunny' ? Math.max(0.4, Math.abs(dx) / 170) : Math.max(0.25, d / (kind === 'puck' ? 300 : 260));
+        s.shots.push({ kind, real, aim, from, x: from.x, y: from.y, vx: dx, at: s.t, T, arc: kind === 'bunny' ? G * T * T / 2 : 0 });
+      } else if (kind !== 'bunny' || back) {                                              // straight and fast; with the boomerang it turns round and comes home
         const v = kind === 'puck' ? 280 : 250;
-        s.shots.push({ kind, real, aim, from, x: from.x, y: from.y, vx: dx / d * v, vy: dy / d * v, g: 0, r: 12, turn: back ? s.t + Math.max(0.35, d / v + 0.12) : 0 });
-      } else { const T = Math.max(0.4, Math.abs(dx) / 170); s.shots.push({ kind, real, aim, from, x: from.x, y: from.y, vx: dx / T, vy: (dy - 0.5 * G * T * T) / T, g: G, r: 13 }); }
+        s.shots.push({ kind, real, aim: null, from, x: from.x, y: from.y, vx: dx / d * v, vy: dy / d * v, g: 0, r: 12, turn: back ? s.t + Math.max(0.35, d / v + 0.12) : 0 });
+      } else { const T = Math.max(0.4, Math.abs(dx) / 170); s.shots.push({ kind, real, aim: null, from, x: from.x, y: from.y, vx: dx / T, vy: (dy - 0.5 * G * T * T) / T, g: G, r: 13 }); }
     }
-    function shoot(x, y, aim) {
+    function throwAt(x, y, aim) {
       const star = who === 'kel' && s.thrown++ % 2 === 1;                                 // Kellyn takes turns: bunny, star, bunny, star
       fire(who, mine, x, y, true, star, aim);
-      Net.send({ type: 'fx', k: 'shot', x, y, star });                                    // the other device shows it flying to the same spot, from where this hero stands there
+      Net.send({ type: 'fx', k: 'shot', x, y, star, aim });                               // the other device shows it flying to the same padlock, from where this hero stands there
     }
-    return {
-      s, kind: 'shoot', spot: (tg) => ({ x: tx(tg), y: tg.y }), live: () => targets.filter((tg) => up(tg) && own(tg)), pickAt,
+    // A shot goes the moment the finger lands: it sounds, the hero swings, and corners close in on the padlock.
+    function shoot(x, y, aim, cool) {
+      throwAt(x, y, aim);
+      if (live.item === 'drumstick') s.again = { at: s.t + 0.13, x: x + 7, y: y - 7 };       // the drumstick's second beat, a little to one side
+      s.cool = cool; s.swing = 0.25; beep(who === 'ken' ? 330 : 660);
+      s.marks.push({ x, y, at: s.t, aim });
+    }
+    // A tap goes for the nearest padlock this hero may shoot (their own, or the partner's while it blinks), or the
+    // golden one. The partner's other padlocks only give a shake: that one is theirs. A tap on nothing throws there.
+    // A padlock with a shot already on its way (from either of them) gets the marks again, not a second shot.
+    // A tap while the hero is still swinging (`later`) is answered at once, with a tick and the marks on what it went
+    // for; its shot goes the moment the swing is over (see update).
+    function tap(x, y, later) {
+      const wait = (aim) => { s.next = { x, y, aim }; s.marks.push({ x, y, at: s.t, aim }); beep(1320); };
+      if (s.gold) {
+        const p = goldSpot(), on = goldUp() && Math.hypot(p.x - x, p.y - y) < 28;
+        if (later) return wait(on ? 'gold' : null);
+        return on ? shoot(p.x, p.y, 'gold', 0.25) : shoot(x, y, null, 0.5);
+      }
+      const near = (ok) => targets.filter((tg) => tg.born <= s.t && up(tg) && ok(tg)).map((tg) => ({ tg, d: Math.hypot(tx(tg) - x, tg.y - y) })).filter((n) => n.d < REACH).sort((a, b) => a.d - b.d)[0];
+      const flying = (tg) => s.shots.some((sh) => sh.aim === tg.id);
+      const aim = near((tg) => mayHit(tg) && !flying(tg)), already = !aim && near(mayHit), theirs = !aim && !already && near((tg) => !mayHit(tg));
+      if (already) { s.marks.push({ x, y, at: s.t, aim: already.tg.id }); return beep(990); }   // a shot is on its way to that one already
+      if (theirs) {
+        s.nudge[theirs.tg.id] = s.t; beep(196, 165);
+        return say(`${face(mate(), 3, 0.6)} Ten je ${mate() === 'kel' ? 'Kellynin' : 'Kendrickův'}.`, 1.4);
+      }
+      if (later) return wait(aim ? aim.tg.id : null);
+      if (aim) shoot(tx(aim.tg), aim.tg.y, aim.tg.id, 0.25); else shoot(x, y, null, 0.5);
+    }
+    // An aimed shot arrives: its padlock opens, if it is still there to open.
+    function land(sh) {
+      sh.dead = true;
+      if (sh.aim === 'gold') { if (s.gold && (!s.over || !sh.real)) goldHit(sh.real ? who : mate(), sh.real, sh.at); return; }
+      const tg = targets[sh.aim];
+      if (done(tg) || s.told.has(tg.id)) return puff(sh.x, sh.y);                          // gone already, or opened
+      if (!sh.real) { theyOpened(tg); s.pops.push({ x: sh.x, y: sh.y, at: s.t, kind: sh.kind }); return; }   // the partner's: their phone tells the room
+      if (!s.over) opened(tg, sh.kind);
+    }
+    // Where to look: an arrow over the padlock to shoot next. At the start, after a while without a tap, over one's
+    // own padlock while it blinks, then over the partner's while it blinks (now it can be saved), and over the golden one.
+    function pointer() {
+      if (s.over) return null;
+      if (s.gold) return goldUp() && s.t - s.gold.mine > 0.4 ? goldSpot() : null;
+      const ups = targets.filter((tg) => tg.born <= s.t && up(tg) && !coming(tg)), soon = (a, b) => left(a) - left(b);
+      const hurry = ups.filter((tg) => own(tg) && left(tg) < BLINK).sort(soon)[0];
+      if (hurry) return { x: tx(hurry), y: hurry.y };
+      const save = ups.filter(helpable).sort(soon)[0];
+      if (save) {
+        if (!s.helped) { s.helped = true; say(`${face(mate(), 3, 0.6)} Bliká! Pomoz ${mate() === 'kel' ? 'jí' : 'mu'}!`, 1.8); }
+        return { x: tx(save), y: save.y };
+      }
+      if (s.mine > 0 && s.t - s.tapAt < 3) return null;
+      const next = ups.filter(own).sort((a, b) => left(a) - left(b))[0];
+      return next && s.t - next.born > 0.3 ? { x: tx(next), y: next.y } : null;
+    }
+
+    const api = {
+      s, kind: 'shoot', spot: (tg) => (tg.id === 'gold' ? goldSpot() : { x: tx(tg), y: tg.y }), pickAt,
+      live: () => (s.gold ? (goldUp() && !s.over ? [{ id: 'gold', born: s.gold.at + 1.2 }] : []) : targets.filter((tg) => up(tg) && mayHit(tg))),
       sync(n) {
-        for (const id of n.hit.slice(s.seen)) { const tg = targets[id]; if (tg && !s.got.has(id)) s.pops.push({ x: tx(tg), y: tg.y, at: s.t }); }   // the other one's hits flash too
+        live = n;
+        for (const id of n.hit.slice(s.seen)) {                                           // opened on the other phone: they open here too
+          const tg = targets[id]; if (tg && !s.open.has(id)) theyOpened(tg);
+        }
         s.seen = n.hit.length;
-        live = n; paint();
-        if (live.item && !s.said) { s.said = true; view.tip.textContent = WORLD.items[live.item].shot; }
+        if (n.go !== null && n.go !== undefined) goFrom(n.go);                            // the room's word on when the first one opened
+        for (const id of n.missed) if (!s.told.has(id) && targets[id]) { s.told.add(id); gone(targets[id]); }   // the other phone saw it go first
+        if (n.gold && !s.gold) startGold(n.gold.at);
+        if (s.gold && n.gold && n.gold[mate()] !== undefined && n.gold[mate()] > s.gold.mate) s.gold.mate = n.gold[mate()];
+        paint();
+        if (live.item && !s.said) { s.said = true; say(esc(WORLD.items[live.item].shot), 2.5); }
       },
-      fx(m) { if (m.k === 'shot') { fire(mate(), theirs, m.x, m.y, false, !!m.star, null); s.mateSwing = 0.25; } },
-      over(won) { s.over = true; s.lost = !won; paint(); view.end(won, won ? 'Trefa!' : 'Uteklo vám jich moc.', won ? 'Cesta je volná.' : 'Zkuste to ještě jednou.'); },
+      fx(m) {
+        if (m.k !== 'shot') return;
+        const aim = (m.aim === 'gold' && s.gold) || (Number.isInteger(m.aim) && targets[m.aim]) ? m.aim : null;   // (the golden one may not be here yet)
+        fire(mate(), theirs, +m.x || 0, +m.y || 0, false, !!m.star, aim); s.mateSwing = 0.25;
+      },
+      over(won) {
+        s.over = true; s.lost = !won; paint();
+        const end = () => view.end(won, won ? 'Trefa!' : `Uteklo ${sn.two ? 'vám' : 'ti'} jich moc.`, won ? 'Cesta je volná.' : `Zkus${sn.two ? 'te' : ''} to ještě jednou.`);
+        if (!won) return end();
+        if (s.gold) { const p = goldSpot(); s.gold.won = s.t; burst(p.x, p.y, COLOUR.ken, s.t, 8); burst(p.x, p.y, COLOUR.kel, s.t + 0.06, 8); burst(p.x, p.y, '#FFD43A', s.t + 0.12, 10); }
+        cheer('Otevřeno!'); say('', 0);
+        setTimeout(() => { if (K.scene && K.scene.act === api) end(); }, 1300);         // the golden padlock opens and falls first
+      },
       down(x, y) {
-        if (s.over || s.cool > 0 || y < 22 || s.t < 0) return;
-        // a tap near one of one's padlocks aims right at it; a wild shot takes longer to get ready again
-        const near = targets.filter((tg) => up(tg) && own(tg)).map((tg) => ({ tg, d: Math.hypot(tx(tg) - x, tg.y - y) })).sort((a, b) => a.d - b.d)[0];
-        const aim = near && near.d < 18 ? near.tg : null;
-        if (aim) { x = tx(aim); y = aim.y; }
-        shoot(x, y, aim ? aim.id : null);
-        if (live.item === 'drumstick') s.again = { at: s.t + 0.13, x: x + 7, y: y - 7 };       // the drumstick's second beat, a little to one side
-        s.cool = aim ? 0.3 : 0.7; s.swing = 0.25; beep(who === 'ken' ? 330 : 660); if (!s.said) view.tip.textContent = '';
+        if (s.over || y < 22) return;
+        if (s.t < 0) { s.marks.push({ x, y, at: s.t, aim: null }); return beep(196); }            // not yet: 2, 1, Start!
+        s.tapAt = s.t;
+        tap(x, y, s.cool > 0);
       },
       update(dt) {
-        if (s.over) return;
         s.t = clock(live); s.cool -= dt; s.swing -= dt; s.mateSwing -= dt;
-        if (s.again && s.t >= s.again.at) { shoot(s.again.x, s.again.y); s.again = null; }
+        if (s.tipUntil < s.t) say('', 0);
+        if (!s.over && s.next && s.cool <= 0) {                                           // the swing is over: the tap made during it goes, at the padlock it was meant
+          const n = s.next, tg = Number.isInteger(n.aim) && targets[n.aim]; s.next = null;  // for, even one that has only just begun to slip away
+          if (tg && !done(tg) && !s.told.has(tg.id) && !coming(tg) && left(tg) > -0.2) shoot(tx(tg), tg.y, tg.id, 0.25); else tap(n.x, n.y);
+        }
+        if (!s.over && s.again && s.t >= s.again.at) { throwAt(s.again.x, s.again.y, null); s.again = null; }
         const p = pickAt();
         for (const sh of s.shots) {
+          if (sh.T) {                                                                       // aimed: it lands on its padlock wherever it has swayed to
+            const u = Math.min(1, (s.t - sh.at) / sh.T), q = spotOf(sh.aim);
+            sh.x = sh.from.x + (q.x - sh.from.x) * u; sh.y = sh.from.y + (q.y - sh.from.y) * u - sh.arc * u * (1 - u);
+            if (u >= 1) land(sh);
+            continue;
+          }
           sh.x += sh.vx * dt; sh.vy += sh.g * dt; sh.y += sh.vy * dt;
           if (sh.turn && s.t >= sh.turn) { sh.vx = -sh.vx; sh.vy = -sh.vy; sh.turn = 0; sh.home = true; }
           if (sh.home && (sh.vx < 0 ? sh.x <= sh.from.x : sh.x >= sh.from.x)) sh.dead = true;
           if (sh.real && p && !s.asked && Math.hypot(p.x - sh.x, p.y - sh.y) < sh.r + 4) { s.asked = true; beep(660, 880, 1100); Net.send({ type: 'ev', e: 'pick' }); }
-          if (sh.real) for (const tg of targets) {
+          if (sh.real && !s.over && !s.gold) for (const tg of targets) {                    // a shot thrown at nothing may still hit something on its way
             if (tg.born > s.t) break;
-            if (!own(tg) || !(up(tg) || (sh.aim === tg.id && aimedAt(tg))) || Math.hypot(tx(tg) - sh.x, tg.y - sh.y) >= sh.r + (sh.aim === tg.id ? 6 : 0)) continue;
-            s.got.add(tg.id); s.pops.push({ x: tx(tg), y: tg.y, at: s.t, kind: sh.kind }); beep(780, 1040); Net.send({ type: 'ev', e: 'hit', id: tg.id });
-            if (!sh.turn && !sh.home) sh.dead = true;                                     // a boomerang shot carries on through
+            if (!up(tg) || !mayHit(tg) || Math.hypot(tx(tg) - sh.x, tg.y - sh.y) >= sh.r) continue;
+            opened(tg, sh.kind);
+            if (!sh.turn && !sh.home) sh.dead = true;                                       // a boomerang shot carries on through
             break;
           }
           if (sh.x < -10 || sh.x > W + 10 || sh.y < 10 || sh.y > H + 10) { if (sh.turn) sh.turn = s.t; else sh.dead = true; }
         }
         s.shots = s.shots.filter((sh) => !sh.dead);
-        for (const tg of targets) {                                                       // the ones that got away: both devices say so, the room counts each once
-          if (tg.born > s.t) break;
-          if (s.t - tg.born > cfg.stay && !s.told.has(tg.id) && !done(tg) && !aimedAt(tg)) { s.told.add(tg.id); s.pops.push({ x: tx(tg), y: tg.y, at: s.t, kind: 'gone' }); beep(200, 150); Net.send({ type: 'ev', e: 'miss', id: tg.id }); }
+        if (!s.over) for (const tg of targets) {                                           // the ones that got away (slipped off, no shot coming): both devices say so, the room counts each once
+          if (tg.born > s.t || tg.born >= goldAt()) break;
+          if (left(tg) <= -SLIP && !s.told.has(tg.id) && !done(tg) && !coming(tg)) { s.told.add(tg.id); gone(tg); Net.send({ type: 'ev', e: 'miss', id: tg.id }); }
         }
-        s.pops = s.pops.filter((q) => s.t - q.at < (q.kind === 'gone' ? 0.7 : 0.25));
+        if (s.gold) {
+          const g = s.gold, mineOn = s.t - g.mine < TOGETHER, mateOn = s.t - g.mate < TOGETHER;
+          g.lift += ((sn.two ? 3 * (mineOn + mateOn) : 2 * Math.min(3, g.n)) - g.lift) * Math.min(1, dt * 14);   // each hit lifts the shackle a little
+          if (goldUp() && !s.over) {                                                         // the one who has hit it keeps going, so the other's hit is sure to count
+            if (sn.two) say(mineOn && !mateOn ? 'Trefuj dál!' : mateOn && !mineOn ? 'Rychle, teď ty!' : 'Trefte ho oba naráz!', 0);
+            else say(['Trefuj! Ještě třikrát.', 'Ještě dvakrát!', 'Ještě jednou!', ''][Math.min(3, g.n)], 0);
+          }
+        }
+        s.pops = s.pops.filter((q) => s.t - q.at < (q.kind === 'gone' || q.kind === 'dust' ? 0.7 : 0.15));
+        s.drops = s.drops.filter((d) => s.t - d.at < 1);
+        s.sparks = s.sparks.filter((k) => s.t - k.at < 0.45);
+        s.marks = s.marks.filter((m) => s.t - m.at < 0.25 || (m.aim !== null && s.shots.some((sh) => sh.real && sh.aim === m.aim)));
         paint();
       },
       draw() {
+        const jolt = s.t - s.quake < 0.25 ? (Math.floor(s.t * 30) % 2 ? 1 : -1) : 0;      // a padlock got away: the picture jolts
+        if (jolt) rect(0, 0, W, H, INK);
+        ctx.save(); ctx.translate(jolt, 0);
         K.background(sc.bg, 0, place.look);
+        floor(BODY, COLOUR[who]); if (mateHere()) floor(W - BODY, COLOUR[mate()]);
         for (const tg of targets) {
           if (tg.born > s.t) break;
-          if (!up(tg) && !aimedAt(tg)) continue;
-          const x = Math.round(tx(tg)), y = Math.round(tg.y), left = cfg.stay - (s.t - tg.born);
-          if (left < 0.9 && left > 0 && Math.floor(s.t * 10) % 2) continue;                    // blinks before it slips away
-          if (mateHere()) { const c = COLOUR[owner(tg)]; rect(x + 3, y + 8, 7, 6, INK); rect(x + 4, y + 9, 5, 4, c); rect(x + 5, y + 6, 1, 3, INK); }   // whose it is: a little coloured tag
-          if (K.has('prague', 'padlock')) { K.figure('prague', x + Math.round(Math.sin(s.t * 3 + tg.phase)), y + 10, 'padlock', 0, false, 0.36); continue; }
-          rect(x - 5, y - 13, 10, 8, '#7A5320'); rect(x - 3, y - 11, 6, 6, place.look.sky);  // a stand-in padlock
-          rect(x - 8, y - 6, 16, 13, '#7A5320'); rect(x - 7, y - 5, 14, 11, '#E6B340'); rect(x - 1, y - 2, 2, 5, '#7A5320');
+          const away = coming(tg) ? 0 : up(tg) ? -1 : slipping(tg) ? clamp(-left(tg) / SLIP, 0, 1) : -2;
+          if (away < -1) continue;
+          const pop = clamp((s.t - tg.born) / 0.3, 0, 1), hurry = left(tg) < BLINK, n = s.nudge[tg.id], u = n === undefined ? 1 : s.t - n, a = Math.max(0, away) ** 2;
+          // it pops into place; blinks white and rattles before it slips away; shakes when it is the partner's to shoot;
+          // out of time, it slips off upwards, shrinking (easing in, so a shot arriving just then still finds it in place)
+          const x = Math.round(tx(tg)) + (u < 0.35 ? Math.round(Math.sin(u * 45) * 2) : 0) + (hurry ? (Math.floor(s.t * 16) % 2 ? 1 : -1) : 0), y = Math.round(tg.y - 14 * a);
+          drawLock(hurry && Math.floor(s.t * 8) % 2 ? 'white' : ownerOf(tg), x, y, 0.36 * outBack(pop) * (1 - 0.5 * a), 0);
+          if (sn.two && pop >= 0.7 && a < 0.3) badge(ownerOf(tg), x + 7, y + 8);
         }
-        for (const q of s.pops) {
-          const x = Math.round(q.x), y = Math.round(q.y), pose = q.kind === 'bunny' ? 'fluff' : 'flash';
-          if (q.kind === 'gone') {                                                               // one that got away: a puff, and a heart rising out of it
-            const u = (s.t - q.at) / 0.7;
-            for (let k = 0; k < 5; k++) { const a = k / 5 * Math.PI * 2, r = 4 + u * 10; rect(Math.round(x + Math.cos(a) * r) - 2, Math.round(y + Math.sin(a) * r) - 2, 4, 4, 'rgba(232,220,196,' + (1 - u).toFixed(2) + ')'); }
-            const hy = Math.round(y - 8 - u * 16); rect(x - 4, hy, 3, 3, '#CC2233'); rect(x + 1, hy, 3, 3, '#CC2233'); rect(x - 3, hy + 2, 6, 3, '#CC2233'); rect(x - 1, hy + 5, 2, 2, '#CC2233');
-            continue;
+        for (const d of s.drops) {                                                          // opening: flash, the shackle springs up, then down it goes
+          const u = s.t - d.at, f = Math.max(0, u - 0.3);
+          if (u > 0.85 && Math.floor(u * 20) % 2) continue;
+          drawLock(u >= 0 && u < 0.08 ? 'white' : d.key, d.x + d.vx * f, d.y - 30 * f + 320 * f * f, u >= 0 && u < 0.08 ? 0.4 : 0.36, u < 0.08 ? 0 : 5 * outBack(clamp((u - 0.08) / 0.2, 0, 1)));
+        }
+        if (s.gold && s.t >= s.gold.at + 0.5) {
+          const g = s.gold, p = goldSpot(), u = s.t - g.hit, w = g.won === undefined ? -1 : s.t - g.won, f = Math.max(0, w - 0.45);
+          const x = Math.round(p.x) + (u < 0.3 ? Math.round(Math.sin(u * 50) * 2 * (1 - u / 0.3)) : 0), y = Math.round(p.y) + (w >= 0 ? Math.round(-20 * f + 320 * f * f) : 0);
+          for (let k = 0; k < 4; k++) { const a = k / 4 * Math.PI * 2 + s.t * 1.5, r = 22 + Math.sin(s.t * 4 + k) * 2; if (w < 0 && Math.sin(s.t * 7 + k * 2) > 0) rect(Math.round(x + Math.cos(a) * r), Math.round(y + Math.sin(a) * r), 2, 2, k % 2 ? '#FFF1A8' : '#FFD43A'); }
+          drawLock(u < 0.08 ? 'white' : 'gold', x, y, 0.62, w >= 0 ? 9 * outBack(clamp(w / 0.3, 0, 1)) : g.lift);
+          if (w < 0 && s.t >= g.at + 1.2) {                                                // under it: who has hit it in the last two seconds (with two), or how many hits so far
+            if (sn.two) [who, mate()].forEach((h, i) => {                                   // this hero's on the left, as they stand
+              const bx = x - 10 + i * 20, by = y + 28, v = (s.t - (h === who ? g.mine : g.mate)) / TOGETHER;
+              badge(h, bx, by);
+              rect(bx - 6, by + 8, 12, 3, INK); if (v < 1) rect(bx - 5, by + 9, Math.ceil(10 * (1 - v)), 1, COLOUR[h]);
+            });
+            else for (let i = 0; i < 3; i++) { rect(x - 13 + i * 9, y + 24, 8, 8, INK); rect(x - 12 + i * 9, y + 25, 6, 6, i < g.n ? '#FFD43A' : '#7A6F6A'); }
           }
-          if (K.has('things', pose)) K.figure('things', x, y + 8, pose, 0, false, 0.6);
-          else { rect(x - 9, y - 1, 18, 2, '#FFD43A'); rect(x - 1, y - 9, 2, 18, '#FFD43A'); rect(x - 4, y - 4, 8, 8, '#FFF8E7'); }
         }
-        const p = pickAt(); if (p) item(sc.pickup, p.x, p.y);
+        const pk = pickAt(); if (pk) item(sc.pickup, pk.x, pk.y);
         if (live.item) item(live.item, 12, 34);                                             // what they are holding, up in the corner
         // wound up and ready; swinging through for a moment after each shot. Kellyn's hand stays empty while her bunny is in the air.
-        const pose = (w, swing, real) => (swing > 0 || (w === 'kel' && s.shots.some((sh) => sh.kind === 'bunny' && sh.real === real)) ? 'shoot' : 'aim');
-        if (mateHere()) K.hero(mate(), W - BODY, GY, pose(mate(), s.mateSwing, false), s.t, true);
+        const won = s.over && !s.lost, pose = (w, swing, real) => (won ? 'cheer' : swing > 0 || (w === 'kel' && s.shots.some((sh) => sh.kind === 'bunny' && sh.real === real)) ? 'shoot' : 'aim');
+        if (mateHere()) K.hero(mate(), W - BODY, GY, s.lost ? 'dizzy' : pose(mate(), s.mateSwing, false), s.t, true);
         K.hero(who, BODY, GY, s.lost ? 'dizzy' : pose(who, s.swing, true), s.t);
         for (const sh of s.shots) {
           const x = Math.round(sh.x), y = Math.round(sh.y);
@@ -1444,8 +1703,34 @@
           else if (K.sprites.bunny) K.prop(K.sprites.bunny, x, y + 11, Math.floor(s.t * 6) % 2);
           else { rect(x - 5, y - 4, 10, 8, '#D9CFC6'); rect(x - 4, y - 3, 8, 6, '#FFFDF8'); }
         }
+        for (const k of s.sparks) {
+          const u = s.t - k.at; if (u < 0) continue;
+          const sz = u < 0.35 ? 2 : 1;
+          rect(Math.round(k.x + k.vx * u * (1 - u)), Math.round(k.y + k.vy * u + 160 * u * u), sz, sz, k.c);
+        }
+        for (const q of s.pops) {
+          const x = Math.round(q.x), y = Math.round(q.y), u = (s.t - q.at) / 0.7;
+          if (q.kind === 'gone' || q.kind === 'dust') {                                       // a puff; one that got away leaves a heart rising out of it
+            for (let k = 0; k < 5; k++) { const a = k / 5 * Math.PI * 2, r = 4 + u * 10; rect(Math.round(x + Math.cos(a) * r) - 2, Math.round(y + Math.sin(a) * r) - 2, q.kind === 'gone' ? 4 : 3, q.kind === 'gone' ? 4 : 3, 'rgba(232,220,196,' + (1 - u).toFixed(2) + ')'); }
+            if (q.kind === 'gone') { const hy = Math.round(y - 8 - u * 16); rect(x - 4, hy, 3, 3, '#CC2233'); rect(x + 1, hy, 3, 3, '#CC2233'); rect(x - 3, hy + 2, 6, 3, '#CC2233'); rect(x - 1, hy + 5, 2, 2, '#CC2233'); }
+            continue;
+          }
+          const pose = q.kind === 'bunny' ? 'fluff' : 'flash';                              // the moment of the hit
+          if (K.has('things', pose)) K.figure('things', x, y + 7, pose, 0, false, 0.45);
+          else { rect(x - 9, y - 1, 18, 2, '#FFD43A'); rect(x - 1, y - 9, 2, 18, '#FFD43A'); rect(x - 4, y - 4, 8, 8, '#FFF8E7'); }
+        }
+        for (const m of s.marks) {                                                          // where each tap went
+          const u = s.t - m.at;
+          if (m.aim === null) { if (u < 0.25) { const r = 3 + u * 24; corners(m.x, m.y, r, r, COLOUR[who]); } continue; }
+          const q = spotOf(m.aim), r = (m.aim === 'gold' ? 18 : 12) - 3 * outBack(clamp(u / 0.15, 0, 1));
+          corners(q.x, q.y, r, r * 1.3, COLOUR[who]);
+        }
+        const next = pointer();
+        if (next) arrow(next.x, next.y - (s.gold ? 30 : 13) - Math.round(Math.abs(Math.sin(s.t * 6)) * 3), COLOUR[who]);
+        ctx.restore();
       },
     };
+    return api;
   }
 
   // The echo: Alan plays a rhythm on four drums, then it has to be played back in the same order, Simon-style: every
