@@ -1639,8 +1639,9 @@
     const { obs, pickAt, heartAt, finale } = Room.course.run(sn.seed, sc);
     obs.forEach((o, i) => { o.i = i; o.d = D(o.at); });
     const how = sc.pickup && WORLD.items[sc.pickup].use;                    // 'hit' (the drumstick) or 'throw' (the boomerang)
-    const s = { t: 0, y: 0, vy: 0, inv: 0, over: false, lost: false, obs, pickAt, asked: false, told: false, sent: 0, how, mate: { y: 0, vy: 0, hurt: -9, hop: -9 }, mateOutAt: -9,
-      q: [], throws: 0, fly: null, mateFly: null, whack: -9, hurt: -9, hop: -9, queued: -9, shake: -9, cam: 0, parts: [], streak: 0, learnt: {}, note: null, swap: null, end: 0, hud: '' };
+    const s = { t: 0, y: 0, vy: 0, inv: 0, over: false, lost: false, obs, pickAt, asked: false, told: false, sent: 0, how, mateOutAt: -9,
+      mate: { y: 0, vy: 0, hurt: -9, hop: -9, up: -9, land: -9, press: -9, trick: -9, gotAt: -9, throwAt: -9, caught: -9, nope: -9, throws: 0 },
+      q: [], throws: 0, fly: null, mateFly: null, whack: -9, hurt: -9, hop: -9, queued: -9, shake: -9, up: -9, land: -9, trick: -9, gotAt: -9, throwAt: -9, caught: -9, nope: -9, cam: 0, parts: [], streak: 0, learnt: {}, note: null, swap: null, end: 0, hud: '' };
     let live = sn;
     const view = stage(`<span class="lives"></span><span class="meter"><i></i></span>${mateHere() ? `<span style="display:flex;align-items:center;gap:.25em">${face(mate(), 0, 1)}<span class="lives" style="font-size:.7em"></span></span>` : ''}`, 'Klepni a skočíš.');
     const keys = pad([{ id: 'throw', label: 'Hoď', side: 'left', hidden: true, count: 0, press: () => throwIt() }, { id: 'jump', label: 'Skok', big: true, press: () => jump() }]);
@@ -1669,41 +1670,54 @@
       for (let k = 0; k < n; k++) s.parts.push({ x, y, vx: (Math.random() - 0.6) * 70, vy: -(up || 40) - Math.random() * 50, c: cols[k % cols.length], age: 0, life: 0.4 + Math.random() * 0.25 });
     }
     const SPRAY = ['#FFFFFF', '#BFE8FF', '#FFFFFF'], FEATHERS = ['#1FA463', '#CC2233', '#3E7BD6', '#FFD43A'];
+    // Where a boomerang still to throw rides on the surfer's back (slung behind the hip, a little turned), from the feet;
+    // and where one held up sits from the raised fist (K.hand cheer 1): its lower arm in the fist, clear of the head.
+    const BACK = { ken: { surf: [-14, -16], jump: [-12, -15], cheer: [-10, -18], shrug: [-10, -18], dizzy: [-12, -14] }, kel: { surf: [-10, -16], jump: [-9, -15], cheer: [-8, -18], shrug: [-8, -18], dizzy: [-10, -14] } };
+    const held = (w) => { const c = K.hand(w, 'cheer', 1); return { x: c.x + 2, y: c.y - 6 }; };
     function jump() {
       if (s.over) return;
       if (out(who)) { s.hop = s.t; beep(660); Net.send({ type: 'fx', k: 'hop', at: s.t }); return; }        // riding along: a hop on the board, just for fun
       if (s.y > 0 || s.vy !== 0) {                                           // still in the air: a little trick, and it jumps again if it lands soon
         s.queued = s.t; s.trick = s.t; beep(880); burst(X - 10, GY - s.y + 2, SPRAY, 2, 10);
+        Net.send({ type: 'fx', k: 'trick', at: clock(live) });
         return;
       }
       const at = clock(live);
-      s.vy = JUMP; beep(520); burst(X - 8, GY + 2, SPRAY, 4);
+      s.vy = JUMP; s.up = s.t; beep(520); burst(X - 8, GY + 2, SPRAY, 4);
       Net.send({ type: 'fx', k: 'jump', at });
     }
-    function giveBoomerang() { s.throws = 3; s.gotAt = s.t; keys.show('throw', true); keys.count('throw', s.throws); }
+    function giveBoomerang(mine) {                                             // one grabs it, both get it: both hold one up
+      const at = mine ? s.t : Math.max(s.t, pickAt + BEHIND / vAt(pickAt));     // the partner's grab: as late as they surf behind
+      s.throws = 3; s.gotAt = at; keys.show('throw', true); keys.count('throw', s.throws);
+      if (mateHere()) { s.mate.throws = 3; s.mate.gotAt = at; }
+    }
+    function balk(how) { s.nope = s.t; s.nopeK = how; Net.send({ type: 'fx', k: 'nope', how }); }   // a Hoď refused: the surfer looks after it, or shrugs
     // The boomerang flies at the next thing still to come, waits at the edge of the screen if that is not here yet,
     // knocks it out and comes back. That thing is gone for both of them: the room is told at once. Only a thing at
     // least half a second away, by the game's clock (not by where I am drawn, which is further back when riding), so
     // the news reaches the partner's phone over a slow network before that thing reaches them there.
     function throwIt() {
       if (s.over) return;
-      if (s.fly) return nope('Bumerang ještě letí.', 'throw');
-      if (!s.throws) return nope('Bumerangy došly.', 'throw');
-      const from = spot(who).x, o = obs.find((q) => !q.hit && !q.ko && q.smashed === undefined && q.at - s.t > 0.5);
-      if (!o) return nope('Už není co srazit.', 'throw');
+      if (s.fly) { if (s.t - s.throwAt >= 0.29) balk('look'); return nope('Bumerang ještě letí.', 'throw'); }   // a double tap: the throw plays on
+      if (!s.throws) { balk('shrug'); return nope('Bumerangy došly.', 'throw'); }
+      const o = obs.find((q) => !q.hit && !q.ko && q.smashed === undefined && q.at - s.t > 0.5);
+      if (!o) { balk('shrug'); return nope('Už není co srazit.', 'throw'); }
       s.throws--; keys.count('throw', s.throws); s.threw = true;
       o.ko = true; o.aimed = true;
-      s.fly = { x: from + 6, y: GY - spot(who).y - 26, o, home: who };
+      s.throwAt = s.t; s.fly = { o, home: who, go: s.t + 0.09 };              // wound up behind the head: it leaves the hand 90 ms on
       beep(660, 880);
       Net.send({ type: 'ev', e: 'ko', i: o.i }); Net.send({ type: 'fx', k: 'throw', at: s.t, i: o.i });
     }
     function flyStep(f, dt) {
-      const ox = xOf(f.o), ty = f.back ? GY - spot(f.home).y - 26 : f.o.high ? GY - 64 : GY - 12;
+      const p = spot(f.home), c = held(f.home);
+      if (s.t < f.go) return f;                                                // still in the hand
+      if (f.x === undefined) { const h = K.hand(f.home, 'throw', 1); f.x = p.x + h.x + 1; f.y = GY - p.y - 1 + h.y; }   // let go: from the hand
+      const ox = xOf(f.o), ty = f.back ? GY - p.y - 1 + c.y : f.o.high ? GY - 64 : GY - 12;
       f.y += (ty - f.y) * Math.min(1, dt * 6);
       if (!f.back) {
         f.x = Math.min(f.x + 190 * dt, W - 14 - s.cam);
         if (f.x >= ox - 4 || f.o.smashed !== undefined) { if (f.o.smashed === undefined) smash(f.o); f.back = true; }
-      } else if ((f.x -= 190 * dt) <= spot(f.home).x + 4) { beep(990); return null; }   // caught
+      } else if ((f.x -= 190 * dt) <= p.x + c.x) { beep(990); (f.home === who ? s : s.mate).caught = s.t; return null; }   // caught, in the raised fist
       return f;
     }
     function smash(o) {
@@ -1781,7 +1795,9 @@
       // thing reaches them here. A throw is shown at once, and its target is harmless from now on.
       fx(m) {
         const at = Number.isFinite(+m.at) ? +m.at : s.t, o = obs[m.i | 0];
-        if (m.k === 'throw') { if (o) { o.ko = true; o.koAt = s.t; o.aimed = true; s.mateFly = { x: spot(mate()).x + 6, y: GY - spot(mate()).y - 26, o, home: mate() }; } return; }
+        if (m.k === 'throw') { if (o) { o.ko = true; o.koAt = s.t; o.aimed = true; s.mate.throwAt = s.t; s.mate.throws = Math.max(0, s.mate.throws - 1); s.mateFly = { o, home: mate(), go: s.t + 0.09 }; } return; }
+        if (m.k === 'nope') { s.mate.nope = s.t; s.mate.nopeK = m.how === 'look' ? 'look' : 'shrug'; return; }
+        if (m.k === 'jump') s.mate.press = s.t;                                // the press, at once: a crouch (the jump comes as late as they surf behind)
         const due = at + (out(mate()) ? 0 : BEHIND / vAt(at));
         s.q.push({ k: m.k, i: m.i | 0, due }); s.q.sort((a, b) => a.due - b.due);
       },
@@ -1799,14 +1815,15 @@
         // the boards: mine, and the partner's as their messages come due
         for (; s.q.length && s.q[0].due <= t; s.q.shift()) {
           const m = s.q[0], late = t - m.due, o = obs[m.i];
-          if (m.k === 'jump' && late < 0.6) { s.mate.vy = JUMP - G * late; s.mate.y = Math.max(0.01, JUMP * late - G * late * late / 2); burst(X - BEHIND - 8, GY + 2, SPRAY, 3); }
+          if (m.k === 'jump' && late < 0.6) { s.mate.vy = JUMP - G * late; s.mate.y = Math.max(0.01, JUMP * late - G * late * late / 2); s.mate.up = m.due; burst(X - BEHIND - 8, GY + 2, SPRAY, 3); }
+          if (m.k === 'trick') { s.mate.trick = m.due; burst(X - BEHIND - 10, GY - s.mate.y + 2, SPRAY, 2, 10); }
           if (m.k === 'hurt' && !(o && o.ko)) { s.mate.hurt = m.due; if (o && !o.hit && o.smashed === undefined) { o.hit = true; o.knock = m.due; } burst(X - BEHIND + 4, GY - s.mate.y - 20, ['#CC2233', '#FFF8E7'], 5); }   // knocked out: the room does not count it either
           if (m.k === 'hop') s.mate.hop = m.due;
         }
         for (const [b, x] of [[s, X], [s.mate, X - BEHIND]]) {
           if (b.vy === 0 && b.y <= 0) continue;
           b.y += b.vy * dt; b.vy -= G * dt;
-          if (b.y <= 0) { b.y = 0; b.vy = 0; burst(x, GY + 2, SPRAY, 6); if (b === s && t - s.queued < 0.2) jump(); }
+          if (b.y <= 0) { b.y = 0; b.vy = 0; b.land = t; burst(x, GY + 2, SPRAY, 6); if (b === s && t - s.queued < 0.2) jump(); }
         }
         if (s.inv > 0) s.inv -= dt;
         if (s.fly) { s.fly = flyStep(s.fly, dt); if (!s.fly && !s.throws) keys.show('throw', false); }   // the last one is back: the button goes
@@ -1814,7 +1831,7 @@
         if (pickAt !== null && !live.picked && !s.asked && !out(who) && Math.abs(D(pickAt) - D(t)) < 11 && s.y > 10) {   // jumped into the pick-up
           s.asked = true; s.told = true; beep(660, 880, 1100); burst(X, GY - 50, ['#FFD43A', '#FFF1A8'], 8, 50);
           Net.send({ type: 'ev', e: 'pick' });
-          if (how === 'throw') giveBoomerang(); else note(WORLD.items[sc.pickup].dash, 3);
+          if (how === 'throw') giveBoomerang(true); else note(WORLD.items[sc.pickup].dash, 3);
         }
         if (heartHere() && Math.abs(D(heartAt) - D(t)) < 11 && s.y > 10) {           // jumped into the heart
           if (live.hp && live.hp[who] < (live.max || 3)) {
@@ -1882,9 +1899,9 @@
             if (!s.learnt.fin && !out(who) && o === obs.find((q) => !q.high && !q.passed && !q.hit && !q.ko)) signs.push([x, GY - 30 - bounce, false]);   // until a fin is jumped: an arrow up
           }
         }
-        if (pickAt !== null && !live.picked && !s.asked) {
+        if (pickAt !== null && !s.asked && (!live.picked || s.t < s.mate.gotAt)) {   // grabbed by the partner: there until they are seen to
           const x = Math.round(xOf({ d: D(pickAt) })) + cam;
-          if (x > -12 && x < W + 12) { item(sc.pickup, x, GY - 50 + Math.round(Math.sin(t * 5) * 2), t); if (!out(who)) signs.push([x, GY - 30 - bounce, false]); }
+          if (x > -12 && x < W + 12) { item(sc.pickup, x, GY - 50 + Math.round(Math.sin(t * 5) * 2), t); if (!out(who) && !live.picked) signs.push([x, GY - 30 - bounce, false]); }
         }
         if (heartHere()) {
           const x = Math.round(xOf({ d: D(heartAt) })) + cam, y = GY - 50 + Math.round(Math.sin(t * 5) * 2), sz = K.has('street', 'heart') && (K.sprites.street.sizes || {}).heart;
@@ -1901,7 +1918,10 @@
         function surfer(w, back) {
           const mine = w === who, k = mine ? 0 : 2, own = spot(w), p = placed(w), bx = Math.round(own.x) + cam, by = height(own, k);
           if (by <= 0) for (let j = 0; j < 3; j++) if ((Math.floor(t * 12) + j) % 3) rect(bx - 16 - j * 4 - (back ? 6 : 0), GY + 3 + (j % 2), 3, 1, '#FFFFFF');   // the wake
-          if (K.has('aussie', 'surfboard')) K.figure('aussie', bx - 2 - (back ? 6 : 0), GY - Math.max(0, by) + 4, 'surfboard', 0, true, back ? 0.66 : 0.48);
+          const sz = back ? 0.66 : 0.48, len = Math.round(62 * sz), bfx = bx - 2 - (back ? 6 : 0), bfy = GY - Math.max(0, by) + 4;
+          if (K.has('aussie', 'surfboard') && (mine ? s : s.mate).vy > 0) {       // rising: the nose up a pixel
+            ctx.save(); ctx.translate(bfx - (len >> 1), bfy); ctx.transform(1, -1 / len, 0, 1, 0, 0); K.figure('aussie', len >> 1, 0, 'surfboard', 0, true, sz); ctx.restore();
+          } else if (K.has('aussie', 'surfboard')) K.figure('aussie', bfx, bfy, 'surfboard', 0, true, sz);
           else { rect(bx - 12, GY - by - 1, 24, 4, INK); rect(bx - 11, GY - by, 22, 2, '#F2C94C'); }
           if (back) rider(back, true);
           rider(w, false);
@@ -1910,15 +1930,49 @@
           const mine = w === who, p = placed(w), x = Math.round(p.x) + cam, hurtAt = mine ? s.hurt : s.mate.hurt;
           if (behind) {                                                       // sitting at first, then surfing along; a tap is a hop
             const hop = t - (mine ? s.hop : s.mate.hop) < 0.35, y = height(p, mine ? 3 : 1) + (hop ? 4 : 0);
-            K.hero(w, x, GY - y - 1, s.over ? (s.lost ? 'dizzy' : 'cheer') : hop ? 'cheer' : t - (mine ? s.outAt : s.mateOutAt) < 0.9 ? 'dizzy' : 'surf', t);
+            act(w, x, GY - y - 1, s.over ? (s.lost ? 'dizzy' : 'cheer') : hop ? 'cheer' : t - (mine ? s.outAt : s.mateOutAt) < 0.9 ? 'dizzy' : 'surf', false, mine ? 3 : 1);
             if (!s.over && !(s.swap && s.swap.w === w && s.t - s.swap.at < 0.45)) dots(x, GY - y - 58, (live.ride && live.ride[w]) || 0);
             return;
           }
           const safe = mine ? s.inv > 0 : t - hurtAt < 1.1 || t - (s.mate.back || -9) < 1.5;            // can't be hurt for a moment (after a stumble, or back on the board): blinks
           const y = height(p, mine ? 0 : 2), blink = !s.over && safe && Math.floor(t * 14) % 2;
-          const trick = mine && p.y > 0 && t - (s.trick ?? -9) < 0.25;            // a tap in the air: arms up
-          const pose = s.over ? (s.lost ? 'dizzy' : 'cheer') : t - hurtAt < 0.45 ? 'dizzy' : mine && powered() && t - s.whack < 0.25 ? 'drum' : trick ? 'cheer' : p.y > 0 ? 'jump' : 'surf';
-          if (!blink) K.hero(w, x, GY - y - 1, pose, t);
+          const pose = s.over ? (s.lost ? 'dizzy' : 'cheer') : t - hurtAt < 0.45 ? 'dizzy' : mine && powered() && t - s.whack < 0.25 ? 'drum' : p.y > 0 ? 'jump' : 'surf';
+          if (!blink) act(w, x, GY - y - 1, pose, p.y > 0, mine ? 0 : 2);
+        }
+        // One surfer acting it out, feet at (x, foot). `pose` is what the board says; while it is free (surf, or jump in
+        // the air) the latest press still going takes over: the boomerang just got or caught (held up in the fist), a throw
+        // (wound up behind the head, then let go, with a lean), a trick in the air (arms up), a Hoď refused (a wiggle after
+        // the one still flying, or a shrug); stunned, only a press after the knock does. A take-off, a landing and the
+        // partner's press squash the surf for a moment; at the top of each swell the knees give a little (the feet stay on
+        // the board). A boomerang still to throw rides on the back.
+        function act(w, x, foot, pose, air, wk) {
+          const b = w === who ? s : s.mate, now = s.t, on = (at, d) => now - at >= 0 && now - at < d;
+          let k = t, dx = 0, dy = 0, sx = 1, sy = 1, hd = null, a = null;
+          if (pose === 'surf' || pose === 'jump' || (pose === 'dizzy' && !s.over)) {
+            const since = pose === 'dizzy' ? b.hurt : -9;
+            for (const c of [['throw', b.throwAt, 0.29], ['catch', b.caught, 0.25], ['got', b.gotAt, 0.4], ['trick', air ? b.trick : -9, 0.25], [b.nopeK, b.nope, b.nopeK === 'look' ? 0.2 : K.has(w, 'shrug') ? 0.3 : 0.15]]) if (on(c[1], c[2]) && c[1] > since && (!a || c[1] >= a[1])) a = c;
+            if (a && a[0] === 'shrug' && air && b.up >= a[1]) a = null;           // a Skok after the shrug: the jump shows
+            const u = a ? now - a[1] : 0;
+            if (!a) {
+              if (pose === 'dizzy') { /* stunned, as it is */ }
+              else if (air ? on(b.up, 0.06) : on(b.land, 0.08) || on(b.press, 0.06)) { pose = 'surf'; sx = 1.08; sy = 0.85; }
+              else if (!air && wave(wk) === 1) sy = 0.97;
+            } else if (a[0] === 'throw') {
+              const gone = u >= 0.09;
+              pose = K.pose(w, 'throw', gone && w === 'kel' ? 'shoot' : 'cheer'); k = K.frame(gone ? 1 : 0); dx = gone ? 1 : -1;
+              if (!gone) { hd = K.hand(w, 'throw', 0); hd.y -= 3; }
+            } else if (a[0] === 'got' || a[0] === 'catch') { pose = 'cheer'; hd = held(w); }
+            else if (a[0] === 'trick') pose = 'cheer';
+            else if (a[0] === 'look') dx = Math.floor(u / 0.05) % 2 ? -1 : 1;
+            else pose = K.pose(w, 'shrug', 'dizzy');
+          }
+          const fx = x + dx, fy = foot + dy, bk = BACK[w] && BACK[w][pose], up = hd && a[0] !== 'throw';   // held up: behind the fist that grips it
+          if (bk && b.throws > 0 && now >= b.gotAt && !hd && !(w === who ? s.fly : s.mateFly)) boom(fx + Math.round(bk[0] * sx), fy + Math.round(bk[1] * sy), 0.22, 'boomerang', 0.35);
+          if (up) boom(fx + Math.round(hd.x), fy + Math.round(hd.y), 0.3, 'boomerang');
+          if (sx === 1 && sy === 1) K.hero(w, fx, fy, pose, k);
+          else { ctx.save(); ctx.translate(fx, fy); ctx.scale(sx, sy); K.hero(w, 0, 0, pose, k); ctx.restore(); }
+          if (hd && !up) boom(fx + Math.round(hd.x), fy + Math.round(hd.y), 0.3, 'boomerang');
+          if (up) sparkle(fx + Math.round(hd.x), fy + Math.round(hd.y), a[0] === 'got' ? 6 : 3, now - a[1]);
         }
         if (mateHere() && !seenRiding(mate())) surfer(mate(), rides(who) ? who : null);
         if (!rides(who)) surfer(who, mateHere() && seenRiding(mate()) ? mate() : null);
@@ -1928,11 +1982,8 @@
         if (stumble && !out(who)) { const u = (t - s.hurt) / 0.45, hy = Math.round(GY - s.y - 62 - u * 14); rect(X + cam - 4, hy, 3, 3, '#CC2233'); rect(X + cam + 1, hy, 3, 3, '#CC2233'); rect(X + cam - 3, hy + 2, 6, 3, '#CC2233'); rect(X + cam - 1, hy + 5, 2, 2, '#CC2233'); }   // a heart flies off
         const left = (live.power - Net.now()) / 1000;
         if (powered() && t - s.whack >= 0.25 && (left > 1.5 || Math.floor(t * 8) % 2)) item(sc.pickup, X + cam + 8, GY - s.y - 60);   // held up; blinks when nearly spent
-        for (const f of [s.fly, s.mateFly]) {                                    // the boomerang spinning through the air
-          if (!f) continue;
-          const pose = Math.floor(t * 12) % 2 ? 'boomerang2' : 'boomerang', x = Math.round(f.x) + cam, y = Math.round(f.y);
-          if (K.has('aussie', pose)) K.figure('aussie', x, y + 7, pose, 0, false, 0.3);
-          else { rect(x - 5, y - 2, 10, 3, '#D2A064'); rect(x - 5, y - 2, 3, 7, '#D2A064'); }
+        for (const f of [s.fly, s.mateFly]) {                                    // the boomerang spinning through the air (once let go)
+          if (f && f.x !== undefined) boom(Math.round(f.x) + cam, Math.round(f.y), 0.3, Math.floor(t * 12) % 2 ? 'boomerang2' : 'boomerang');
         }
       },
     };
@@ -1943,6 +1994,19 @@
         for (let r = 0; r < 6; r++) row(r, c, rim);
         rect(x - 2 - rim, (down ? y - 10 : y + 6) - rim, 5 + rim * 2, 5 + rim * 2, c);           // the stem
         if (down) rect(x - 5 - rim, y + 3 - rim, 11 + rim * 2, 2 + rim * 2, c);                 // the bar: down to the water, and stay
+      }
+    }
+    // The boomerang centred on (x, y), at a size, turned by `tilt` (radians); without the art, two sticks.
+    function boom(x, y, size, pose, tilt) {
+      if (!K.has('aussie', pose)) { rect(x - 5, y - 2, 10, 3, '#D2A064'); rect(x - 5, y - 2, 3, 7, '#D2A064'); return; }
+      if (!tilt) return K.figure('aussie', x, y + Math.round(27 * size), pose, 0, false, size);
+      ctx.save(); ctx.translate(x, y); ctx.rotate(tilt); K.figure('aussie', 0, Math.round(27 * size), pose, 0, false, size); ctx.restore();
+    }
+    // A few twinkling pixels going round (x, y), u seconds in.
+    function sparkle(x, y, n, u) {
+      for (let j = 0; j < n; j++) {
+        const an = j * (6.283 / n) + u * 5, r = 7 + (j % 2) * 2;
+        if ((Math.floor(u * 16) + j) % 3) rect(x + Math.round(Math.cos(an) * r), y + Math.round(Math.sin(an) * r), 1, 1, j % 2 ? '#FFFFFF' : '#FFD43A');
       }
     }
     // How many things the partner has passed since this one fell off: three, and they are back.
