@@ -10,8 +10,9 @@
 //   zoom {to}           go to another map: 'planet', 'map' (Czechia) or a region ('praha', 'australia')
 //   play {place, index} start a level from its pin on a region's map
 //   next                the next line of the story               done             leave a scene that has no game yet
-//   ev {e, ...}         something that counts: hurt, hit, miss, pick, finish, pad, find, flip, grab, sting, pull, crane, drop (a storey, or a salon customer let go),
-//                       beat (an enemy), got (a coin, a clue or a piece on the list), revive (a partner out of their bubble), place (a piece of furniture put in)
+//   ev {e, ...}         something that counts: hurt, hit, miss, pick, finish, pad, find, flip, grab, pull, crane, drop (a storey, a salon customer let go,
+//                       or a piece of the message a seagull lets fall), beat (an enemy), got (a coin, a clue, a piece on the list or of the message),
+//                       revive (a partner out of their bubble), place (a piece of furniture put in), wave (the first wave on the beach), steal (a seagull's)
 //   fx {...}            something only to show on the other device (a jump, a shot, a drum tap)
 //   cont / retry        after a scene is won / lost              home             back to the map after a rescue
 //   back                up one level: from a level to its map, from a region's map to the map around it
@@ -45,14 +46,29 @@
     // Enemies move by the clock, so both phones see them in the same place without telling each other.
     platform(sc) {
       const cfg = sc.platform;
-      const blocks = cfg.blocks.map(([x, w, h, kind]) => ({ x, w, h, kind }));
+      // A big sandcastle is two towers with a low wall between them: three blocks to stand on, drawn as one (the
+      // first carries the picture, `whole` wide; the other two are 'part').
+      const blocks = cfg.blocks.flatMap(([x, w, h, kind]) => (kind === 'castle'
+        ? [{ x, w: w * 0.3, h, kind, whole: w }, { x: x + w * 0.3, w: w * 0.4, h: Math.round(h * 15 / 26), kind: 'part' }, { x: x + w * 0.7, w: w * 0.3, h, kind: 'part' }]
+        : [{ x, w, h, kind }]));
       const top = (x, half) => blocks.reduce((m, b) => (x + (half || 0) > b.x && x - (half || 0) < b.x + b.w ? Math.max(m, b.h) : m), 0);   // what you stand on, there
       const foes = cfg.foes.map(([kind, x0, x1, h, speed, every], id) => ({ id, kind, x0, x1: x1 === undefined ? x0 : x1, h: h || 0, speed: speed || 0, every: every || 0 }));
-      const items = cfg.items.map(([kind, x, h], id) => ({ id, kind, x, h }));
+      // `gull`: a piece a seagull swoops down on, and where it flies to and fro with it afterwards, [from, to]
+      const items = cfg.items.map(([kind, x, h, gull], id) => ({ id, kind, x, h, gull: gull || null }));
+      // A crab scuttles to and fro, and every `every` seconds digs itself into the sand for a while (HIDE) where it
+      // stands, eyes out; it pops up again where it went in. Hidden, it neither bites nor can be hit.
+      const HIDE = 2.2;
+      function crab(f, t) {
+        const c = f.every + HIDE, k = (Math.max(0, t) + f.id * 1.7) / c, n = Math.floor(k), u = (k - n) * c;
+        const walked = f.every ? n * f.every + Math.min(u, f.every) : Math.max(0, t), len = Math.max(1, f.x1 - f.x0);
+        const d = (walked * f.speed + (f.id * 37) % len) % (2 * len), out = d < len, hid = !!f.every && u >= f.every;
+        return { id: String(f.id), x: f.x0 + (out ? d : 2 * len - d), y: f.h, dir: out ? 1 : -1, hidden: hid, rising: hid && u > c - 0.55, sank: hid ? u - f.every : null, popped: !hid && f.every && n > 0 ? u : null };
+      }
       // Where an enemy is at time t: walkers and flyers go to and fro; a rolling cone comes down again and again, each
-      // one an enemy of its own (id "foe.round"); a puddle stays put.
+      // one an enemy of its own (id "foe.round"); a puddle and a jellyfish stay put.
       function at(f, t) {
-        if (f.kind === 'puddle') return { id: String(f.id), x: f.x0, y: 0, dir: 0 };
+        if (f.kind === 'puddle' || f.kind === 'jelly') return { id: String(f.id), x: f.x0, y: 0, dir: 0 };
+        if (f.kind === 'crab') return crab(f, t);
         if (f.kind === 'cone') {                                                       // drops out of a pine tree, then rolls downhill
           const DROP = 0.6, n = Math.floor(t / f.every), u = t - n * f.every;
           if (t < 0 || f.x1 <= f.x0) return null;
@@ -65,12 +81,31 @@
         const bob = f.kind === 'flyer' || f.kind === 'crow' ? Math.sin(t * 1.6 + f.id) * 12 : f.kind === 'magpie' ? Math.sin(t * 2.2 + f.id) * 5 : 0;   // flyers swoop low and up again; a magpie keeps high (its dives are the phone's, game.js)
         return { id: String(f.id), x, y: f.h + bob, dir: out ? 1 : -1 };
       }
-      return { blocks, foes, items, top, at, length: cfg.length, goal: cfg.goal };
+      // umbrellas to bounce on: [x, width, height of the top]; walked under, they are not in the way
+      const springs = (cfg.springs || []).map(([x, w, h]) => ({ x, w, h }));
+      return { blocks, foes, items, springs, top, at, length: cfg.length, goal: cfg.goal };
     },
-    // A walk with a list (Nábytek): what on it nobody has found yet. `got` holds the found items by their number.
+    // A walk with a list (Nábytek): what on it nobody has found yet; on the beach (`note`), the pieces of the message
+    // nobody has picked up yet. `got` holds the found items by their number.
     missing(sc, got) {
-      const { list, items } = sc.platform || {};
+      const { list, items, note } = sc.platform || {};
+      if (note) return items.map((it, id) => id).filter((id) => items[id][0] === 'scrap' && !got.includes(id));
       return list ? list.filter((k) => !got.some((id) => items[id] && items[id][0] === k)) : [];
+    },
+    // The beach's waves (`waves` in world.js): the first starts to come in at `first` (seconds into the walk, or
+    // whenever the room hears that someone has reached `from`); then one every `every` seconds (a little sooner each
+    // time). Each is seen coming for `warn` seconds (the first one longer), then the water floods up the sand (`f`:
+    // seconds since it reached the sand) and runs back off it. Returns the last one begun at t, or null.
+    wave(cfg, first, t) {
+      if (first === null || first === undefined || t < first) return null;
+      let at = first, k = 0;
+      for (;;) {
+        const next = at + cfg.every[Math.min(k, cfg.every.length - 1)];
+        if (t < next) break;
+        at = next; k++;
+      }
+      const warn = cfg.warn[k ? 1 : 0];
+      return { k, at, warn, u: t - at, f: t - at - warn, next: at + cfg.every[Math.min(k, cfg.every.length - 1)] };
     },
     // The song at the concert. As "Start!" goes, four clicks count it in; then four gentle bars (beats one and three
     // only), the rest of the first half on the beat, a busier second half (notes between the beats too), two bars of
@@ -120,26 +155,6 @@
       const r = rng(seed), faces = sc.memory.faces.slice(0, sc.memory.pairs), deck = faces.flatMap((f, i) => [i, i]);
       for (let i = deck.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [deck[i], deck[j]] = [deck[j], deck[i]]; }
       return deck;
-    },
-    // The beach: what the waves wash up, when and where, and how long it stays before the sea takes it back.
-    // A calm start with no jellyfish, then more of them. A second stream (`extra`) only washes up once the tide
-    // (příliv) is in, so the tide can come whenever the room says (see sn.tideAt). Halfway through a big bottle washes
-    // up that takes both of them to lift; nothing lands right next to it. Two share one beach: more washes up for
-    // them, but no more jellyfish a second.
-    collect(seed, sc, two) {
-      const cfg = sc.collect, r = rng(seed), items = [], B = cfg.big, more = two ? 1.2 : 1;
-      const big = B ? { at: B.at, stay: B.stay, x: 64 + Math.floor(r() * 64) } : null;
-      const nearBig = (at, x) => big && at > big.at - cfg.stay && at < big.at + big.stay && Math.abs(x - big.x) < 30;
-      const wash = (rand, at, extra) => {                                              // one thing washed up; returns the wait for the next
-        const id = items.length, calm = clamp((at - (cfg.calm || 0)) / 18, 0, 1);       // jellyfish come in slowly after the calm start
-        let x = 22 + Math.floor(rand() * 148);
-        if (nearBig(at, x)) x = big.x + (x < big.x ? -36 : 36);
-        items.push({ id, at, x, extra, stay: cfg.stay, kind: id > 1 && rand() < (cfg.jelly / more) * calm ? 'jelly' : rand() < 0.7 ? 'paper' : 'bottle' });
-        return (cfg.every[0] + rand() * (cfg.every[1] - cfg.every[0])) / more;
-      };
-      for (let at = 1.2; at < cfg.seconds - 1; ) at += wash(r, at, false);
-      for (let at = 1.5, r2 = rng(seed ^ 0x51f15e); at < cfg.seconds - 1; ) at += wash(r2, at, true) / 0.8;   // with the tide: 1.8 times as much
-      return { items, big };
     },
     // Sami's tower gets harder as it grows; n is how many storeys already stand on the lobby. The storey on the hook
     // swings further (and a little faster), from the ninth storey the wind pushes it slowly to one side and back (the
@@ -202,7 +217,7 @@
 
   // `open`: every level may be played in any order (the version for trying levels out).
   function create({ world, solo, now, emit, open }) {
-    const places = world.places, GAMES = ['run', 'platform', 'drums', 'shoot', 'echo', 'find', 'salon', 'memory', 'collect', 'rescue', 'tower', 'flat'];
+    const places = world.places, GAMES = ['run', 'platform', 'drums', 'shoot', 'echo', 'find', 'salon', 'memory', 'rescue', 'tower', 'flat'];
     const owner = (pad) => (pad < 2 ? 'ken' : 'kel');                                 // in the echo game each of them has two of the four drums
     const S = { online: { ken: false, kel: false }, save: { places: {}, album: [], round: 0, stars: {} }, where: { screen: 'map' }, scene: null };
     let serial = 0;
@@ -262,10 +277,6 @@
       if (sc.play === 'shoot') Object.assign(sn, { lives: two ? 4 : 3, hits: 0, need: Math.round(sc.shoot.need * (two ? 1.6 : 1)), every: sc.shoot.every / (two ? 1.4 : 1), two, hit: [], missed: [], item: null, gold: null, go: null });
       if (sc.play === 'find') { const n = (two && sc.find.needTwo) || sc.find.need; Object.assign(sn, { found: [], need: n, koalas: n, two, lastFind: { ken: 0, kel: 0 } }); }   // two have more koalas to find
       if (sc.play === 'memory') { const first = two ? (Math.random() < 0.5 ? 'ken' : 'kel') : null; Object.assign(sn, { deck: course.memory(sn.seed, sc), open: [], done: [], misses: 0, maxMiss: sc.memory.miss + (two ? 2 : 0), first, turn: first, hideAt: 0 }); }
-      if (sc.play === 'collect') {                                                       // `have`: pieces of the message so far; the big bottle holds `bigPart` of them
-        const need = Math.round(sc.collect.need * (two ? 1.5 : 1));
-        Object.assign(sn, { two, got: [], stung: [], paid: [], cost: { ken: 0, kel: 0 }, have: 0, at: {}, lifted: false, need, bigPart: Math.round(need * ((sc.collect.big && sc.collect.big.part) || 0)), lives: two ? 4 : 3, tideAt: null });
-      }
       // the tower: two build a little higher (`two`), and a flag every `check` storeys is where a lost game goes on from (see 'retry')
       if (sc.play === 'tower') Object.assign(sn, { floors: [96], crane: 96, need: two ? sc.tower.two || sc.tower.need : sc.tower.need, lives: two ? 5 : 4, n: 0, last: null, busyUntil: 0, endAt: 0, endPhase: null, holding: false, lifts: 0, check: 0, from: 0 });
       // the reef: each has lifebuoys of their own to lose (`left`), so one who runs out leaves the throwing to the other;
@@ -278,6 +289,9 @@
         pieces: course.flat(sn.seed, sc).pieces.map((p) => ({ f: p.f, by: null, till: 0, rest: null, done: false, who: null })) });
       if (sc.play === 'echo') { Object.assign(sn, { two, lives: two ? 4 : 3, round: 0, rounds: sc.echo.rounds, n: 0, last: null, tune: tune(sc.echo.first + sc.echo.rounds - 1, two), attempt: 0, slips: 0, misses: 0, hints: 0 }); teach(sc.echo.first, 2200); }
       if (sc.play === 'platform') Object.assign(sn, { hurts: 0, outs: 0 });
+      // the beach: when the first wave comes (seconds into the walk), and the pieces the seagulls have taken and let fall
+      if (sc.play === 'platform' && sc.platform.waves) sn.wave0 = null;
+      if (sc.play === 'platform' && sc.platform.note) Object.assign(sn, { stolen: {}, dropped: {} });
       // With two, only a third of Kellyn's notes go into what is needed: Kendrick drumming well wins it even on a day
       // she misses them all, and every note she does hit still helps. `by`: what each has drummed; `notes`: how many.
       // `marks`: how many hits win (one star), and earn two and three stars: most of the whole song, the two of them.
@@ -453,7 +467,17 @@
           const it = course.platform(sc).items[+id];
           if (it && it.kind === 'heart' && !sn.out[who]) sn.hp[who] = Math.min(sn.max, sn.hp[who] + 1);   // a heart picked up: one back
         }
-        if (m.e === 'finish' && !sn.out[who] && !course.missing(sc, sn.got).length) {   // with a list, the door stays shut until all of it is found
+        // The beach. The first wave is set off by whoever first walks up to the first big sandcastle (or by the clock),
+        // so it comes while there is a castle to climb; the rest follow by the clock, the same on both phones. A seagull
+        // takes its piece (`at`: when it swooped, as that phone saw it) unless somebody has picked it up already; hit,
+        // it lets it fall where it was (x, y), to be picked up from the sand.
+        const t = (now() - sn.startAt) / 1000, when = Number.isFinite(+m.at) ? clamp(+m.at, t - 2, t) : t;
+        if (m.e === 'wave' && sc.platform.waves && sn.wave0 === null) sn.wave0 = Math.max(0, when);
+        const scrap = sc.platform.note && /^\d+$/.test(id) ? course.platform(sc).items[+id] : null;
+        if (m.e === 'steal' && scrap && scrap.gull && sn.stolen[id] === undefined && !sn.got.includes(+id)) sn.stolen[id] = when;
+        if (m.e === 'drop' && scrap && sn.stolen[id] !== undefined && !sn.dropped[id] && !sn.got.includes(+id))
+          sn.dropped[id] = { t: when, x: clamp(+m.x || scrap.x, 0, sc.platform.length), y: clamp(+m.y || 0, 0, 200) };
+        if (m.e === 'finish' && !sn.out[who] && !course.missing(sc, sn.got).length) {   // with a list (or a message), the door stays shut until all of it is found
           sn.fin[who] = true;                                                          // at the door; one still in a bubble comes along with the other
           if (team.every((w) => sn.fin[w] || sn.out[w])) sn.phase = 'won';
         }
@@ -510,27 +534,6 @@
         if (sn.deck[a] === sn.deck[b]) { sn.done.push(a, b); sn.open = []; if (sn.done.length === sn.deck.length) sn.phase = 'won'; }   // a pair: they stay up
         else { sn.misses++; sn.hideAt = now() + 2000; }                                       // not a pair: they stay up long enough to remember, then turn back
         if (sn.first) { sn.first = other(sn.first); sn.turn = sn.first; }                     // and the roles swap
-      }
-      if (kind === 'collect') {
-        const beach = course.collect(sn.seed, sc, sn.two), big = beach.big, t = (now() - sn.startAt) / 1000;
-        if (m.e === 'finish') sn.phase = 'lost';
-        // The big bottle: with two, it comes up once both stand at it; alone, once held up for a second (the phone times it).
-        if ((m.e === 'at' || m.e === 'lift') && big && !sn.lifted && t > big.at - 1 && t < big.at + big.stay + 1) {
-          if (m.e === 'at') sn.at[who] = !!m.on;
-          if (m.e === 'lift' ? !sn.two : sn.two && sn.at.ken && sn.at.kel) { sn.lifted = true; sn.have += sn.bigPart; }
-        }
-        const id = m.id | 0, it = beach.items[id];
-        if (it && m.e === 'grab' && it.kind !== 'jelly' && !sn.got.includes(id)) { sn.got.push(id); sn.have++; }
-        // Each jellyfish stings each of them once at most, and costs one heart however many it stings. With two, one
-        // of them alone can cost all but the last heart: it takes both to lose.
-        if (it && m.e === 'sting' && it.kind === 'jelly' && !sn.stung.includes(id + ':' + who)) {
-          sn.stung.push(id + ':' + who);
-          if (!sn.paid.includes(id) && (!sn.two || sn.cost[who] < sn.maxLives - 1)) { sn.paid.push(id); sn.cost[who]++; if (--sn.lives <= 0) sn.phase = 'lost'; }
-        }
-        if (sn.have >= sn.need && sn.phase === 'play') sn.phase = 'won';
-        // The finale: the tide comes once `tideNote` of the note is found (or in the last seconds, the phones know when),
-        // a second after this so both phones hear of it before anything more washes up.
-        else if (sn.tideAt === null && sn.have >= sn.need * (sc.collect.tideNote || 1)) sn.tideAt = Math.max(0, t) + 1;
       }
       // The tower: Kendrick moves the crane, Kellyn lets each storey go. It lands if it is over the top of the house.
       if (kind === 'tower') {

@@ -28,7 +28,6 @@
 //   memory  pexeso: one turns the first card over, the other turns the second looking for its pair; then they swap.
 //           Whoever waits can point at a card on the partner's phone. `faces` are [sheet, pose, name said on a pair].
 //           A lost game keeps the pairs found. With `key`, a key comes out from under the last pair: it opens the door to the next scene
-//   collect run along the beach picking up what the waves wash in, and keep away from the jellyfish
 //   rescue  throw lifebuoys to the people on the rock, then pull them across before the shark gets there
 //   tower   build a house storey by storey: drive the crane to the stack, pick a storey up, bring it over the house and
 //           let it go; with two, one drives the crane and the other works the hook. A crane standing still calms the swing.
@@ -196,19 +195,49 @@ window.WORLD = {
       saves: [{ id: 'sami', name: 'Sami' }, { id: 'zofia', name: 'Žofia' }],
       look: { sky: '#FFE2B0', far: '#D9622B', far2: '#C98A4B', ground: '#F5D7A1', line: '#D9A441' },
       scenes: [
-        { id: 'australia-beach', name: 'Pláž Bondi', at: [120, 244], label: 'below', bg: 'australia-beach', play: 'collect', code: 'LAHEV', ground: 226,
-          // `calm`: seconds with no jellyfish; the tide brings more in, faster: in the last `tide` seconds, or as soon as
-          // `tideNote` of the note is found, so everyone gets the finale. The big bottle washes up at `at` and stays `stay`
-          // seconds; it holds `part` of the message. `note` fills in as they collect.
-          collect: { seconds: 60, need: 20, stay: 3.6, every: [1.0, 1.7], jelly: 0.26, calm: 6, tide: 15, tideNote: 0.5, big: { at: 15, stay: 14, part: 0.22 },
-            note: 'POMOC! JSME NA|SKÁLE ZA ÚTESEM', won: 'Na vzkazu stojí: „Pomoc! Jsme na skále za útesem.“' },
+        // Bondi Beach on foot (play 'platform', like Ulice): the torn message from a bottle lies about the sand in pieces
+        // ('scrap' items, picked up by touching them), on top of things and, twice, under a seagull that swoops down and
+        // takes it as somebody comes near (the item's fourth field is where it then flies to and fro, [from, to], round where it lay, so it stays in sight); hit
+        // the gull, or jump into it, and it lets go. `note`: the message, filled in on the torn note under the bar; `torn`
+        // says how many of its letters each piece holds, in the order the pieces lie; the rest is in the bottle at the
+        // end, on top of the rocks (the goal, `gate: 'bottle'`), which opens once every piece is found and everyone still
+        // walking stands at it. `waves`: now and then a wave floods the sand (room.js: course.wave), seen coming for a
+        // few seconds; whoever is still standing on the sand is washed back a little and soaked (no heart is lost).
+        // The first comes when somebody reaches `from` (the first big sandcastle) or `first` seconds in.
+        // Things to climb (art/source/objects/P23, the 'bondi' sheet): a small sandcastle 14 high, a big one (two towers
+        // 26, the wall between 15), rocks 21 (stacked at the end), a cool box 17, the lifeguard's chair 37 (with a cool
+        // box in front to climb it by), a boat 19. `springs`: a beach umbrella to bounce on [x, width, top]. Crabs
+        // ['crab', from, to, 0, speed, every] scuttle to and fro and every `every` seconds dig in for a moment, eyes out;
+        // jellyfish ['jelly', x] lie on the sand, to be jumped over (never where a jump off something high comes down).
+        // Shells are the coins; an arc of them over a jellyfish shows the jump. No step is taller than 23.
+        { id: 'australia-beach', name: 'Pláž Bondi', at: [120, 244], label: 'below', bg: 'bondi-walk', scroll: true, play: 'platform', music: 'street', code: 'LAHEV', ground: 230,
+          platform: { length: 2720, goal: 2590, gate: 'bottle', forgiving: true,
+            note: { text: 'POMOC! JSME NA|SKÁLE ZA ÚTESEM', torn: [2, 2, 2, 2, 2, 2, 2, 3], won: 'Na vzkazu stojí: „Pomoc! Jsme na skále za útesem.“' },
+            waves: { from: 228, first: 22, every: [14, 13, 12, 11, 10, 10, 9], warn: [3.6, 2.8] },
+            blocks: [[176, 14, 14, 'castle2'], [262, 34, 26, 'castle'], [430, 14, 14, 'castle2'], [520, 26, 21, 'rocks'], [700, 20, 17, 'esky'],
+              [850, 34, 26, 'castle'], [1000, 14, 14, 'castle2'], [1180, 14, 14, 'castle2'], [1290, 20, 17, 'esky'], [1310, 20, 37, 'chair'],
+              [1450, 50, 19, 'boat'], [1690, 26, 21, 'rocks'], [1840, 14, 14, 'castle2'], [1960, 34, 26, 'castle'], [2120, 20, 17, 'esky'],
+              [2270, 26, 21, 'rocks'], [2420, 14, 14, 'castle2'],
+              [2530, 26, 21, 'rocks'], [2556, 30, 21, 'rocks'], [2556, 30, 42, 'rocks'], [2586, 34, 21, 'rocks'], [2586, 34, 42, 'rocks'], [2620, 26, 21, 'rocks']],
+            springs: [[1600, 34, 38]],
+            foes: [['crab', 326, 400, 0, 12], ['jelly', 632], ['crab', 750, 820, 0, 16, 4], ['jelly', 1100], ['crab', 1210, 1270, 0, 18, 3.5],
+              ['crab', 1530, 1580, 0, 20, 3], ['jelly', 1804], ['crab', 2020, 2090, 0, 22, 3], ['jelly', 2225],
+              ['crab', 2320, 2390, 0, 22, 2.6], ['crab', 2450, 2510, 0, 20]],
+            items: [['shell', 64, 8], ['shell', 78, 8], ['shell', 92, 8], ['scrap', 124, 2], ['scrap', 183, 16], ['shell', 212, 8], ['shell', 226, 8],
+              ['shell', 267, 34], ['shell', 279, 24], ['shell', 291, 34], ['shell', 340, 8], ['shell', 360, 8], ['shell', 437, 24], ['scrap', 480, 2],
+              ['shell', 533, 29], ['shell', 620, 18], ['shell', 632, 28], ['shell', 644, 18], ['shell', 710, 25], ['shell', 867, 24],
+              ['scrap', 940, 2, [902, 990]], ['shell', 1007, 22], ['shell', 1088, 18], ['shell', 1100, 28], ['shell', 1112, 18], ['heart', 1187, 34],
+              ['shell', 1300, 25], ['scrap', 1320, 39], ['shell', 1370, 8], ['shell', 1390, 8], ['shell', 1410, 8], ['scrap', 1475, 21],
+              ['shell', 1617, 70], ['shell', 1617, 86], ['heart', 1617, 104], ['shell', 1703, 29], ['shell', 1792, 18], ['shell', 1804, 28], ['shell', 1816, 18],
+              ['shell', 1847, 22], ['scrap', 1900, 2, [1862, 1950]], ['shell', 1977, 24], ['shell', 2130, 25], ['shell', 2213, 18], ['shell', 2225, 28],
+              ['shell', 2237, 18], ['shell', 2283, 29], ['heart', 2355, 34], ['scrap', 2427, 16], ['shell', 2543, 29], ['shell', 2571, 50]] },
           // The saga opens like a short film: the voyage, his photograph, and today's two travellers seen from behind.
           talk: [['', 'Po válce utekl praděda Václav z Československa. Na lodi s uprchlíky plul přes celý oceán až do Austrálie.', null, 'ship'],
             ['', 'Byl to skvělý chlap. Dva roky pracoval ve vnitrozemí, získal australské občanství a pak žil v Brisbane.', null, 'photo'],
             ['', 'Na fotce je i jeho malý pejsek Filip. Bydlel s pradědou v jeho posledních letech.', null, 'photo'],
             ['', 'A nějaký čas tu žil i váš druhý praděda, Georges.', null, 'photo'],
             ['', 'Dnes se po stopách pradědy Václava vydali dva cestovatelé. Chtěli vidět místa, kde kdysi žil.', null, 'travellers'],
-            ['', 'Jenže na pláži Bondi teď vyplavilo moře roztrhaný vzkaz v láhvi.'], ['hero', 'Posbíráme všechny kousky, než je vlny zase odnesou!']] },
+            ['', 'Na pláži Bondi vyplavilo moře láhev se vzkazem. Papír je roztrhaný a vítr rozfoukal kousky po celé pláži.'], ['hero', 'Posbíráme je! A až přijde vlna, vylezeme nahoru.']] },
         // Byron Bay: the bulge of the east coast north of Sydney, the easternmost point of the mainland
         { id: 'australia-sea', name: 'Na vlně', at: [167, 106], label: 'below', bg: 'australia-sea', scroll: true, play: 'run', code: 'SURF', ground: 200, tile: 'repeat', pickup: 'boomerang',
           // `speed`: how fast the sea goes by at the start and at the end, in pixels a second; `heart`: when a heart floats by, to

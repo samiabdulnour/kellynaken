@@ -937,6 +937,40 @@ window.SPRITES = {
       "stand": [
         0
       ]
+    },
+    "sizes": {
+      "bottle": [
+        60,
+        34
+      ],
+      "paper": [
+        47,
+        43
+      ],
+      "shell": [
+        45,
+        41
+      ],
+      "star": [
+        52,
+        50
+      ],
+      "crab": [
+        59,
+        52
+      ],
+      "jelly": [
+        40,
+        59
+      ],
+      "buoy": [
+        54,
+        53
+      ],
+      "raft": [
+        62,
+        41
+      ]
     }
   },
   "salonkit": {
@@ -1029,6 +1063,24 @@ window.SPRITES = {
       ],
       "stand": [
         0
+      ]
+    },
+    "sizes": {
+      "ship": [
+        147,
+        55
+      ],
+      "smoke": [
+        25,
+        17
+      ],
+      "gull1": [
+        38,
+        39
+      ],
+      "gull2": [
+        40,
+        32
       ]
     }
   },
@@ -1424,6 +1476,160 @@ window.SPRITES = {
       "magpie2": [
         70,
         51
+      ]
+    }
+  },
+  "bondi": {
+    "file": "bondi.png",
+    "w": 54,
+    "h": 50,
+    "scale": 0.5,
+    "fps": 1,
+    "poses": {
+      "castle": [
+        0
+      ],
+      "castle2": [
+        1
+      ],
+      "rocks": [
+        2
+      ],
+      "esky": [
+        3
+      ],
+      "boards": [
+        4
+      ],
+      "chair": [
+        5
+      ],
+      "umbrella": [
+        6
+      ],
+      "boat": [
+        7
+      ],
+      "stand": [
+        0
+      ]
+    },
+    "sizes": {
+      "castle": [
+        54,
+        35
+      ],
+      "castle2": [
+        27,
+        20
+      ],
+      "rocks": [
+        48,
+        28
+      ],
+      "esky": [
+        33,
+        28
+      ],
+      "boards": [
+        38,
+        45
+      ],
+      "chair": [
+        32,
+        50
+      ],
+      "umbrella": [
+        45,
+        49
+      ],
+      "boat": [
+        52,
+        26
+      ]
+    }
+  },
+  "bondilife": {
+    "file": "bondilife.png",
+    "w": 50,
+    "h": 41,
+    "scale": 0.5,
+    "fps": 1,
+    "poses": {
+      "crab1": [
+        0
+      ],
+      "crab2": [
+        1
+      ],
+      "crabhide": [
+        2
+      ],
+      "scrap": [
+        3
+      ],
+      "wave": [
+        4
+      ],
+      "gull": [
+        5
+      ],
+      "gullup": [
+        6
+      ],
+      "gulldown": [
+        7
+      ],
+      "gulldive": [
+        8
+      ],
+      "gullpaper": [
+        9
+      ],
+      "stand": [
+        0
+      ]
+    },
+    "sizes": {
+      "crab1": [
+        37,
+        30
+      ],
+      "crab2": [
+        37,
+        30
+      ],
+      "crabhide": [
+        43,
+        25
+      ],
+      "scrap": [
+        30,
+        25
+      ],
+      "wave": [
+        48,
+        23
+      ],
+      "gull": [
+        40,
+        35
+      ],
+      "gullup": [
+        36,
+        41
+      ],
+      "gulldown": [
+        39,
+        28
+      ],
+      "gulldive": [
+        28,
+        41
+      ],
+      "gullpaper": [
+        50,
+        38
       ]
     }
   }

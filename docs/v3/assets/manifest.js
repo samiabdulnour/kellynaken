@@ -8,6 +8,7 @@ window.ASSETS = {
     "australia-reef",
     "australia-sea",
     "australia-sydney",
+    "bondi-walk",
     "czech-map",
     "praha-door",
     "praha-home",

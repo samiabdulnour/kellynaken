@@ -428,6 +428,8 @@ OBJECT_ROWS = {                                  # code: (name in the game, what
     'P13': ('dog', ['stand', 'trot1', 'trot2', 'sit', 'bark', 'sniff']),          # praděda Václav's Yorkshire terrier
     'P14': ('voyage', ['ship', 'smoke', 'gull1', 'gull2']),                        # the intro to Australia: the refugee ship
     'P21': ('band', ['kit1', 'kit2', 'kitjoy']),                                   # Alan at his drum kit: sticks up, sticks down, a cheer (the kit stays put)
+    'P23': ('bondi', ['castle', 'castle2', 'rocks', 'esky', 'boards', 'chair', 'umbrella', 'boat']),       # the walk along Bondi Beach: things to climb (a big and a small sandcastle, a lifeguard's high chair, a beach umbrella to bounce on, a washed-up boat)
+    'P22': ('bondilife', ['crab1', 'crab2', 'crabhide', 'scrap', 'wave', 'gull', 'gullup', 'gulldown', 'gulldive', 'gullpaper']),   # its crabs (walking, hiding in the sand), a scrap of the message, a wave washing in, and silver gulls
 }
 
 
@@ -537,7 +539,29 @@ def black_stick(frames, parts):
     return frames
 
 
-OBJECT_FIX = {'hill': czech_flag, 'things': black_stick}
+def unfringe(frames, parts):
+    """The magenta background bleeds into a few edge pixels (pink dots on a white wing or a red claw, purple on a
+    dark wing tip): each takes the commonest colour of its clean neighbours, or goes if it has none."""
+    out = []
+    for f in frames:
+        a = np.asarray(f).astype(int).copy()
+        for _ in range(3):
+            r, g, b, al = a[..., 0], a[..., 1], a[..., 2], a[..., 3]
+            mx, mn = np.maximum(np.maximum(r, g), b), np.minimum(np.minimum(r, g), b)
+            hue = np.degrees(np.arctan2(np.sqrt(3) * (g - b), 2 * r - g - b)) % 360
+            bad = (al > 0) & (r - g > 12) & (b - g > 6) & (mx - mn > 12) & (hue > 275) & (hue < 352)
+            if not bad.any(): break
+            h, w = bad.shape
+            for y, x in zip(*np.nonzero(bad)):
+                near = [tuple(a[v, u, :3]) for v in range(max(0, y - 1), min(h, y + 2)) for u in range(max(0, x - 1), min(w, x + 2))
+                        if (v, u) != (y, x) and a[v, u, 3] and not bad[v, u]]
+                if near: a[y, x, :3] = max(set(near), key=near.count)
+                else: a[y, x] = 0
+        out.append(Image.fromarray(a.astype(np.uint8), 'RGBA'))
+    return out
+
+
+OBJECT_FIX = {'hill': czech_flag, 'things': black_stick, 'bondi': unfringe, 'bondilife': unfringe}
 OBJECT_SCALE = {'dog': 0.3, 'customers': 0.25}
 # Sheets drawn on a coarser grid than the people, made twice as fine with Scale2x (which rounds off diagonal edges
 # rather than just making the pixels bigger), so they can stand as tall as the grown-ups without looking blocky.
