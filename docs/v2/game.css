@@ -9,8 +9,8 @@
   color-scheme:dark;
 }
 /* The font is Pixelify Sans with C, c and Z drawn again so they cannot be read as O, o and 2 (tools/font.py), under its own name. */
-@font-face{font-family:'Kellyn Pixel';src:url(assets/fonts/KellynPixel-Regular.woff2?v=0bb09c477c) format('woff2');font-weight:400;font-style:normal;font-display:swap}
-@font-face{font-family:'Kellyn Pixel';src:url(assets/fonts/KellynPixel-Bold.woff2?v=0bb09c477c) format('woff2');font-weight:700;font-style:normal;font-display:swap}
+@font-face{font-family:'Kellyn Pixel';src:url(assets/fonts/KellynPixel-Regular.woff2?v=323a68e0b7) format('woff2');font-weight:400;font-style:normal;font-display:swap}
+@font-face{font-family:'Kellyn Pixel';src:url(assets/fonts/KellynPixel-Bold.woff2?v=323a68e0b7) format('woff2');font-weight:700;font-style:normal;font-display:swap}
 *{box-sizing:border-box}
 html,body{height:100%;margin:0}
 body{background:var(--ink);color:var(--paper);display:grid;place-items:center;overflow:hidden;

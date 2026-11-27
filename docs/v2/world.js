@@ -204,7 +204,7 @@ window.WORLD = {
         // walking stands at it. `waves`: now and then a wave floods the sand (room.js: course.wave), seen coming for a
         // few seconds; whoever is still standing on the sand is washed back a little and soaked (no heart is lost).
         // The first comes when somebody reaches `from` (the first big sandcastle) or `first` seconds in.
-        // Things to climb (art/source/objects/P21, the 'bondi' sheet): a small sandcastle 14 high, a big one (two towers
+        // Things to climb (art/source/objects/P23, the 'bondi' sheet): a small sandcastle 14 high, a big one (two towers
         // 26, the wall between 15), rocks 21 (stacked at the end), a cool box 17, the lifeguard's chair 37 (with a cool
         // box in front to climb it by), a boat 19. `springs`: a beach umbrella to bounce on [x, width, top]. Crabs
         // ['crab', from, to, 0, speed, every] scuttle to and fro and every `every` seconds dig in for a moment, eyes out;
