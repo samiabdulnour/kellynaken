@@ -447,7 +447,7 @@
       const sn = S.scene; if (!sn || sn.phase !== 'play' || sn.paused) return;
       const sc = place().scenes[sn.index], kind = sc.play;
       if (m.e === 'pick' && sc.pickup && !sn.picked) {                                  // one grabs it, both get it
-        sn.picked = true;
+        sn.picked = true; sn.caughtAt = now();                                         // when it was caught, the same moment for both
         if (kind === 'shoot') sn.item = sc.pickup; else sn.power = now() + 5000;
       }
       // The surf: `i` is which obstacle. Out of hearts, one rides on the other's board until that one has passed three
@@ -681,7 +681,7 @@
       // A pause stops the game's clock: on carrying on, every moment the game keeps is moved on by the pause.
       if (m.type === 'pause') { if (sn && sn.phase === 'play' && !sn.paused) { sn.paused = now(); sn.pausedBy = who; } }
       else if (m.type === 'resume') {
-        if (sn && sn.paused) { const d = now() - sn.paused; for (const k of ['startAt', 'busyUntil', 'hideAt', 'pullAt', 'pullT', 'power', 'showAt', 'listenAt', 'endAt', 'finAt']) if (sn[k]) sn[k] += d; sn.paused = 0; }
+        if (sn && sn.paused) { const d = now() - sn.paused; for (const k of ['startAt', 'busyUntil', 'hideAt', 'pullAt', 'pullT', 'power', 'caughtAt', 'showAt', 'listenAt', 'endAt', 'finAt']) if (sn[k]) sn[k] += d; sn.paused = 0; }
       }
       // A save code typed in (see game.js): how far they had got, added to what is here.
       else if (m.type === 'load' && m.places && typeof m.places === 'object') merge({ places: m.places, round: S.save.round });

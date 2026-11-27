@@ -127,12 +127,13 @@ const K = (() => {
     };
     // A plucked string (Karplus-Strong), worked out once for each note: a burst of noise, picked a fifth of the way
     // along the string, runs round a loop as long as one swing of the note and softens a little every time round.
-    // Then a touch of drive, like a small amp. The loop is a whole number of samples long; playing it a hair faster
-    // brings it exactly into tune.
+    // Then a touch of drive, like a small amp. Each sample is softened with the one after it, so one time round the
+    // loop takes half a sample less than its N samples; the loop is a whole number of samples long, and playing it a
+    // hair faster or slower brings it exactly into tune.
     function string(midi) {
       const c = sound();
       if (strings[midi] && strings[midi].sr === c.sampleRate) return strings[midi];
-      const sr = c.sampleRate, f = hz(midi), N = Math.max(4, Math.round(sr / f - 0.5)), real = sr / (N + 0.5), len = Math.floor(sr * 1.9);
+      const sr = c.sampleRate, f = hz(midi), N = Math.max(4, Math.round(sr / f + 0.5)), real = sr / (N - 0.5), len = Math.floor(sr * 1.9);
       const buf = c.createBuffer(1, len, sr), d = buf.getChannelData(0), line = new Float32Array(N), pick = Math.max(1, Math.round(N / 5));
       const loss = Math.pow(0.001, 1 / (real * 2.8));                                       // about 2.8 s to die away, high or low
       let lp = 0, mean = 0, peak = 0;

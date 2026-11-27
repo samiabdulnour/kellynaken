@@ -384,6 +384,7 @@
       },
       sync(s) { sn = s.scene; paint(); },
       fx(m) { if (act && act.fx) act.fx(m); },
+      leave() { if (act && act.leave) act.leave(); },                                    // a game with sounds of its own still to come stops them
       get act() { return act; },
       down(x, y, id) { if (act && sn.phase === 'play' && !sn.paused) act.down(x, y, id); },      // games answer the moment a finger lands, not when it lifts
       move(x, y, dx, id) { if (act && act.move && !sn.paused) act.move(x, y, dx, id); },
@@ -1482,10 +1483,11 @@
     const who = me(), LANE = W / 3, LINE = 230, PAD = 236;
     const LIFT = 70, FLOOR = 111, NTOP = 121;           // the picture is drawn higher, so the stage sits up top, clear of the notes; where the band stands; where notes come out
     const LEAD = 1.6, FALL = (LINE - NTOP) / LEAD, WINDOW = 0.17, NEAR = 0.3, LOOK = 0.3, GRACE = 0.4;   // how long a note is seen; how close a tap must be to hit it; how close costs nothing; how far ahead sounds are laid out; how long the partner's news may take
-    // The mix: your own instrument at full, the partner's part quietly (their own phone, beside yours, plays it loud),
-    // the part nobody plays (alone) by the game, a little under yours (the guitar more, so Kellyn hears her bass, and
-    // still hears the tune), and Alan's kit under it all. engine.js balances the instruments themselves.
-    const MATE = 0.22, AUTO = { guitar: 0.6, bass: 0.8 }, KIT = { kick: 0.9, snare: 0.9, hat: 0.6, tom: 0.8, cymbal: 0.6 };
+    // The mix: your own instrument at full, the partner's part quietly (their own phone, beside yours, plays it loud;
+    // Kendrick's guitar a little less quietly on Kellyn's phone, so the tune is still heard over the drums there, under
+    // her bass), the part nobody plays (alone) by the game, a little under yours (the guitar more, so Kellyn hears her
+    // bass, and still hears the tune), and Alan's kit under it all. engine.js balances the instruments themselves.
+    const MATE = { guitar: 0.3, bass: 0.22 }, AUTO = { guitar: 0.6, bass: 0.8 }, KIT = { kick: 0.9, snare: 0.9, hat: 0.6, tom: 0.8, cymbal: 0.6 };
     const COLOUR = { guitar: '#D8322B', bass: '#2F6FD6' }, LIGHT = { guitar: '#FF8D73', bass: '#8EC0FF' }, DARK = { guitar: '#7E1813', bass: '#163C7A' };
     const SPOT = { ken: 46, kel: 146 }, ALAN = 96, BAND = 0.45;                         // where each stands; Alan's kit a little smaller, so his sticks stay under the board
     const two = !!sn.two, song = Room.course.drums(sn.seed, sc, two, sn.lead || who), { notes, beat, pick } = song;
@@ -1498,13 +1500,13 @@
     // nobody plays; with two, the partner's, quietly.
     const plan = [...song.kit.map((k) => ({ ...k, vol: k.kind === 'stick' ? (k.count === 1 ? 1 : 0.75) : KIT[k.kind] })),
       ...song.auto.map((n) => ({ ...n, vol: AUTO[n.part], auto: true })),
-      ...(two ? notes.filter((n) => !ours(n.lane)).map((n) => ({ at: n.at, part: n.part, midi: n.midi, len: n.len, vol: MATE })) : [])].sort((a, b) => a.at - b.at);
+      ...(two ? notes.filter((n) => !ours(n.lane)).map((n) => ({ at: n.at, part: n.part, midi: n.midi, len: n.len, vol: MATE[n.part] })) : [])].sort((a, b) => a.at - b.at);
     const clicks = song.kit.filter((k) => k.kind === 'stick');
     K.band.hush(); K.band.warm([...new Set([...notes, ...song.auto].filter((n) => n.part === 'guitar').map((n) => n.midi))]);
-    const kid = () => ({ taps: 0, at: -9, miss: -9, pose: '', poseAt: -9, poseLen: 0 });
+    const kid = () => ({ taps: 0, at: -9, miss: -9, pose: '', poseAt: -9, poseLen: 0, drop: -9, high: 0 });
     const s = { t: 0, over: false, won: false, wonAt: 0, notes, pick, counted: 0, taps: 0, combo: 0, best: 0, mateCombo: 0, heat: 0, parts: [], tunes: [], stray: [], slots: new Set(), missed: 0, told: 0, stars: 0,
       press: [-9, -9, -9], hint: [-9, -9, -9], shake: [-9, -9, -9], ring: [-9, -9, -9], bad: [-9, -9, -9], good: [-9, -9, -9],
-      kid: { ken: kid(), kel: kid() }, alan: { hit: -9, kick: -9, crash: -9, click: -9, joy: -9 }, fly: null, next: 0, seen: 0, off: null, settle: 0, epoch: K.band.epoch, paused: false,
+      kid: { ken: kid(), kel: kid() }, alan: { hit: -9, kick: -9, crash: -9, click: -9, joy: -9 }, fly: null, next: 0, seen: 0, off: null, far: 0, settle: 0, epoch: K.band.epoch, paused: false, fresh: true,
       tapAt: -9, cheerAt: -9, mateCheer: -9, flash: -9, lost: -9, asked: false, first: true, saidPick: false, saidPower: false, saidEnd: false, cheered: new Set(), shouts: [], shoutAt: -9, tipUntil: 1e9, sent: 0 };
     let live = sn;
     // the bar: hits out of what is needed, and three stars that light up as they are earned (the first one wins it)
@@ -1537,11 +1539,16 @@
     // a pose for a moment: leaning back with a streak ('rock', 'groove'), or up in the air ('leap').
     const strum = (w, hit) => {
       const k = s.kid[w]; k.taps++; k.at = s.t;
+      if (s.t > k.poseAt && s.t - k.poseAt < k.poseLen) {                               // a tap in the middle of a pose: back to playing at once (a leap comes down strumming)
+        if (k.pose === 'leap') { k.drop = s.t; k.high = LEAPT + Math.round(Math.sin((s.t - k.poseAt) / k.poseLen * Math.PI) * 6); }
+        k.poseLen = 0;
+      }
       if (!hit) return;
       if (w === 'ken') for (let i = 0; i < 6; i++) { const a = -1.2 + Math.random() * 1.5, v = 35 + Math.random() * 40; s.parts.push({ x: SPOT.ken + 1, y: FLOOR - 18, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 10, c: ['#FFD43A', '#FFF1A8', '#FF8D3A'][i % 3], at: s.t, life: 0.32 }); }
       else s.tunes.push({ x: SPOT.kel - 4 + Math.round(Math.random() * 4), y: FLOOR - 22, at: s.t });
     };
-    const pose = (w, p) => { const k = s.kid[w]; k.pose = p; k.poseAt = s.t; k.poseLen = p === 'leap' ? 0.5 : 0.6; };
+    const pose = (w, p) => { const k = s.kid[w]; k.pose = p; k.poseAt = s.t; k.poseLen = p === 'leap' ? 0.5 : 0.6; k.drop = -9; };
+    const LEAPT = 7, DROP = 0.12;                                                       // how high the leap picture has its feet; how long coming down from a leap cut short takes
     const streakPose = (w, c) => { if (c === 10 || c === 20) pose(w, w === 'ken' ? 'rock' : 'groove'); else if (c >= 30 && c % 10 === 0) pose(w, 'leap'); };
     const bigNote = (n) => n.at >= song.big - 0.01 && Math.abs(n.beat % 4) < 0.01;         // the last chorus: a note on a bar's first beat sends them up
     // Digits for the board on the stage roof, three pixels by five; and the letters of the song's name.
@@ -1561,8 +1568,9 @@
     const LAMPS = [[49, '#F0448F'], [64, '#FFD43A'], [82, '#3E7BD6'], [110, '#3E7BD6'], [128, '#FFD43A'], [143, '#F0448F']];
     // The drumstick caught: it flies up to Alan, who plays a fill with it on the next beat.
     const FLY = 0.5, HAND = [108, 56];
+    const caught = () => (live.caughtAt ? (live.caughtAt - live.startAt) / 1000 : s.t); // when it was caught: the same moment on both phones
     const fill = () => {
-      const b0 = Math.ceil(beatAt(s.t + LOOK + 0.05)), extra = [0, 0.25, 0.5, 0.75].map((d) => ({ at: song.start + (b0 + d) * beat, kind: d === 0.75 ? 'snare' : 'tom', vol: 0.75 }));
+      const b0 = Math.ceil(beatAt(caught() + FLY + LOOK + 0.05)), extra = [0, 0.25, 0.5, 0.75].map((d) => ({ at: song.start + (b0 + d) * beat, kind: d === 0.75 ? 'snare' : 'tom', vol: 0.75 }));
       plan.push(...plan.splice(Math.max(s.next, s.seen)).concat(extra).sort((a, b) => a.at - b.at));   // into the song, each in its place
     };
     return {
@@ -1572,8 +1580,12 @@
         if (n.paused && !s.paused) K.band.hush();                                      // a pause: the band stops at once, and the song carries on from there after
         s.paused = !!n.paused;
         if (live.picked && !s.saidPower && !s.over) {                                    // whoever caught it, both get it
-          s.saidPower = true; s.flash = s.t; s.fly = { x: pick ? mid(pick.lane) : ALAN, y: LINE, at: s.t, done: false };
-          shout('Palička!'); say(WORLD.items[sc.pickup].drums, 2.5);
+          s.saidPower = true;
+          const t = clock(live);                                                         // (sync may come before the first update)
+          if (powered() && t - caught() < 1) {                                           // not news of a catch long gone (the page loaded again after it)
+            s.flash = t; s.fly = { x: pick ? mid(pick.lane) : ALAN, y: LINE, at: Math.min(t, caught()), done: false };
+            shout('Palička!'); say(WORLD.items[sc.pickup].drums, 2.5);
+          }
         }
       },
       // The other phone's taps: seen, never heard (their part plays here quietly, in time). A note they hit pops here
@@ -1589,6 +1601,7 @@
         if (hit && bigNote(n)) pose(w, 'leap');
         if (Number.isFinite(m.c)) { if (PRAISE[m.c] && m.c > s.mateCombo) { s.mateCheer = s.t; streakPose(w, m.c); } s.mateCombo = m.c | 0; }
       },
+      leave() { K.band.hush(); },                                                       // the scene left (back to the map, the partner gone): the band stops at once
       over(won) {
         s.over = true; s.won = won; s.wonAt = s.t; paint();
         const [a, b] = (sc.say && sc.say.won) || ['To je rytmus!', 'Dveře povolily.'];
@@ -1648,12 +1661,26 @@
         const target = s.won ? 1 : Math.min(1, (s.combo + s.mateCombo) / 20);          // how hot the stage is: the streak (both streaks, with two)
         s.heat += (target - s.heat) * Math.min(1, dt * (target > s.heat ? 2 : 4));
         if (s.over) return;
+        // The page loaded (again) in the middle of the song: what went by while it was away is simply gone. No notes
+        // crumble, nobody flinches, no count-in, no cheers for parts long played, no call to catch a drumstick gone by.
+        if (s.fresh) {
+          s.fresh = false;
+          if (s.t > 0) {
+            for (const n of notes) if (!n.hit && n.at < s.t - WINDOW) n.gone = s.t;
+            while (s.seen < plan.length && plan[s.seen].at < s.t - 0.1) s.seen++;
+            for (const sec of song.sections) if (sec.at - LEAD < s.t - 0.5) s.cheered.add(sec.beat);
+            if (pick && s.t > pick.at + 0.25) s.saidPick = true;
+          }
+        }
         // The band's sounds, a moment ahead on the sound's clock. Its clock and the game's are tied together, steadily;
         // after a pause or a sleep (the clocks jump apart) they are tied again, and what was dropped is laid out again.
+        // Some phones move the sound's clock on in steps (20-60 ms), so one reading can be that far off: a reading far
+        // from the tie is left out, and only a big jump, or three far readings in a row on the same side, ties afresh.
         if (K.band.ready) {
-          const off = K.band.now() - s.t;
-          if (s.off === null || Math.abs(off - s.off) > 0.03) { s.off = off; s.settle = s.t + 0.6; }       // tied afresh; it settles quickly for a moment after
-          else s.off += (off - s.off) * (s.t < s.settle ? 0.3 : 0.05);
+          const off = K.band.now() - clock(live), d = s.off === null ? 1 : off - s.off, far = Math.abs(d) > 0.03 ? Math.sign(d) : 0;
+          s.far = far && Math.sign(s.far) === far ? s.far + far : far;
+          if (Math.abs(d) > 0.12 || Math.abs(s.far) >= 3) { s.off = off; s.settle = s.t + 0.6; s.far = 0; }   // tied afresh; it settles quickly for a moment after
+          else if (!far) s.off += d * (s.t < s.settle ? 0.3 : 0.05);
           if (s.epoch !== K.band.epoch) { s.epoch = K.band.epoch; s.next = plan.findIndex((e) => e.at > s.t - 0.02); if (s.next < 0) s.next = plan.length; }
           while (s.next < plan.length && plan[s.next].at < s.t + LOOK) {
             const e = plan[s.next++]; if (e.at < s.t - 0.03) continue;                    // too late now: left out, never played late
@@ -1671,7 +1698,8 @@
         }
         if (s.fly && !s.fly.done && s.t - s.fly.at >= FLY) { s.fly.done = true; s.alan.joy = s.t; fill(); }   // in Alan's hand: a cheer, and a fill
         while (s.counted < 4 && s.t >= clicks[s.counted].at) {                           // Raz, dva, tři, čtyři! Four dots fill up, one a click
-          const n = ++s.counted, p = add(`<p class="go beat">${'<i class="on"></i>'.repeat(n)}${'<i></i>'.repeat(4 - n)}</p>`);
+          const n = ++s.counted; if (s.t - clicks[n - 1].at > beat) continue;            // (a click long gone, the page loaded after it: no dots)
+          const p = add(`<p class="go beat">${'<i class="on"></i>'.repeat(n)}${'<i></i>'.repeat(4 - n)}</p>`);
           setTimeout(() => p.remove(), beat * 900);
         }
         for (const n of notes) {
@@ -1735,6 +1763,8 @@
           } else if (t - k.poseAt < k.poseLen) {
             p = k.pose; f = 0;
             if (p === 'leap') y -= Math.round(Math.sin((t - k.poseAt) / k.poseLen * Math.PI) * 6);
+          } else if (t - k.drop < DROP) {                                               // a leap cut short by a tap: coming down, strumming
+            const v = (t - k.drop) / DROP; y -= Math.round(k.high * (1 - v * v));
           } else {
             if (u < 0.09) y += 1;                                                       // into the strum
             if (u > 1.2 || t < song.start) { x += Math.round(Math.sin(b * Math.PI) * 1); y += pulse > 0.7 ? 1 : 0; }   // nothing to play: swaying to the beat
@@ -1742,10 +1772,12 @@
           const fu = (t - k.miss) / 0.3, flinch = !s.won && fu < 1, e = flinch ? (1 - fu) * (1 - fu) : 0, fx = x + Math.round(back * 3 * e);
           if (flinch) { ctx.save(); ctx.translate(fx, y); ctx.scale(1 + 0.1 * e, 1 - 0.14 * e); ctx.translate(-fx, -y); }
           K.hero(w, fx, y, p, (f + 0.5) / 9, flip);
-          if (flinch) {                                                                 // whoops: a drop of sweat flies off
-            ctx.restore();
-            const dx = Math.round(x0 - back * (8 + 8 * fu)), dy = Math.round(FLOOR - 50 - 10 * Math.sin(fu * Math.PI));
-            rect(dx - 1, dy - 1, 4, 5, INK); rect(dx, dy, 2, 3, '#8EC0FF'); rect(dx, dy, 1, 1, '#FFF8E7');
+          if (flinch) ctx.restore();
+          const du = (t - k.miss) / 0.45;
+          if (!s.won && du < 1) {                                                       // whoops: a drop of sweat flies off the head
+            const dx = Math.round(x0 - back * (9 + 7 * du)) - 2, dy = Math.round(FLOOR - 44 - 7 * Math.sin(du * Math.PI));
+            rect(dx + 2, dy, 1, 1, INK); rect(dx + 1, dy + 1, 3, 1, INK); rect(dx, dy + 2, 5, 4, INK); rect(dx + 1, dy + 6, 3, 1, INK);
+            rect(dx + 2, dy + 1, 1, 1, '#8EC0FF'); rect(dx + 1, dy + 2, 3, 4, '#8EC0FF'); rect(dx + 1, dy + 3, 1, 1, '#FFF8E7');
           }
         }
         // a note rising from Kellyn's bass at every note she plays
