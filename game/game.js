@@ -1523,14 +1523,15 @@
   // Kellyn from its left end and Kendrick (with two) from its right, so each starts on trees of their own; the bar
   // along the bottom shows where each of them is. Whoever has found nothing for a while gets help: leaves rustle by
   // the nearest koala, or an arrow at the edge of the screen (and the arrow button) points the way to it. Help comes
-  // sooner when the time runs short and for the last two. All of them have to be found before the time runs out.
+  // sooner when the time runs short and for the last two. All of them have to be found before the time runs out; with
+  // two, the goal comes down a koala at a time while one of them finds nothing (room.js), but never below one alone's.
   function Find(sc, place, sn) {
-    const cfg = sc.find, who = me(), two = sn.need > cfg.need, PATH = 274, SPEED = 80, HELP = 12;
+    const cfg = sc.find, who = me(), placed = sn.koalas || sn.need, two = placed > cfg.need, PATH = 274, SPEED = 80, HELP = 12;
     const COLOUR = { ken: '#CC2233', kel: '#F0448F' }, LEAF = ['#5E8C3A', '#9BC45A', '#D4E89A'];
-    const { koalas } = Room.course.find(sn.seed, sc, sn.need);
+    const { koalas } = Room.course.find(sn.seed, sc, placed);                                // the goal may get smaller (room.js), the koalas stay
     const s = { t: 0, over: false, lost: false, off: 0, v: 0, placed: false, got: new Set(), sent: 0, when: {}, by: {}, again: {}, pan: 0, pend: null,
       walk: { last: 0, at: -9, dir: 1 }, mate: { off: 0, at: -9, dir: 1, yay: -9 }, told: 0, bits: [], calm: 0, hint: null, hintAt: 0, near: null,
-      tipTill: 4, misses: [], poof: null, edge: null, bumped: false, yay: -9, n: sn.found.length, endAt: 0, hello: null };
+      tipTill: 4, misses: [], nag: -9, poof: null, edge: null, bumped: false, yay: -9, n: sn.found.length, need: sn.need, endAt: 0, hello: null };
     for (const id of sn.found) s.when[id] = -9;                                           // found before this phone came in: no fuss
     let live = sn, shown = '';
     const view = stage('<span class="count"><i class="koala"></i><b></b></span><span class="meter time"><i></i></span>', 'Klepni na každou koalu!');
@@ -1550,10 +1551,10 @@
     const where = (k) => ({ x: Math.round(k.x - s.off), y: Math.round(cfg.hidden ? k.y - 9 : k.y) });   // the middle of a koala on the screen
     const say = (text, secs) => { view.tip.textContent = text; s.tipTill = s.t + (secs || 3); };
     const paint = () => {
-      const n = total(), text = `${n} / ${live.need}`;
-      if (n > s.n) { count.classList.remove('bump'); void count.offsetWidth; count.classList.add('bump'); }   // the count jumps when it goes up
-      if (n > s.n && n === live.need - 1 && !s.over) cheer('Poslední koala!');
-      s.n = n;
+      const n = total(), text = `${n} / ${live.need}`, moved = n > s.n || live.need < s.need;
+      if (moved) { count.classList.remove('bump'); void count.offsetWidth; count.classList.add('bump'); }   // the count jumps when it goes up (or the goal comes down)
+      if (moved && n === live.need - 1 && !s.over) say('Poslední koala!', 4);              // low, in the tip: the trees stay in view
+      s.n = n; s.need = live.need;
       if (text !== shown) { shown = text; count.lastElementChild.textContent = text; }
       time.firstElementChild.style.width = clamp(1 - s.t / cfg.seconds, 0, 1) * 100 + '%';
       time.classList.toggle('late', !s.over && s.t > 0 && cfg.seconds - s.t < 15);         // the last seconds: the bar blinks red
@@ -1566,9 +1567,9 @@
     }
     // Leaves and stars flying about, kept in forest coordinates so they stay put while the view moves.
     const fly = (x, y, vx, vy, life, c, leaf) => s.bits.push({ x: x + s.off, y, vx, vy, at: s.t, life, c, leaf });
-    const puff = (x, y) => {                                                               // a tap on leaves: a quick ring where it landed, and leaves fly up
+    const puff = (x, y) => {                                                               // a tap on leaves: a ring where it landed, and leaves fly up
       s.poof = { x: x + s.off, y, at: s.t };
-      for (let i = 0; i < 8; i++) { const a = -Math.PI / 2 + (i - 3.5) * 0.45; fly(x, y, Math.cos(a) * (34 + (i % 3) * 10), Math.sin(a) * (46 + (i % 2) * 16), 0.9, LEAF[i % 3], true); }
+      for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + (i - 4.5) * 0.4; fly(x, y, Math.cos(a) * (34 + (i % 3) * 10), Math.sin(a) * (46 + (i % 2) * 16), 1.1, LEAF[1 + (i % 2)], true); }
     };
     function find(k) {
       s.got.add(k.id); s.when[k.id] = s.t; s.by[k.id] = who; s.calm = s.t; s.yay = s.t;
@@ -1625,15 +1626,18 @@
         for (const id of n.found) if (!(id in s.when)) {                                  // the other one found it: a soft ding, and the stars if it is in view
           s.when[id] = s.t; s.by[id] = mate(); s.mate.yay = s.t;
           const k = koalas[id], p = k && where(k);
-          if (k && !s.over) { beep(1175); if (p.x > -4 && p.x < W + 4) plus('+1', clamp(p.x, 10, W - 10), p.y - 10, COLOUR[mate()]); }
+          if (k && !s.over) { beep(784); if (p.x > -4 && p.x < W + 4) plus('+1', clamp(p.x, 10, W - 10), p.y - 10, COLOUR[mate()]); }   // one low note: softer than one's own three
         }
         paint();
       },
       fx(m) { if (m.k === 'look') { const d = m.off - s.mate.off; if (Math.abs(d) > 0.5) { s.mate.dir = Math.sign(d); s.mate.at = s.t; } s.mate.off = m.off; } },
       over(won) {
         s.over = true; s.lost = !won; s.endAt = s.t; s.hint = null; s.pan = 0; keys.mark('left', false); keys.mark('right', false); paint();
+        s.tipTill = 0; view.tip.textContent = '';                                         // no advice left to give
         const n = total(), both = two || mateHere();
-        view.end(won, won ? 'Všechny koaly!' : 'Čas vypršel.', won ? 'Žádná se neschovala.' : both ? `Našli jste ${n} z ${live.need}. Zkuste to znovu.` : `${who === 'kel' ? 'Našla' : 'Našel'} jsi ${n} z ${live.need}. Zkus to znovu.`);
+        const all = n >= koalas.length;                                                    // with two the goal may have come down: then some are still up there
+        const card = () => view.end(won, won ? (all ? 'Všechny koaly!' : 'Máte je!') : 'Čas vypršel.', won ? (all ? 'Žádná se neschovala.' : `Našli jste ${n} koal.`) : both ? `Našli jste ${n} z ${live.need}. Zkuste to znovu.` : `${who === 'kel' ? 'Našla' : 'Našel'} jsi ${n} z ${live.need}. Zkus to znovu.`);
+        if (won) setTimeout(() => { if (view.tip.isConnected) card(); }, 1500); else card();   // a win: first every koala waves in the trees, then the card (unless the scene has gone)
       },
       move(x, y, dx) { s.off = clamp(s.off - dx, 0, most()); s.v = 0; },
       down(x, y) {
@@ -1641,18 +1645,21 @@
         s.pend = { x, y };                                                                // a miss, unless it is a koala, or the finger drags to look round
         if (s.t < 0) return;                                                               // not started yet: only leaves
         const d = (q) => Math.hypot(q.x - s.off - x, (cfg.hidden ? q.y - 9 : q.y) - y), near = (list) => list.sort((a, b) => d(a) - d(b))[0];
-        const at = (q) => Math.abs(q.x - s.off - x) < 11 && y > q.y - 21 && y < q.y + 5;  // a finger is big: a little round each koala counts too
+        // A finger is big: a little round each koala counts too. Not while tapping all over (three misses within 1.5 s):
+        // then only the koala itself does, so looking pays and mashing does not.
+        const slack = s.misses.filter((m) => s.t - m < 1.5).length >= 3 ? 0 : 4;
+        const at = (q) => Math.abs(q.x - s.off - x) < 7 + slack && y > q.y - 19 - slack / 2 && y < q.y + 2 + slack * 0.75;
         const k = cfg.hidden ? near(koalas.filter((q) => !found(q) && at(q)))             // hidden ones can be tapped any time: they are just hard to see
           : koalas.find((q) => !found(q) && out(q) && d(q) < 14);
         if (k) { s.pend = null; return find(k); }
         const old = cfg.hidden && near(koalas.filter((q) => found(q) && at(q)));
-        if (old) { s.pend = null; s.again[old.id] = s.t; beep(1046, 1318); }                 // found already: it waves again
+        if (old) { s.pend = null; s.again[old.id] = s.t; beep(988); }                         // found already: it waves again (one note: nothing new)
       },
       tap() {
         if (s.pend && !s.over) {
           puff(s.pend.x, s.pend.y); drum('cymbal');                                        // only leaves there: a rustle, nothing lost
           s.misses = s.misses.filter((m) => s.t - m < 3).concat(s.t);
-          if (s.misses.length >= 5) { s.misses = []; say('Koukej, co se hýbe!'); }        // tapping all over: look first
+          if (s.misses.length >= 5 && s.t - s.nag > 5) { s.nag = s.t; say('Koukej, co se hýbe!'); }   // tapping all over: look first
         }
         s.pend = null;
       },
@@ -1709,7 +1716,7 @@
           if (cfg.hidden && art) {                                                           // small and still; a twitch now and then gives one away
             if (s.hint === k && !s.over) rustle(x, y);
             if (hello(k)) { K.figure('koalas', x, y - Math.round(Math.abs(Math.sin(s.t * 6)) * 2), 'wave', 0, false, cfg.size); continue; }
-            if (s.lost) { K.figure('koalas', x, y - Math.round(Math.abs(Math.sin(s.t * 6 + k.id)) * 2), 'wave', 0, false, cfg.size); continue; }   // the ones they missed come out: there they were
+            if (s.over) { K.figure('koalas', x, y - Math.round(Math.abs(Math.sin(s.t * 6 + k.id)) * 2), 'wave', 0, false, cfg.size); continue; }   // the ones not found come out at the end: there they were
             const tw = out(k) || nudge(k);
             K.figure('koalas', x, y - (tw ? 1 : 0), k.pose, s.t, tw ? Math.floor(s.t * 12) % 2 === 0 : k.x > width() / 2, cfg.size);
             continue;
@@ -1729,12 +1736,15 @@
         for (const b of s.bits) {                                                           // leaves fluttering, stars falling
           const x = Math.round(b.x - off), y = Math.round(b.y), u = (s.t - b.at) / b.life;
           if (u > 0.7 && Math.floor(s.t * 16) % 2) continue;
-          if (b.leaf) { const flat = Math.sin((s.t - b.at) * 12 + b.life * 5) > 0, w = flat ? 3 : 2, h = flat ? 2 : 3; rect(x, y + 1, w, h, '#2E4A1E'); rect(x, y, w, h, b.c); }   // a leaf turning as it falls, with a dark edge to stand out
+          if (b.leaf) { const flat = Math.sin((s.t - b.at) * 12 + b.life * 5) > 0, w = flat ? 3 : 2, h = flat ? 2 : 3; rect(x - 1, y, w + 2, h + 1, '#2E4A1E'); rect(x, y, w, h, b.c); }   // a leaf turning as it falls, with a dark edge to stand out
           else rect(x - 1, y - 1, 2, 2, b.c);
         }
-        if (s.poof && s.t - s.poof.at < 0.2) {                                              // where a tap on leaves landed: four puffs spreading out
-          const u = (s.t - s.poof.at) / 0.2, r = Math.round(3 + u * 6), x = Math.round(s.poof.x - off), y = Math.round(s.poof.y);
-          for (const [dx, dy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) rect(x + dx * r - 1, y + dy * r - 1, 2, 2, '#FFF8E7');
+        if (s.poof && s.t - s.poof.at < 0.35) {                                             // where a tap on leaves landed: a ring of puffs spreading out, eased
+          const u = (s.t - s.poof.at) / 0.35, r = 3 + (1 - (1 - u) ** 2) * 8, x = Math.round(s.poof.x - off), y = Math.round(s.poof.y);
+          for (let i = 0; i < 8; i++) {
+            const a = i / 8 * Math.PI * 2, px = Math.round(x + Math.cos(a) * r) - 1, py = Math.round(y + Math.sin(a) * r) - 1;
+            rect(px + 1, py + 1, 2, 2, INK); rect(px, py, 2, 2, '#FFF8E7');
+          }
         }
         for (const k of koalas) {                                         // a flash and a burst of stars round a koala just found, in the finder's colour
           const u = s.t - (s.when[k.id] === undefined ? -9 : s.when[k.id]); if (u < 0 || u > 0.8) continue;
