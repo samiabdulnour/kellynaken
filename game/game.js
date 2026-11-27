@@ -2014,16 +2014,20 @@
     const pullT = () => (nowR() - live.pullAt) / 1000;                                  // stands still while paused
     const mine = () => live.left[who];
     const needle = () => (s.u < 1 ? s.u : 2 - s.u);                                     // up the meter and down again, steadily
-    const ready = () => !s.flying && s.cool <= 0 && mine() > 0;
+    // a buoy in hand, and a finger that has been still for a moment: while it hammers away, the needle waits at the bottom
+    const ready = () => !s.flying && s.cool <= 0 && mine() > 0 && s.t - s.noAt >= 0.4;
     const inGreen = (p) => p >= cfg.green[0] && p <= cfg.green[1];
     // the needle is slow for the first buoy and quicker with every one caught
     const speed = () => cfg.swing[0] + (cfg.swing[1] - cfg.swing[0]) * clamp(live.hits / Math.max(1, live.needHits - 1), 0, 1);
     const danger = () => !!s.lunge && s.t > s.lunge.at - 1.4 && s.t < s.lunge.at + 0.8;   // the shark is coming at the jetty: not now
     const throwNow = () => ready() && inGreen(needle()) && !danger();                   // the moment to throw
     // how far the raft has come: what the room counted, less what the shark has dragged back since, and the taps not yet counted
-    const progress = () => Math.max(0, live.pull - Room.course.dragged(plan, live.pullAt, live.pullT, nowR())) + Math.max(0, s.taps - live.tugs[who]);
+    // what a tap of mine counts, as the room counts it: more the longer the other has let go of the rope
+    const weight = () => (live.two ? 1 + (live.needPull / cfg.pull - 1) * clamp((Net.now() - live.tugAt[mate()] - 400) / 800, 0, 1) : 1);
+    const progress = () => Math.max(0, live.pull - Room.course.dragged(plan, live.pullAt, live.pullT, nowR())) + Math.max(0, s.taps - live.tugs[who]) * weight();
     const surge = (T) => plan.surges.find((q) => T > q.at - 1.2 && T < q.at + q.len + 0.8);
-    const myTurn = () => live.two && live.lastTug === mate() && Net.now() - live.lastTugAt < 1000 && live.lastTugAt > s.lastSend && Net.now() - live.comboAt >= 300;
+    const myTurn = () => live.two && live.lastTug === mate() && Net.now() - live.lastTugAt < 1000 && live.lastTugAt > s.lastSend;   // the rope is with me
+    const bonus = () => myTurn() && live.turns >= 2 && Net.now() - live.lastTugAt >= 180 && Net.now() - live.comboAt >= 300;   // this tap will be one tug more
     // A line of advice for a while; then back to the one that stands (only the first throw has one).
     const say = (text, secs) => { s.tip = text; s.tipTill = secs ? s.t + secs : 0; };
     const advice = () => (pulling() ? '' : !live.hits && !s.pile ? 'Hoď, když je ručička v zeleném!' : live.two && mine() <= 0 ? `Došly ti kruhy. Hází ${heroName(mate())}.` : live.two && live.left[mate()] <= 0 ? `${heroName(mate())} nemá kruhy. Trefuj!` : '');
@@ -2061,7 +2065,8 @@
       if (s.t < 0) { no(); return; }                                                      // 2, 1, Start! first
       if (pulling()) return tug();
       if (mine() <= 0) { no(); return; }
-      if (!ready() || s.t - s.noAt < 0.2) { no(); return; }                              // none in hand yet, or a finger hammering away
+      if (!ready()) { no(); return; }                                                     // none in hand yet, or a finger hammering away
+      if (s.u < cfg.green[0]) { no(true); return; }                                       // the needle is still climbing to the green: too soon, not a weak throw
       const p = needle(), out = fate(p, s.t);
       s.flying = true; s.u = 0; s.throwAt = s.t; s.mark = { p, at: s.t, ok: null }; s.nos = 0;
       launch(p, HX, true, out);
@@ -2069,18 +2074,20 @@
       Net.send({ type: 'fx', k: 'buoy', p, out });
     }
     // A press that cannot do anything now: the button shakes, "Počkej!" by the meter, and a low tick (not on every press of a hammering finger).
-    function no() {
-      s.noAt = s.t; s.waitAt = s.t; s.nos++; wait.textContent = !pulling() && mine() <= 0 ? 'Nemáš kruh' : 'Počkej!';
+    // Each one holds the next buoy back a moment (see ready); one too soon on the climbing needle does not, it just says so.
+    function no(soon) {
+      if (!soon) s.noAt = s.t;
+      s.waitAt = s.t; s.nos++; wait.textContent = soon ? 'Ještě ne!' : !pulling() && mine() <= 0 ? 'Nemáš kruh' : 'Počkej!';
       for (const el of [btn, wait]) if (el) { el.classList.remove('no', 'on'); void el.offsetWidth; el.classList.add(el === wait ? 'on' : 'no'); }
       if (s.t - s.beepAt > 0.3) { s.beepAt = s.t; beep(150); }
-      if (!pulling() && mine() > 0 && s.nos >= 4) say('Klepni jednou, až bude zelená!', 2.5);
+      if (!pulling() && mine() > 0 && s.nos >= 4) say('Počkej na zelenou!', 2.5);
     }
     function tug() {
       const T = pullT();
       if (T < 0) { no(); return; }                                                        // 3, 2, 1 first
-      const turn = myTurn();
-      s.taps++; s.tugAt = s.t; s.beads.push({ at: s.t, x: HX + 8, gold: turn });
-      if (turn) beep(660, 880); else beep(300 + (s.taps % 4) * 40);
+      const turn = myTurn(), gold = bonus();
+      s.taps++; s.tugAt = s.t; s.beads.push({ at: s.t, x: HX + 8, gold });
+      if (gold) beep(660, 880); else beep(300 + (s.taps % 4) * 40);
       if (turn) flush();                                                                  // pulling in turn: tell the room at once
     }
     function flush() {
@@ -2187,7 +2194,7 @@
           keys.mark('act', throwNow());
         } else {
           const T = pullT(), q = surge(T);
-          if (T < 0) say(`Připravte se… ${Math.ceil(-T)}`, 0);
+          if (T < 0) say(`${live.two ? 'Připravte' : 'Připrav'} se… ${Math.ceil(-T)}`, 0);
           else if (q && T < q.at) say('Pozor, žralok!', 0);
           else if (q && T < q.at + q.len) say('Žralok tahá! Rychle!', 0);
           else if (T < 3) say(live.two ? 'Ťukejte střídavě: hej, rup!' : 'Ťukej rychle, táhni!', 0);
