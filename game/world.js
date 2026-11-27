@@ -31,8 +31,8 @@
 //   tower   build a house storey by storey: drive the crane to the stack, pick a storey up, bring it over the house and
 //           let it go; with two, one drives the crane and the other works the hook
 //   shoot   padlocks appear on the `spots` of the picture and slip away: tap one to shoot at it (with two, each has their own colour). Kendrick fires a puck with his hockey stick,
-//           Kellyn throws her white bunny. One that blinks may be saved by either. They come from `every` to `fast` seconds
-//           apart; after `need` a big golden padlock comes down at `gold` [x, y], to be hit by both at once
+//           Kellyn throws her white bunny. One that blinks may be saved by either. The first waits until it is shot; then they
+//           come from `every` to `fast` seconds apart; after `need` a big golden padlock comes down at `gold` [x, y], to be hit by both at once
 //   stub    not built yet: shows a card and lets you carry on
 //
 // `pickup` puts one of the `items` into a scene, to grab like a power-up: jump into it in a dash, hit it in a shot,
