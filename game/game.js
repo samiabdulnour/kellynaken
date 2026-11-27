@@ -2007,7 +2007,7 @@
   })();
 
   // A hand pointing down, for a partner's "Tady!": X outline, S skin, C a cuff in the colour of whoever points.
-  const HAND = ['....XXXXXXXX..', '....XCCCCCCX..', '...XSSSSSSSX..', '...XSSSSSSSSX.', '..XSSSSSSSSSX.', '..XSSSSSSSSSSX', '.XSSSSSSSSSSSX',
+  const POINTER = ['....XXXXXXXX..', '....XCCCCCCX..', '...XSSSSSSSX..', '...XSSSSSSSSX.', '..XSSSSSSSSSX.', '..XSSSSSSSSSSX', '.XSSSSSSSSSSSX',
     'XSSSXSSSSSSSSX', 'XSSXXSSSSSSSSX', '.XX.XSSXSSXSSX', '....XSSXSSXXX.', '....XSSXXX....', '....XSSX......', '....XSSX......', '....XSSX......', '.....XX.......'];
   function Memory(sc, place, sn) {
     const cfg = sc.memory, who = me(), COLS = 4, CW = 40, CH = 50, GAP = 6, X0 = Math.round((W - (COLS * CW + (COLS - 1) * GAP)) / 2), Y0 = 36;
@@ -2130,8 +2130,8 @@
     function drawHand() {
       const p = spot(s.hint.i), u = s.t - s.hint.at, tap = Math.round(Math.abs(Math.sin(u * 5)) * 4), cuff = (WORLD.heroes[s.hint.from] || {}).shirt || '#FFD43A';
       const x0 = p.x + CW / 2 - 5, y0 = p.y + CH / 2 - 15;
-      HAND.forEach((row, j) => { for (let i = 0; i < row.length; i++) if (row[i] !== '.') rect(x0 + i + 1, y0 + j + 2, 1, 1, 'rgba(43,31,26,.45)'); });   // its shadow on the card stays put
-      HAND.forEach((row, j) => { for (let i = 0; i < row.length; i++) if (row[i] !== '.') rect(x0 + i, y0 + j - tap, 1, 1, row[i] === 'X' ? INK : row[i] === 'C' ? cuff : '#F6D2B0'); });
+      POINTER.forEach((row, j) => { for (let i = 0; i < row.length; i++) if (row[i] !== '.') rect(x0 + i + 1, y0 + j + 2, 1, 1, 'rgba(43,31,26,.45)'); });   // its shadow on the card stays put
+      POINTER.forEach((row, j) => { for (let i = 0; i < row.length; i++) if (row[i] !== '.') rect(x0 + i, y0 + j - tap, 1, 1, row[i] === 'X' ? INK : row[i] === 'C' ? cuff : '#F6D2B0'); });
     }
     // The cards are cleared away and a golden key rises from under the last pair, turning, with a sparkle, and flies to the door.
     function drawKey(u) {
