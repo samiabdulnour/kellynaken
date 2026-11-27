@@ -531,37 +531,86 @@
     const L = Room.course.platform(sc), LEN = L.length;
     // The things to climb are pictures (tools/sprites.py: P17 in the street, P18 on the hill), each fitted to its
     // block's width and standing on whatever is under it; the stone terraces are tiled from the stone wall picture.
-    const PROP = { car1: 'street', car2: 'street', bench: 'street', bin: 'street', wall: 'street', boulder: 'hill', logs: 'hill' };
+    const PROP = { car1: 'street', car2: 'street', bench: 'street', bin: 'street', wall: 'street', boulder: 'hill', logs: 'hill', box: 'kerb', tv: 'kerb' };
     L.blocks.forEach((b, i) => { const c = b.x + b.w / 2; b.base = L.blocks.slice(0, i).reduce((m, o) => (c > o.x && c < o.x + o.w ? Math.max(m, o.h) : m), 0); });
     const art = (sheet, pose) => K.has(sheet, pose) && K.sprites[sheet].sizes && K.sprites[sheet].sizes[pose];
     const hillImg = new Image(); hillImg.src = K.asset(`assets/sprites/${(K.sprites.hill || {}).file || 'hill.png'}`);
-    const SIZE = { pigeon: [9, 16], flyer: [9, 7], crow: [10, 7], cone: [6, 12], puddle: [9, 2] };   // half-width, and height (flyers: half-height round their middle)
+    const towerImg = cfg.gate === 'flat' ? new Image() : null; if (towerImg) towerImg.src = K.asset(`assets/sprites/${(K.sprites.storeys || {}).file || 'storeys.png'}`);   // its door opens: drawn from the picture
+    const SIZE = { pigeon: [9, 16], flyer: [9, 7], crow: [10, 7], cone: [6, 12], puddle: [9, 2], ibis: [9, 19], magpie: [10, 7] };   // half-width, and height (flyers: half-height round their middle)
+    const FLIES = ['flyer', 'crow', 'magpie'];
     const CLUES = { comb: ['prague', 'comb'], clip: ['salonkit', 'clip'], note: ['strahov', 'note'] };
+    // Nábytek: a list of furniture to find (cfg.list). Each piece stands true to size next to the kids (sheet, scale)
+    // and has its name as it is written on the list.
+    const PIECE = { sofa: ['furniture', 0.5, 'gauč'], armchair: ['furniture', 0.5, 'křeslo'], lamp: ['furniture', 0.5, 'lampa'], table: ['furniture', 0.5, 'stolek'],
+      chair: ['furniture', 0.5, 'židle'], shelf: ['furniture', 0.5, 'knihovna'], rugroll: ['furniture', 0.5, 'koberec'], plant: ['furniture', 0.5, 'kytka'], bed: ['kerb', 0.75, 'postel'] };
+    const LIST = cfg.list ? cfg.list.filter((k) => PIECE[k]) : null, SOFT = !!cfg.forgiving;
+    const pieces = LIST ? L.items.filter((it) => LIST.includes(it.kind)) : [];
+    const dims = (kind) => { const [sheet, k] = PIECE[kind], sz = art(sheet, kind) || [40, 40]; return { w: Math.round(sz[0] * k), h: Math.round(sz[1] * k), k, sheet }; };
+    const named = (kind) => PIECE[kind][2];
+    const taken = new Set(), seen = new Set(sn.got || []);    // taken: found on this phone (the room hears of it a moment later); seen: shown as found
     const s = { t: 0, over: false, lost: false, me: { x: who === 'kel' && mateHere() ? 18 : 36, y: 0, vy: 0, face: 1, ground: true, inv: 0, hurt: -9, cool: 0, sent: 0, done: false },
       mate: { x: who === 'kel' ? 36 : 18, y: 0, face: 1, pose: 'stand', tx: null, ty: 0 }, dir: 0, held: { left: false, right: false }, jumpHeld: false,
-      shots: [], cam: 0, pops: [], whack: -9, told: false, freed: -9 };
+      shots: [], cam: 0, pops: [], whack: -9, told: false, freed: -9, sw: {}, flying: {}, sent: {}, hunt: false, bumpAt: -9, allAt: 0, quake: -9, stuck: 0 };
     let live = sn;
-    const view = stage('<span class="lives"></span><span class="count"></span><span class="meter"><i></i></span>', 'Šipkami jdeš, Skok skáče, Hoď hází.');
+    const found = (it) => taken.has(it.id) || live.got.includes(it.id);
+    const missing = () => pieces.filter((it) => !found(it));
+    const view = LIST ? stage('<span class="lives"></span><span class="meter"><i></i></span>', mateHere() ? 'Najděte všechno ze seznamu!' : 'Najdi všechno ze seznamu!')
+      : stage('<span class="lives"></span><span class="count"></span><span class="meter"><i></i></span>', 'Šipkami jdeš, Skok skáče, Hoď hází.');
+    if (LIST) s.tipAt = 1.5;                                                                     // the advice goes once the walk is under way
     const steer = () => { s.dir = (s.held.right ? 1 : 0) - (s.held.left ? 1 : 0); };
     const keys = pad([
       { id: 'left', side: 'left', press: () => { s.held.left = true; steer(); }, release: () => { s.held.left = false; steer(); } },
       { id: 'right', side: 'left', press: () => { s.held.right = true; steer(); }, release: () => { s.held.right = false; steer(); } },
       { id: 'throw', label: 'Hoď', press: () => throwIt() },
-      { id: 'jump', label: 'Skok', big: true, press: () => jump(), release: () => cut() },
+      { id: 'jump', label: 'Skok', big: true, press: () => { s.jumpKey = true; jump(); }, release: () => { s.jumpKey = false; cut(); } },
     ], 'walk');                                                                                  // big arrows: walking is most of the game here
     const out = (w) => !!(live.out && live.out[w]);
     const powered = () => !!sc.pickup && Net.now() < live.power;
     const beaten = (id) => live.beaten.includes(id);
     const paint = () => {
       hearts(view.hud.firstElementChild, out(who) ? 0 : live.hp[who], live.max);
-      view.hud.children[1].textContent = `★ ${live.got.length}`;
+      if (!LIST) view.hud.children[1].textContent = `★ ${live.got.length}`;
       view.hud.lastElementChild.firstElementChild.style.width = clamp(s.me.x / L.goal, 0, 1) * 100 + '%';
+      for (const it of pieces) {                                                               // grey until found (and landed in its place), pulsing when the door asks for it
+        const el = slots[it.kind], got = found(it) && !s.flying[it.kind], want = s.hunt && !found(it);
+        if (el.classList.contains('got') !== got) el.classList.toggle('got', got);
+        if (el.classList.contains('miss') !== want) el.classList.toggle('miss', want);
+      }
     };
+    // The list, under the bar: a small picture of every piece.
+    const slots = {}, sheets = {};
+    const sheetImg = (id) => { if (!sheets[id]) { sheets[id] = new Image(); sheets[id].src = K.asset(`assets/sprites/${K.sprites[id].file}`); } return sheets[id]; };
+    function pic(kind, mw, mh) {                                                               // one piece cut out of its sheet, fitted into mw x mh (em)
+      const [id] = PIECE[kind], sp = K.sprites[id], [w, h] = sp.sizes[kind], f = sp.poses[kind][0], c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      if (mw) { const u = Math.min(mw / w, mh / h); c.style.width = `${w * u}em`; c.style.height = `${h * u}em`; }
+      const img = sheetImg(id), put = () => c.getContext('2d').drawImage(img, f * sp.w + Math.floor((sp.w - w) / 2), sp.h - h, w, h, 0, 0, w, h);
+      if (img.complete && img.naturalWidth) put(); else img.addEventListener('load', put);
+      return c;
+    }
+    if (LIST) {
+      s.strip = add(`<div class="list">${LIST.map((k, i) => `<i data-k="${k}" style="--n:${i}" title="${esc(named(k))}"></i>`).join('')}</div>`);
+      for (const k of LIST) { slots[k] = s.strip.querySelector(`[data-k="${k}"]`); slots[k].appendChild(pic(k, 2, 1.6)); }
+      for (const id of seen) { const it = L.items[id]; if (it && slots[it.kind]) slots[it.kind].classList.add('got'); }
+    }
     paint();
-    function jump() { const m = s.me; if (s.over || s.t < 0 || out(who) || m.done || !m.ground) return; m.vy = JUMP; m.ground = false; s.jumpHeld = true; beep(520); }
+    function jump() {
+      const m = s.me; if (SOFT && out(who) && !s.over) return blub();
+      if (s.over || s.t < 0 || out(who) || m.done) return;
+      // forgiving: a moment after stepping off an edge still jumps, and a press just before landing is kept for it
+      if (!m.ground && !(SOFT && m.vy <= 0 && s.t - (m.left || -9) < 0.1)) { if (SOFT) m.want = s.t; return; }
+      m.vy = JUMP; m.ground = false; s.jumpHeld = true; m.want = 0; m.left = -9; s.stuck = 0; beep(520);
+    }
     function cut() { s.jumpHeld = false; if (s.me.vy > 90) s.me.vy = 90; }               // let go early: a little hop
+    function blub() {                                                                          // forgiving: in a bubble a press wobbles it, and says who can help
+      if (s.t - (s.wobble || -9) < 0.35) return;
+      s.wobble = s.t; beep(330, 440);
+      say(mateHere() && !out(mate()) ? `${heroName(mate())} pro tebe vyskočí.` : 'Došla srdíčka.');
+    }
     function throwIt() {
-      const m = s.me; if (s.over || s.t < 0 || out(who) || m.done || m.cool > 0) return;
+      const m = s.me; if (SOFT && out(who) && !s.over) return blub();
+      if (s.over || s.t < 0 || out(who) || m.done) return;
+      if (m.cool > 0) { if (SOFT) m.wantThrow = true; return; }                                  // forgiving: pressed too soon, thrown the moment it can be
       m.cool = 0.45;
       const shot = shoot(who, m.x + m.face * 8, m.y + 28, m.face, true);
       s.shots.push(shot); beep(who === 'ken' ? 330 : 660);
@@ -571,18 +620,43 @@
     // on, and against a wall it stops. Kellyn's bunny goes up a little and comes down again.
     const shoot = (w, x, y, face, real) => (w === 'ken' ? { w, x, y: y - 25, vx: face * 230, vy: 0, g: 0, left: 0.8, slide: true, real } : { w, x, y: y - 12, vx: face * 150, vy: 110, g: 420, left: 1.1, real });
     // Where everyone is, and what touches what.
-    const foesNow = () => L.foes.map((f) => L.at(f, s.t)).filter(Boolean).map((p, i) => p).filter((p) => !beaten(p.id));
+    const foesNow = () => L.foes.map((f) => dive(f, L.at(f, s.t))).filter(Boolean).map((p, i) => p).filter((p) => !beaten(p.id));
+    // A magpie dives now and then at whoever walks below it: it stops to flap and cry, a shadow shows where it will
+    // come down, and down it comes and up again; walk out of the shadow and it misses. When it may dive is set by the
+    // clock, the same on both phones; each phone aims it at its own hero (only one close by and on the screen).
+    const WARN = 0.9, DIVE = 1.0;
+    function dive(f, p) {
+      if (!p || f.kind !== 'magpie' || !f.every) return p;
+      const c = s.t + f.id * 1.3, k = Math.floor(c / f.every), u = c - k * f.every;
+      let sw = s.sw[f.id];
+      if (!sw || sw.k !== k) {
+        if (u > 0.15) return p;                                                                  // only at the start of its turn
+        const busy = mateHere() && out(mate());                                                 // not at one who has stopped to free the other from a bubble
+        const m = s.me, near = s.t > 1 && !busy && !out(who) && !m.done && !s.over && Math.abs(m.x - p.x) < 72 && Math.abs(p.x - s.cam - W / 2) < W / 2;
+        sw = s.sw[f.id] = { k, tx: near ? Math.round(clamp(m.x, p.x - 64, p.x + 64)) : null };
+        if (near) beep(1500, 1150, 1500);                                                        // its cry
+      }
+      if (sw.tx === null || u >= WARN + DIVE) return p;
+      const ty = L.top(sw.tx, 4) + 30;                                                           // as low as a head
+      if (u < WARN) return { ...p, warn: u / WARN, tx: sw.tx, ty };
+      const v = (u - WARN) / DIVE, e = Math.sin(Math.PI * v);
+      return { ...p, x: p.x + (sw.tx - p.x) * e, y: p.y + (ty - p.y) * e, dive: v, tx: sw.tx, ty, dir: (v < 0.5) === (sw.tx >= p.x) ? 1 : -1 };
+    }
     const kindOf = (id) => L.foes[parseInt(id, 10)].kind;
     function beat(p, how) {
       if (beaten(p.id)) return;
       live.beaten.push(p.id);                                                                  // gone here at once; the room tells the other phone
       Net.send({ type: 'ev', e: 'beat', id: p.id });
-      s.pops.push({ x: p.x, y: p.y + 10, at: s.t, kind: kindOf(p.id), dir: p.dir || 1 });
+      s.pops.push({ x: p.x, y: p.y + 10, at: s.t, kind: kindOf(p.id), dir: p.dir || 1, away: p.x >= s.me.x ? 1 : -1, how });
       beep(how === 'stomp' ? 700 : 300, 900);
     }
-    function hurt() {
+    function hurt(p) {
       const m = s.me; if (m.inv > 0 || out(who) || m.done) return;
       m.inv = 1.4; m.hurt = s.t; m.vy = 120; m.ground = false; beep(200, 150);
+      if (SOFT) {                                                                              // knocked back off what hurt, the picture jolts, the hearts shake
+        m.push = (p && p.x > m.x ? -1 : 1) * 120; s.quake = s.t;
+        const el = view.hud.firstElementChild; el.classList.remove('hit'); void el.offsetWidth; el.classList.add('hit');
+      }
       Net.send({ type: 'ev', e: 'hurt' }); Net.send({ type: 'fx', k: 'hurt' });
     }
     // The bubble someone out of hearts floats in: it trails behind the one still walking, and drifts over their head
@@ -601,11 +675,19 @@
       if (m.done) return;
       const wasAir = !m.ground;
       // walking, and the things in the way: a low step is walked up, anything taller stops you
-      let nx = m.x + s.dir * SPEED * dt;
+      const walk = SOFT && s.t - m.hurt < 0.3 ? 0 : s.dir;                                       // forgiving: a knock stops you for a moment
+      let nx = m.x + walk * SPEED * dt + (m.push || 0) * dt;
+      if (m.push) { m.push *= Math.pow(0.02, dt); if (Math.abs(m.push) < 4) m.push = 0; }         // a knock back, dying away
+      const go = m.push ? Math.sign(nx - m.x) : walk, want = nx;
       if (s.dir) m.face = s.dir;
       for (const b of L.blocks) {
-        if (nx + HALF > b.x && nx - HALF < b.x + b.w && b.h > m.y + (m.ground ? STEP : 0.5)) nx = s.dir > 0 ? Math.min(nx, b.x - HALF) : Math.max(nx, b.x + b.w + HALF);
+        if (nx + HALF > b.x && nx - HALF < b.x + b.w && b.h > m.y + (m.ground ? STEP : 0.5)) nx = go > 0 ? Math.min(nx, b.x - HALF) : Math.max(nx, b.x + b.w + HALF);
       }
+      if (SOFT) {                                                                                // pushing against something too tall to step up: the Skok button nudges
+        s.stuck = s.dir && m.ground && Math.abs(nx - want) > 0.01 ? s.stuck + dt : 0;
+        if ((s.stuck > 0.35) !== !!s.nudged) { s.nudged = s.stuck > 0.35; keys.mark('jump', s.nudged); }
+      }
+      if (LIST && nx > L.goal - 26 && missing().length) { nx = L.goal - 26; if (s.dir > 0) knock(); }   // the door (at the goal) stays shut until the list is complete
       m.x = clamp(nx, 8, LEN - 8);
       const floor = L.top(m.x, HALF - 2);
       if (m.ground && floor > m.y && floor - m.y <= STEP) m.y = floor;                         // up a step
@@ -613,23 +695,72 @@
       if (!m.ground) {
         m.vy -= G * dt * (s.jumpHeld && m.vy > 0 ? 0.75 : 1);
         m.y += m.vy * dt;
-        if (m.y <= floor && m.vy <= 0) { m.y = floor; m.vy = 0; m.ground = true; if (wasAir) beep(180); }
+        if (m.y <= floor && m.vy <= 0) {
+          const fall = m.vy;
+          m.y = floor; m.vy = 0; m.ground = true; if (wasAir) beep(180);
+          if (SOFT && fall < -200) s.pops.push({ x: m.x, y: m.y, at: s.t, dust: true });          // a puff of dust from a big landing
+          if (SOFT && m.want && s.t - m.want < 0.15) { jump(); if (!s.jumpKey) cut(); }           // Skok pressed just before landing
+        }
       }
+      if (m.ground) m.left = s.t;
+    }
+    // At the shut door: it rattles, the padlock swings, the list shows what is still missing, and an arrow points to it.
+    function knock() {
+      const m = s.me; if (s.t - s.bumpAt < 1.4) return;
+      s.bumpAt = s.t; s.hunt = true; if (SOFT) m.push = -70;
+      beep(150, 110); say(lacking());
+    }
+    function lacking() {
+      const left = missing(), n = left.length;
+      if (n === 1) return `Ještě chybí: ${named(left[0].kind)}.`;
+      if (n === 2) return `Ještě chybí: ${named(left[0].kind)} a ${named(left[1].kind)}.`;
+      return `Ještě chybí: ${n} ${n < 5 ? 'věci' : 'věcí'}.`;
+    }
+    // A piece taken here: it is gone from the kerb at once, its name rises from where it stood, and it flies up into the list.
+    function take(it) {
+      const d = dims(it.kind);
+      taken.add(it.id); seen.add(it.id); live.got.push(it.id); s.sent[it.id] = s.t;
+      Net.send({ type: 'ev', e: 'got', id: it.id });
+      beep(660, 990); plus(named(it.kind).replace(/^./, (c) => c.toUpperCase()) + '!', clamp(it.x - s.cam, 20, W - 20), GY - it.h - d.h - 14);
+      s.pops.push({ x: it.x, y: it.h + d.h / 2, at: s.t, got: 'piece' });
+      flyHome(it);
+    }
+    // Up into its place on the list: a little hop first, then off it goes, faster and smaller, and its place pops.
+    function flyHome(it) {
+      const el = slots[it.kind], to = el && el.querySelector('canvas'); if (!to) return;
+      if (!Element.prototype.animate) return;
+      const d = dims(it.kind), ui = K.ui.getBoundingClientRect(), u = ui.width / W, box = to.getBoundingClientRect();
+      const x = clamp(it.x - s.cam - d.w / 2, 0, W - d.w), y = clamp(GY - it.h - d.h, 30, H - d.h);   // one found off the screen (by the other) comes in from the edge
+      const fly = add('<div class="flying"></div>'); fly.appendChild(pic(it.kind));
+      Object.assign(fly.style, { left: `${x * u}px`, top: `${y * u}px`, width: `${d.w * u}px`, height: `${d.h * u}px` });
+      const dx = box.left - ui.left - x * u, dy = box.top - ui.top - y * u, f = box.width / (d.w * u);
+      s.flying[it.kind] = true;
+      const land = () => { if (!s.flying[it.kind]) return; delete s.flying[it.kind]; fly.remove(); el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop'); beep(1320, 1760); };
+      const a = fly.animate([{ transform: 'translate(0,0) scale(1)', easing: 'cubic-bezier(.2,.8,.4,1)' },
+        { transform: `translate(${-d.w * u * 0.06}px,${-12 * u}px) scale(1.12)`, offset: 0.28, easing: 'cubic-bezier(.6,0,.9,.5)' },
+        { transform: `translate(${dx}px,${dy}px) scale(${f})` }], { duration: 760, fill: 'forwards' });
+      a.onfinish = land; setTimeout(land, 1200);                                                // land even if the animation is cut short
     }
     function touch() {
       const m = s.me;
       if (out(who) || m.done) return;
       for (const p of foesNow()) {
-        const k = kindOf(p.id), [hw, h] = SIZE[k], flying = k === 'flyer' || k === 'crow';
+        const k = kindOf(p.id), [hw, h] = SIZE[k], flying = FLIES.includes(k);
         if (p.falling) continue;                                                               // a cone still dropping from its tree
+        if (k === 'magpie' && p.dive === undefined) continue;                                  // a magpie only matters when it dives, and that is seen coming
         const lo = flying ? p.y - h : p.y, hi = flying ? p.y + h : p.y + h;
         if (Math.abs(p.x - m.x) > hw + HALF - 2 || m.y > hi || m.y + TALL < lo) continue;
-        if (k === 'puddle') { if (m.ground && m.y < 1) hurt(); continue; }
+        if (k === 'puddle') { if (m.ground && m.y < 1) hurt(p); continue; }
         if (powered()) { beat(p, 'whack'); s.whack = s.t; continue; }                         // the drumstick: everything in the way is knocked flying
         if (m.vy < 0 && m.y > lo + (hi - lo) * 0.45) { beat(p, 'stomp'); m.vy = JUMP * 0.62; m.ground = false; continue; }   // landed on it
-        hurt();
+        hurt(p);
+      }
+      for (const it of pieces) {                                                                // a piece on the list: reached when standing (or jumping) where it stands
+        const d = dims(it.kind);
+        if (!found(it) && Math.abs(it.x - m.x) < d.w / 2 + HALF - 1 && m.y > it.h - 6 && m.y < it.h + d.h - 4) take(it);
       }
       for (const it of L.items) {
+        if (pieces.includes(it)) continue;
         if (it.kind === 'pickup' ? live.picked || !sc.pickup : live.got.includes(it.id)) continue;
         if (Math.abs(it.x - m.x) < 10 && it.h + 6 > m.y && it.h - 6 < m.y + TALL) {
           if (it.kind === 'pickup') { live.picked = true; Net.send({ type: 'ev', e: 'pick' }); beep(660, 880, 1100); continue; }
@@ -640,7 +771,10 @@
       }
       // the partner floating in a bubble: jump into it to let them out
       const b = mateHere() && out(mate()) && t() - s.freed > 1 ? bubbleAt() : null;
-      if (b && !m.ground && Math.abs(b.x - m.x) < 14 && m.y + TALL + 4 > b.y - 12) { s.freed = t(); Net.send({ type: 'ev', e: 'revive' }); beep(523, 659, 784, 1047); }
+      if (b && !m.ground && Math.abs(b.x - m.x) < 14 && m.y + TALL + 4 > b.y - 12) {
+        s.freed = t(); Net.send({ type: 'ev', e: 'revive' }); beep(523, 659, 784, 1047);
+        if (SOFT) { m.inv = Math.max(m.inv, 1.2); cheer(mate() === 'kel' ? 'Volná!' : 'Volný!'); }                             // forgiving: the one who helped is safe a moment too
+      }
     }
     const t = () => s.t;
     function fly(dt) {
@@ -655,8 +789,8 @@
         if (!sh.real) return true;
         for (const p of foesNow()) {
           const k = kindOf(p.id); if (k === 'puddle') continue;
-          const [hw, h] = SIZE[k], mid = k === 'flyer' || k === 'crow' ? p.y : p.y + h / 2;
-          if (Math.abs(p.x - sh.x) < hw + 4 && Math.abs(mid - sh.y) < h / (k === 'flyer' || k === 'crow' ? 1 : 2) + 6) { beat(p, 'hit'); return false; }
+          const [hw, h] = SIZE[k], mid = FLIES.includes(k) ? p.y : p.y + h / 2;
+          if (Math.abs(p.x - sh.x) < hw + 4 && Math.abs(mid - sh.y) < h / (FLIES.includes(k) ? 1 : 2) + 6) { beat(p, 'hit'); return false; }
         }
         return true;
       });
@@ -666,13 +800,20 @@
       control: { hold(dir) { s.held.left = dir < 0; s.held.right = dir > 0; steer(); }, jump, cut, throwIt },
       peek: () => ({ x: s.me.x, y: s.me.y, ground: s.me.ground, done: s.me.done, out: out(who), mateOut: mateHere() && out(mate()), face: s.me.face,
         foes: foesNow().map((p) => ({ dx: p.x - s.me.x, y: p.y, kind: kindOf(p.id) })), wall: L.blocks.filter((b) => b.x - s.me.x > -4 && b.x - s.me.x < 26 && b.h > s.me.y + STEP).map((b) => b.h)[0] || 0,
-        bubble: mateHere() && out(mate()) ? bubbleAt() : null, goal: L.goal, got: live.got.length, cool: s.me.cool }),
+        bubble: mateHere() && out(mate()) ? bubbleAt() : null, goal: L.goal, got: live.got.length, cool: s.me.cool,
+        wallL: L.blocks.filter((b) => s.me.x - (b.x + b.w) > -4 && s.me.x - (b.x + b.w) < 26 && b.h > s.me.y + STEP).map((b) => b.h)[0] || 0,
+        list: LIST && { left: missing().map((it) => ({ kind: it.kind, x: it.x, h: it.h, w: dims(it.kind).w })), hunt: s.hunt, shut: missing().length > 0 },
+        dives: foesNow().filter((p) => p.tx !== undefined).map((p) => ({ tx: p.tx, warn: p.warn, dive: p.dive })) }),
       sync(n) {
         const wasOut = out(who), mateWas = mateHere() && out(mate()); live = n;
         if (wasOut && !out(who)) { s.me.x = s.bub ? s.bub.x : s.mate.x; s.me.y = L.top(s.me.x); s.me.vy = 0; s.me.ground = true; s.me.inv = 1.6; say(who === 'kel' ? 'Jsi volná! Díky.' : 'Jsi volný! Díky.'); }   // let out of the bubble, where it was
         if (!wasOut && out(who)) say(mateHere() && !out(mate()) ? `Jsi v bublině. ${heroName(mate())} se zastaví a vyskočí pro tebe.` : 'Došla srdíčka.');
         if (!mateWas && mateHere() && out(mate()) && !out(who)) say(`${heroName(mate())} je v bublině! Zastav se a vyskoč.`);
         if (live.picked && sc.pickup && !s.told) { s.told = true; say(WORLD.items[sc.pickup].dash); }
+        for (const it of pieces) if (live.got.includes(it.id) && !seen.has(it.id)) {               // found by the other one: it flies up into the list here too
+          seen.add(it.id); flyHome(it);
+          const x = it.x - s.cam; if (x > -20 && x < W + 20) plus(named(it.kind).replace(/^./, (c) => c.toUpperCase()) + '!', clamp(x, 20, W - 20), GY - it.h - dims(it.kind).h - 14, '#BFE8FF');
+        }
         paint();
       },
       fx(m) {
@@ -682,6 +823,7 @@
       },
       over(won) {
         s.over = true; s.lost = !won; paint();
+        if (LIST) return view.end(won, won ? 'Všechno máme!' : 'Au!', won ? 'Celý seznam je hotový. Jde se zařizovat byt!' : 'Došla vám srdíčka. Zkuste to ještě jednou.');
         const count = (k) => live.got.filter((id) => k.includes(L.items[id].kind)).length, n = count(['coin']), clues = count(['comb', 'clip']), notes = count(['note']);
         const found = cfg.gate === 'salon' ? `Sebrali jste ${n} mincí${clues ? ` a ${clues === 2 ? 'hřeben i sponku' : 'jednu stopu'}` : ''}.` : `Sebrali jste ${notes} not.`;
         view.end(won, won ? (cfg.gate === 'salon' ? 'Jste u kadeřnictví!' : 'Jste nahoře!') : 'Au!', won ? found : 'Došla vám srdíčka. Zkuste to ještě jednou.');
@@ -695,7 +837,15 @@
         if (m.inv > 0) m.inv -= dt;
         if (m.cool > 0) m.cool -= dt;
         if (s.t >= 0 && !out(who)) { move(dt); touch(); }
+        if (SOFT && m.wantThrow && m.cool <= 0) { m.wantThrow = false; throwIt(); }
         fly(dt); drift(dt);
+        if (LIST) {
+          for (const id of taken) if (!live.got.includes(id) && s.t - s.sent[id] > 1.5) { s.sent[id] = s.t; Net.send({ type: 'ev', e: 'got', id }); }   // in case it was lost on the way
+          if (!s.allAt && !missing().length && !Object.keys(s.flying).length) {                  // the last piece has landed: the door opens
+            s.allAt = s.t; cheer('Máme všechno!'); beep(523, 659, 784, 1047);
+            s.strip.classList.add('all'); if (s.hunt) say('Dveře jsou otevřené!');
+          }
+        }
         if (!m.done && !out(who) && m.x >= L.goal) { m.done = true; Net.send({ type: 'ev', e: 'finish' }); beep(784, 988, 1175); if (mateHere() && !out(mate()) && !live.fin[mate()]) say(`Hotovo! Počkej na ${heroName(mate())}.`); }
         if (live.fin && live.fin[who] === undefined && m.done && Net.now() - (m.sentFin || 0) > 1500) { m.sentFin = Net.now(); Net.send({ type: 'ev', e: 'finish' }); }   // in case the first was lost
         // where I am, for the other phone, a few times a second
@@ -711,12 +861,15 @@
         paint();
       },
       draw() {
-        const tt = Math.max(0, s.t), cam = Math.round(s.cam), X = (x) => Math.round(x - cam), Y = (y) => Math.round(GY - y);
+        const tt = Math.max(0, s.t), jolt = SOFT && tt - s.quake < 0.25 ? Math.round(Math.sin(tt * 70) * 2) : 0;   // hurt: the picture jolts
+        const cam = Math.round(s.cam) + jolt, X = (x) => Math.round(x - cam), Y = (y) => Math.round(GY - y);
         K.background(sc.bg, cam * 0.6, place.look, sc.tile === 'repeat');
         for (const f of L.foes) if (f.kind === 'cone') pine(X(f.x1 + 4), Y(L.top(f.x1)));         // the spruces the cones drop from
         for (const b of L.blocks) if (b.x + b.w > cam - 4 && b.x < cam + W + 4) block(b, X(b.x));
-        gate(cfg.gate, X(L.goal + 12));
+        if (cfg.gate === 'flat') tower(X(L.goal), tt); else gate(cfg.gate, X(L.goal + 12));
+        for (const it of pieces) if (!found(it)) piece(it, X(it.x), Y(it.h), tt);
         for (const it of L.items) {
+          if (pieces.includes(it)) continue;
           if (it.kind === 'pickup' ? live.picked || !sc.pickup : live.got.includes(it.id)) continue;
           const x = X(it.x), y = Y(it.h) - Math.round(Math.sin(tt * 4 + it.id) * 2);
           if (x < -10 || x > W + 10) continue;
@@ -725,12 +878,16 @@
           else if (it.kind === 'pickup') item(sc.pickup, x, y - 6, tt);
           else { const a = CLUES[it.kind]; if (a && K.has(a[0], a[1])) { const sp = K.sprites[a[0]]; K.figure(a[0], x, y + 6, a[1], 0, false, 16 / Math.max(sp.w, sp.h) * 1.2); } else coin(x, y, tt); }
         }
-        for (const p of foesNow()) { const x = X(p.x); if (x > -20 && x < W + 20) foe(kindOf(p.id), x, Y(p.y), p, tt); }
+        const now = foesNow();
+        for (const p of now) if (p.tx !== undefined) shadow(p, X, Y);                               // where a magpie is about to dive
+        for (const p of now) { const x = X(p.x); if (x > -20 && x < W + 20 && p.dive === undefined) foe(kindOf(p.id), x, Y(p.y), p, tt); }
         // knocked out: a pigeon flaps off, a crow tumbles, a cone bursts
         s.pops = s.pops.filter((q) => tt - q.at < 0.8);
         for (const q of s.pops) {
           const u = (tt - q.at) / 0.8, x = X(q.x), y = Y(q.y);
           if (q.got) { const r = Math.round(u * 10); rect(x - 1, y - 8 - r, 2, 2, '#FFD43A'); rect(x - 6 - r / 2, y - 4 - r, 2, 2, '#FFF1A8'); rect(x + 5 + r / 2, y - 4 - r, 2, 2, '#FFF1A8'); continue; }
+          if (q.dust) { if (u < 0.4) { const r = Math.round(u * 20); rect(x - 5 - r, y - 2, 3, 2, '#E9DCCB'); rect(x + 3 + r, y - 2, 3, 2, '#E9DCCB'); rect(x - 3 - r, y - 4, 2, 1, '#F4ECE0'); rect(x + 2 + r, y - 4, 2, 1, '#F4ECE0'); } continue; }
+          if (q.kind === 'ibis' || q.kind === 'magpie') { bird(q, u, x, y, tt); continue; }
           if (q.kind === 'pigeon' || q.kind === 'flyer') { if (K.has('prague', 'pigeonfly')) K.figure('prague', x + Math.round(u * 40 * q.dir), y - Math.round(u * 50), 'pigeonfly', tt, q.dir < 0, 0.36); }
           else if (K.has('things', 'flash')) K.figure('things', x, y - Math.round(u * 20), 'flash', 0, false, 0.6);
         }
@@ -750,9 +907,99 @@
           else if (K.has('things', 'bunnyfly')) K.figure('things', x, y + 8, Math.floor(tt * 6) % 2 ? 'bunnyflip' : 'bunnyfly', 0, sh.vx < 0, 0.5);
           else rect(x - 3, y - 3, 6, 6, '#FFF8E7');
         }
+        for (const p of now) if (p.dive !== undefined) foe(kindOf(p.id), X(p.x), Y(p.y), p, tt);     // a diving magpie comes down in front of the heroes
+        if (LIST) pointers(X, Y, tt);
       },
     };
     function say(text) { view.tip.textContent = text; s.tipAt = s.t || 0.01; }
+    // A piece on the list, standing on the kerb: it glints now and then, so it reads as something to take, and gives a
+    // little hop when someone comes close.
+    function piece(it, x, foot, tt) {
+      const d = dims(it.kind); if (x < -d.w || x > W + d.w) return;
+      const m = s.me, close = !out(who) && Math.abs(m.x - it.x) < d.w / 2 + 24 && Math.abs(m.y - it.h) < 30;
+      K.figure(d.sheet, x, foot - (close ? Math.round(Math.abs(Math.sin(tt * 9))) : 0), it.kind, 0, false, d.k);
+      for (let i = 0; i < 3; i++) {
+        const ph = (tt * 0.9 + i / 3 + it.id * 0.37) % 1; if (ph > 0.32) continue;
+        const r = Math.round(Math.sin(ph / 0.32 * Math.PI) * 2), gx = Math.round(x + [-0.42, 0.38, -0.05][i] * d.w), gy = Math.round(foot - [0.7, 0.45, 1][i] * d.h);
+        rect(gx - r, gy, r * 2 + 1, 1, '#FFF1A8'); rect(gx, gy - r, 1, r * 2 + 1, '#FFF1A8'); rect(gx, gy, 1, 1, '#FFFFFF');
+      }
+    }
+    // The goal in Sydney: the entrance of Sami's new glass tower, its storeys going up out of the picture. The glass
+    // door wears a padlock until the list is complete; then the padlock drops off and the door slides open.
+    function tower(x, tt) {
+      if (x < -80 || x > W + 80 || !K.has('storeys', 'lobby')) return;
+      const k = 2, foot = GY + 2, fill = (a, b, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(a, b, w, h); };
+      ['lobby', 'floor', 'plants', 'floor'].forEach((pose, i) => K.figure('storeys', x, foot - i * 50 * k, pose, 0, false, k));
+      const left = x - 43 * k, top = foot - 92 * k, gx = left + 36 * k, gy = top + 69 * k, gw = 13 * k, gh = 19 * k;   // the glass of the door, in the lobby's picture
+      const open = s.allAt ? clamp((s.t - s.allAt - 0.45) / 0.55, 0, 1) : 0, e = 1 - Math.pow(1 - open, 3);
+      if (open > 0 && towerImg.complete && towerImg.naturalWidth) {
+        fill(gx, gy, gw, gh, '#FFE29A'); fill(gx, gy + gh - 3, gw, 3, '#F2C46A');                   // light inside
+        ctx.save(); ctx.beginPath(); ctx.rect(gx, gy, gw, gh); ctx.clip();
+        const slide = Math.round(e * 5) * k;                                                      // the two panes slide apart, slowing as they go
+        ctx.drawImage(towerImg, 36, 69, 6, 19, gx - slide, gy, 6 * k, gh);
+        ctx.drawImage(towerImg, 43, 69, 6, 19, gx + 7 * k + slide, gy, 6 * k, gh);
+        ctx.restore();
+      }
+      if (K.has('prague', 'padlock')) {
+        const since = s.t - s.bumpAt, swing = since < 0.7 ? Math.round(Math.sin(since * 22) * 3 * (1 - since / 0.7)) : 0;
+        const drop = s.allAt ? s.t - s.allAt : 0, fall = Math.round(drop * drop * 300);
+        if (drop < 0.5) { ctx.save(); ctx.globalAlpha = 1 - drop * 2; K.figure('prague', x + swing, gy + 24 + fall, 'padlock', 0, false, 0.32); ctx.restore(); }
+      }
+    }
+    // The shadow a diving magpie will fall on: it grows darker and wider as the magpie gets ready.
+    function shadow(p, X, Y) {
+      const u = p.warn !== undefined ? p.warn : 1, w = Math.round(5 + 8 * u), x = X(p.tx), y = Y(L.top(p.tx, 4)) + 1;
+      ctx.save(); ctx.globalAlpha = 0.3 + 0.35 * u;
+      rect(x - w, y - 1, w * 2, 2, INK); rect(x - w + 3, y - 2, w * 2 - 6, 1, INK); rect(x - w + 3, y + 1, w * 2 - 6, 1, INK);
+      ctx.restore();
+    }
+    // Knocked out: an ibis is squashed for a moment and flaps off, a magpie tumbles away; a few feathers drift down.
+    function bird(q, u, x, y, tt) {
+      const foot = y + 10, a = q.away || 1;
+      if (q.kind === 'ibis' && u < 0.18 && q.how === 'stomp') { ctx.save(); ctx.translate(x, foot); ctx.scale(1.2, 0.55); K.figure('kerb', 0, 0, 'ibis', 0, a > 0, 0.36); ctx.restore(); return; }
+      if (q.how === 'hit' && u < 0.2 && K.has('things', 'flash')) K.figure('things', x, foot - 8, 'flash', 0, false, 0.6);
+      const v = Math.max(0, (u - 0.15) / 0.85), e = v * v, pose = q.kind === 'ibis' ? 'ibisfly' : 'magpie2';
+      if (K.has('kerb', pose)) K.figure('kerb', x + Math.round(e * 70 * a), foot - Math.round(e * 90) - Math.round(v * 6), pose, 0, a > 0, 0.36);
+      for (let i = 0; i < 3; i++) rect(x - 6 + i * 6 + Math.round(Math.sin(u * 9 + i) * 2), foot - 14 + Math.round(u * 16) + i * 2, 2, 1, q.kind === 'magpie' && i === 1 ? INK : '#FFF8E7');
+    }
+    // Where to go next. A piece left behind gets an arrow at the edge of the screen, with the piece beside it; once the
+    // shut door has said what is missing, the arrow bounces and points the way to it, and an arrow over it marks it.
+    // With everything found, the arrow points to the door.
+    function pointers(X, Y, tt) {
+      if (s.over || s.me.done || out(who)) return;
+      const left = missing(), hop = Math.round(Math.abs(Math.sin(tt * 6)) * 3);
+      if (!left.length) {
+        if (!s.allAt) return;
+        const x = X(L.goal);
+        if (x > W + 4) edge(1, null, tt); else arrow(x, Y(48) - hop, 0, '#7CE07C');
+        return;
+      }
+      const near = (list) => list.reduce((a, b) => (Math.abs(b.x - s.me.x) < Math.abs(a.x - s.me.x) ? b : a));
+      const behind = left.filter((it) => X(it.x) < -dims(it.kind).w / 2), it = s.hunt ? near(left) : behind.length ? near(behind) : null;
+      if (!it) return;
+      const x = X(it.x), d = dims(it.kind);
+      if (x < -d.w / 2) edge(-1, it, tt); else if (x > W + d.w / 2) edge(1, it, tt); else arrow(x, Y(it.h + d.h) - 4 - hop, 0, '#FFD43A');
+    }
+    function edge(dir, it, tt) {                                                                // at the side of the screen: an arrow out, and what it points to
+      const wob = s.hunt || !it ? Math.round(Math.sin(tt * 9) * 2) * dir : 0, y = 120, tip = dir < 0 ? 2 + wob : W - 3 + wob;
+      arrow(tip, y, dir, it ? (s.hunt ? '#FFD43A' : '#FFF8E7') : '#7CE07C');
+      const cx = tip - dir * 26, top = y - 11;
+      rect(cx - 12, top, 24, 22, INK); rect(cx - 11, top + 1, 22, 20, '#FFF8E7');
+      if (it) { const [sheet] = PIECE[it.kind], sz = art(sheet, it.kind); if (sz) K.figure(sheet, cx, top + 19, it.kind, 0, false, Math.min(18 / sz[0], 17 / sz[1])); }
+      else { rect(cx - 5, top + 4, 10, 15, '#46536A'); rect(cx - 4, top + 5, 8, 14, '#B4E0F5'); rect(cx - 4, top + 5, 2, 14, '#FFE29A'); }   // the glass door
+    }
+    // A chunky arrow with a dark edge: dir -1 left, 1 right (its tip at x, y), 0 down (its tip at x, y).
+    function arrow(x, y, dir, col) {
+      for (const [c, g] of [[INK, 1], [col, 0]]) {
+        if (dir) {
+          for (let i = 0; i <= 6 + g; i++) rect(x - dir * (i - g), y - i, 1, i * 2 + 1, c);
+          rect(dir < 0 ? x + 7 - g : x - 13 - g, y - 2 - g, 7 + g * 2, 5 + g * 2, c);
+        } else {
+          for (let i = 0; i <= 6 + g; i++) rect(x - i, y - (i - g), i * 2 + 1, 1, c);
+          rect(x - 2 - g, y - 13 - g, 5 + g * 2, 7 + g * 2, c);
+        }
+      }
+    }
     function block(b, x) {
       const sheet = PROP[b.kind], size = sheet && art(sheet, b.kind);
       if (size) return K.figure(sheet, x + b.w / 2, GY - b.base, b.kind, 0, b.kind.startsWith('car') && (b.x / 10 | 0) % 2 === 1, b.w / size[0]);   // some cars parked the other way round
@@ -809,6 +1056,18 @@
       if (k === 'pigeon') { const bob = Math.round(Math.abs(Math.sin(tt * 8 + p.x))) ; if (K.has('prague', 'pigeon')) K.figure('prague', x, y + 1 - bob, 'pigeon', tt, p.dir < 0, 0.36); else rect(x - 6, y - 12, 12, 12, '#8A8F9C'); return; }
       if (k === 'flyer') { if (K.has('prague', 'pigeonfly')) K.figure('prague', x, y + 9, 'pigeonfly', tt, p.dir < 0, 0.36); return; }
       if (k === 'crow') { if (K.has('strahov', 'crow')) K.figure('strahov', x, y + 9, 'crow', tt, p.dir > 0, 0.36); else rect(x - 7, y - 4, 14, 8, INK); return; }
+      if (k === 'ibis') {                                                                          // it turns to watch whoever comes close
+        const near = !out(who) && Math.abs(s.me.x - p.x) < 48 && Math.abs(s.me.y - p.y) < 30, face = near ? Math.sign(s.me.x - p.x) || 1 : p.dir;
+        const bob = p.x === L.foes[parseInt(p.id, 10)].x0 && !near ? 0 : Math.round(Math.abs(Math.sin(tt * 7 + p.x * 0.3)));
+        if (K.has('kerb', 'ibis')) K.figure('kerb', x, y + 1 - bob, 'ibis', 0, face > 0, 0.36); else rect(x - 7, y - 18, 14, 18, '#F2EEE6');
+        return;
+      }
+      if (k === 'magpie') {                                                                        // gliding; flapping hard before a dive, then down head first
+        const pose = p.dive !== undefined ? (p.dive < 0.5 ? 'magpie1' : 'magpie2') : p.warn !== undefined ? (Math.floor(tt * 14) % 2 ? 'magpie1' : 'magpie2') : 'magpie2';
+        if (K.has('kerb', pose)) K.figure('kerb', x, y + (pose === 'magpie1' ? 11 : 9), pose, 0, p.dir > 0, 0.36); else rect(x - 8, y - 4, 16, 8, INK);
+        if (p.warn !== undefined && Math.floor(tt * 8) % 2 === 0) { rect(x - 2, y - 24, 4, 9, INK); rect(x - 1, y - 23, 2, 7, '#CC2233'); rect(x - 2, y - 13, 4, 4, INK); rect(x - 1, y - 12, 2, 2, '#CC2233'); }   // "!"
+        return;
+      }
       if (k === 'cone') {
         ctx.save(); ctx.translate(x, y - 6); ctx.rotate(-p.spin);
         if (K.has('strahov', 'cone')) K.figure('strahov', 0, 7, 'cone', 0, false, 0.3); else rect(-5, -6, 10, 12, '#8C5A2B');
@@ -829,7 +1088,7 @@
       rect(x - w, y - 6, w * 2, 12, '#B8862A'); rect(x - w + 1, y - 5, Math.max(1, w * 2 - 2), 10, '#FFD43A'); if (w > 3) rect(x - 1, y - 3, 2, 6, '#E6B340');
     }
     function bubble(w, b, X, Y, tt) {
-      const x = X(b.x), y = Y(b.y), r = 13;
+      const x = X(b.x), y = Y(b.y), r = 13 + (w === who && tt - (s.wobble || -9) < 0.4 ? Math.round(Math.sin((tt - s.wobble) * 30) * 2) : 0);
       for (let a = 0; a < 40; a++) { const u = a / 40 * Math.PI * 2; rect(Math.round(x + Math.cos(u) * r), Math.round(y + Math.sin(u) * r), 1, 1, a % 5 ? '#BFE8FF' : '#FFFFFF'); }
       rect(x - 7, y - 9, 3, 2, '#FFFFFF');
       K.figure(w, x, y + 10, 'dizzy', tt, false, 0.3);

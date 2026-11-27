@@ -147,3 +147,24 @@ button{font:inherit;color:inherit}
   text-shadow:.08em .08em 0 var(--ink);animation:rise .8s steps(5) forwards}
 .card .stars{font-size:2em;line-height:1;color:var(--yellow);letter-spacing:.1em;text-shadow:.06em .06em 0 var(--ink);margin:-.2em 0 -.1em}
 .pin .st{display:block;font-size:.85em;line-height:1;color:#B8862A;letter-spacing:.05em}
+/* Nábytek: the list of furniture under the bar, grey until found, then in colour with a tick. The door asks for what is
+   missing by making it blink; a piece found flies up into its place, which pops; a full list gives a little wave. */
+.list{position:absolute;inset:2.75em 0 auto;margin:0 auto;width:fit-content;display:flex;gap:.2em;padding:.2em .3em;background:var(--paper);border:.17em solid var(--ink);pointer-events:none}
+.list i{position:relative;width:2.2em;height:1.8em;display:grid;place-items:end center}
+.list canvas{display:block;image-rendering:pixelated;image-rendering:crisp-edges;filter:grayscale(1) brightness(1.2) opacity(.4)}
+.list i.got canvas{filter:none}
+.list i.got::after{content:'✓';position:absolute;right:-.25em;bottom:-.3em;width:1.15em;height:1.15em;display:grid;place-items:center;font-size:.7em;font-weight:700;line-height:1;
+  color:var(--paper);background:var(--green);border:.15em solid var(--ink)}
+.list i.miss{animation:want .5s steps(2,jump-none) infinite}
+.list i.miss canvas{filter:grayscale(1) brightness(.6) opacity(.8)}
+@keyframes want{50%{background:var(--yellow);transform:translateY(-.2em)}}
+.list i.pop{animation:pop .35s ease-out}
+@keyframes pop{from{transform:scale(1.7)}}
+.list.all i{animation:hop .45s steps(3) both;animation-delay:calc(var(--n) * .07s)}
+@keyframes hop{50%{transform:translateY(-.5em)}}
+.flying{position:absolute;margin:0;pointer-events:none;transform-origin:0 0;z-index:3}
+.flying canvas{display:block;width:100%;height:100%;image-rendering:pixelated;image-rendering:crisp-edges}
+:root:not(.roomy) #ui:has(.list) .tip:not(.up){inset:5.75em 0 auto}
+#ui:has(.list) .plus{font-size:1.3em;text-shadow:.07em .07em 0 var(--ink),-.07em -.07em 0 var(--ink),.07em -.07em 0 var(--ink),-.07em .07em 0 var(--ink)}
+.lives.hit{animation:shake .45s steps(4)}
+@keyframes shake{25%{transform:translateX(-.3em)}75%{transform:translateX(.3em)}}
