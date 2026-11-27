@@ -1622,68 +1622,290 @@
   }
 
   // The beach: the waves wash up torn pieces of the message and the odd bottle; run along the sand to pick them up
-  // before the sea takes them back. Jellyfish wash up too: running into one stings. Each runs for themselves; what
-  // they pick up counts for both.
+  // before the sea takes them back. Every piece flies up into the torn note under the bar and fills in its letters.
+  // Jellyfish wash up too: they wobble and flash for a moment before they can sting, time enough to hop over or
+  // step aside. Halfway a big bottle comes in that takes both of them standing at it to lift (alone: stand at it and
+  // hold the button), with a big part of the note inside; in the last seconds the tide brings everything in faster.
+  // Each runs for themselves; what they pick up counts for both.
   function Collect(sc, place, sn) {
-    const cfg = sc.collect, who = me(), GY = sc.ground || GROUND, SPEED = 92, IY = GY - 4;
-    const items = Room.course.collect(sn.seed, sc);
-    const s = { t: 0, over: false, lost: false, me: { x: 60, to: null, y: 0, vy: 0 }, mate: { x: 130, to: null, y: 0, vy: 0 }, sent: 0, asked: new Set(), stungBy: new Set(), hurt: -9 };
+    const cfg = sc.collect, who = me(), them = mate(), GY = sc.ground || GROUND, SPEED = 92, IY = GY - 4, SEA = 188;   // SEA: where the water meets the sand
+    const { items, big, tide } = Room.course.collect(sn.seed, sc);
+    const IN = 0.4, WARN = 0.6, NEAR = 14;                  // a wave takes IN to bring a thing up the sand; a jellyfish then warns for WARN before it stings
+    const ROWS = (cfg.note || 'POMOC!').split('|'), LETTERS = ROWS.join('').replace(/ /g, '').length;
+    const COLOR = { ken: '#CC2233', kel: '#F0448F' }, SIZE = { bottle: 0.42, paper: 0.5, jelly: 0.46 };
+    const body = (x) => ({ x, to: null, y: 0, vy: 0, face: false, dir: 0 });
+    const s = { t: clock(sn), over: false, lost: false, won: false, me: body(60), mate: body(130), sent: 0, asked: new Set(), stungBy: new Set(), hurt: -9, safe: -9, mateHurt: -9,
+      fx: [], flies: [], mark: null, buffer: -9, hold: 0, holding: false, near: false, lift: null, liftFx: false, cork: false, tipText: '', tipUntil: 6, hearts: -1, shown: 0, endIn: 0, told: {}, tick: 0, label: 'Skok' };
     let live = sn;
-    const view = stage('<span class="lives"></span><span class="count"></span><span class="meter time"><i></i></span>', 'Sbírej kousky vzkazu. Medúzu přeskoč!');
-    const runTo = (x) => { if (s.over || s.t < 0) return; s.me.to = clamp(x, 10, W - 10); Net.send({ type: 'fx', k: 'walk', x: s.me.to }); };
-    const hop = () => { if (s.over || s.t < 0 || s.me.y > 0) return; s.me.vy = 170; beep(520); Net.send({ type: 'fx', k: 'hop' }); };
-    pad([{ id: 'left', side: 'left', press: () => runTo(10), release: () => runTo(s.me.x) }, { id: 'right', side: 'left', press: () => runTo(W - 10), release: () => runTo(s.me.x) },
-      { id: 'jump', label: 'Skok', big: true, press: hop }]);
-    const out = (it) => s.t >= it.at && s.t < it.at + cfg.stay;
+    const view = stage('<span class="lives"></span><span class="meter time"><i></i></span>', 'Sbírej kousky vzkazu. Medúzu přeskoč!');
+    s.tipText = view.tip.textContent;
+    // the torn note, in place of a count: an empty line for every letter, filled in as the pieces come
+    view.hud.insertAdjacentHTML('beforeend', `<div class="note" aria-label="Vzkaz"><div>${ROWS.map((row) => `<p>${[...row].map((c) => (c === ' ' ? '<i></i>' : `<b>${esc(c)}</b>`)).join('')}</p>`).join('')}</div></div>`);
+    const note = view.hud.lastElementChild, cells = [...note.querySelectorAll('b')];
+    const solo = () => !live.two;
+    const out = (it) => s.t >= it.at && s.t < it.at + it.stay;
     const taken = (it) => live.got.includes(it.id) || s.asked.has(it.id);
-    const paint = () => {
-      hearts(view.hud.children[0], live.lives, sn.lives);
-      view.hud.children[1].textContent = `${live.got.length} / ${live.need}`;
-      view.hud.children[2].firstElementChild.style.width = clamp(1 - s.t / cfg.seconds, 0, 1) * 100 + '%';
+    const lifted = () => !!live.lifted || s.lift !== null;
+    const bigOut = () => !!big && !lifted() && s.t >= big.at + 0.7 && s.t < big.at + big.stay;
+    const say = (text, secs) => { s.tipText = text; s.tipUntil = s.t + secs; };
+    // Where on the picture the next empty letter of the note is, for a piece to fly to.
+    const slot = () => {
+      const r = cells[Math.min(s.shown, cells.length - 1)].getBoundingClientRect(), box = ctx.canvas.getBoundingClientRect();
+      return { x: ((r.left + r.width / 2 - box.left) / box.width) * W, y: ((r.top + r.height / 2 - box.top) / box.height) * H };
     };
+    const burst = (x, y, n, colors, speed) => {
+      for (let i = 0; i < n; i++) { const a = (i / n) * Math.PI * 2 + Math.random() * 0.6, v = speed * (0.6 + Math.random() * 0.6); s.fx.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v * 0.8 - speed * 0.5, at: s.t, life: 0.4 + Math.random() * 0.25, c: colors[i % colors.length], w: i % 3 ? 1 : 2 }); }
+    };
+    const puff = (x, y, flip) => s.fx.push({ puff: true, x, y, flip, at: s.t, life: 0.3 });
+    // A piece picked up: a sparkle and +1 where it lay, and it flies up into the note. The other one's sound softer.
+    function gotIt(it, mine) {
+      burst(it.x, IY - 4, mine ? 10 : 6, mine ? ['#FFD43A', '#FFF1A8', '#FFFFFF'] : [COLOR[them], '#FFF1A8'], mine ? 70 : 50);
+      s.fx.push({ star: true, x: it.x, y: IY + 4, at: s.t, life: 0.14 });
+      s.flies.push({ kind: it.kind, x: it.x, y: IY, to: slot(), at: s.t });
+      plus('+1', it.x, IY - 30, mine ? undefined : COLOR[them]);
+      if (mine) beep(660, 880); else beep(784);
+    }
+    // Stung: knocked back with a little bounce, dizzy for a moment, and safe from the next one for a second.
+    function stung(it) {
+      s.stungBy.add(it.id); s.hurt = s.t; s.safe = s.t + 1.2;
+      runTo(s.me.x + (s.me.x < it.x ? -16 : 16)); s.me.vy = 110;
+      burst(it.x, IY - 6, 10, ['#B58CF0', '#E6D8FF', '#FFFFFF'], 70); s.fx.push({ star: true, x: s.me.x, y: GY - 6, at: s.t, life: 0.16 });
+      plus('Au!', s.me.x, GY - 30, '#FF6B7A'); beep(200, 150); say('Au! Medúzu přeskoč.', 2);
+      Net.send({ type: 'ev', e: 'sting', id: it.id });
+    }
+    const runTo = (x) => { if (s.over) return; s.me.to = clamp(x, 10, W - 10); Net.send({ type: 'fx', k: 'walk', x: s.me.to }); };
+    const hop = () => {
+      if (s.over) return;
+      if (s.me.y > 0) { s.buffer = s.t; return; }                       // still in the air: it hops again the moment it lands
+      s.me.vy = 170; beep(520); puff(s.me.x, GY + 6, s.me.face); Net.send({ type: 'fx', k: 'hop' });
+    };
+    // The big button hops; alone at the big bottle it is Zvedni, held down for a second.
+    const press = () => { if (s.over) return; if (solo() && s.near) { s.holding = true; beep(330); } else hop(); };
+    const letGo = () => { if (s.holding && s.hold < 0.9) say('Drž déle!', 1.5); s.holding = false; };
+    const keys = pad([{ id: 'left', side: 'left', press: () => runTo(10), release: () => runTo(s.me.x) }, { id: 'right', side: 'left', press: () => runTo(W - 10), release: () => runTo(s.me.x) },
+      { id: 'jump', label: 'Skok', big: true, press, release: letGo }]);
+    const paint = () => {
+      const lv = view.hud.children[0], meter = view.hud.children[1];
+      if (live.lives !== s.hearts) {                                     // a heart lost blinks as it goes
+        const lost = s.hearts > live.lives; hearts(lv, live.lives, live.maxLives || sn.lives); s.hearts = live.lives;
+        if (lost && lv.children[live.lives]) lv.children[live.lives].classList.add('lost');
+      }
+      meter.classList.toggle('tide', s.t >= tide && !s.over);
+      meter.firstElementChild.style.width = clamp(1 - s.t / cfg.seconds, 0, 1) * 100 + '%';
+      // the note: what the room has counted, and straight away what this phone has just picked up
+      const pending = [...s.asked].filter((id) => !live.got.includes(id)).length + (s.lift !== null && !live.lifted ? live.bigPart : 0);
+      const have = Math.min(live.need, live.have + pending), n = have >= live.need ? LETTERS : Math.min(LETTERS - 1, Math.round((LETTERS * have) / live.need));
+      if (n === s.shown) return;
+      cells.forEach((c, i) => {
+        if (i < n && !c.classList.contains('on')) { c.style.animationDelay = `${0.3 + Math.max(0, i - s.shown) * 0.06}s`; c.classList.add('on'); }   // after the piece has flown up
+        else if (i >= n) c.classList.remove('on');
+      });
+      s.shown = n; note.classList.toggle('full', n >= LETTERS);
+    };
+    const finish = () => view.end(s.won, s.won ? 'Celý vzkaz!' : live.lives <= 0 ? 'Au, medúzy!' : 'Moře bylo rychlejší.',
+      s.won ? (cfg.won || 'Kousky do sebe zapadly.') : `Máte ${live.have} z ${live.need} kousků. Zkuste to ještě jednou.`);
     paint();
+
+    // A wave's tongue of water and froth, from the sea down to y.
+    function foam(x, y, a) {
+      if (a <= 0) return;
+      ctx.save(); ctx.globalAlpha = clamp(a, 0, 1);
+      rect(x - 12, y - 7, 24, 5, 'rgba(150,224,236,.5)');                // a thin sheet of water
+      rect(x - 13, y - 2, 26, 2, '#FFFFFF');                              // and its frothy edge
+      for (let k = 0; k < 7; k++) rect(x - 12 + k * 4, y - 3 + (k % 2) * 3, 2, 1, '#FFFFFF');
+      ctx.restore();
+    }
+    // An arrow pointing down at something to go to, and a warning sign.
+    function arrow(x, y) {
+      x = Math.round(x); y = Math.round(y);
+      rect(x - 2, y - 5, 5, 5, INK); rect(x - 1, y - 5, 3, 5, '#FFD43A');
+      for (let k = 0; k < 6; k++) rect(x - 5 + k, y + k, 11 - k * 2, 1, INK);
+      for (let k = 0; k < 4; k++) rect(x - 4 + k, y + k, 9 - k * 2, 1, '#FFD43A');
+    }
+    function bang(x, y) {
+      x = Math.round(x); y = Math.round(y);
+      rect(x - 2, y, 4, 7, INK); rect(x - 1, y + 1, 2, 5, '#FFD43A');
+      rect(x - 2, y + 8, 4, 4, INK); rect(x - 1, y + 9, 2, 2, '#FFD43A');
+    }
+    function drawItem(it) {
+      const jelly = it.kind === 'jelly';
+      if (!out(it) || (!jelly && taken(it))) return;
+      const u = s.t - it.at, left = it.at + it.stay - s.t, size = SIZE[it.kind];
+      let x = it.x, y = IY + 2;
+      if (u < IN) { y = Math.round(SEA + (IY + 2 - SEA) * (1 - (1 - u / IN) ** 2)); foam(x, y + 1, 1); }          // a wave carries it up the sand
+      else if (left < 0.4) { y = Math.round(IY + 2 - (IY + 2 - SEA) * (1 - left / 0.4) ** 2); foam(x, y + 1, 1); }  // and takes it back
+      else {
+        if (u < IN + 0.35) foam(x, IY + 3 - Math.round(((u - IN) / 0.35) * 8), 1 - (u - IN) / 0.35);                 // the water running back off it
+        rect(x - 11, IY, 22, 3, jelly ? 'rgba(142,91,200,.28)' : 'rgba(176,132,72,.45)'); rect(x - 8, IY + 3, 16, 1, jelly ? 'rgba(142,91,200,.2)' : 'rgba(176,132,72,.35)');
+        if (!jelly && left < 1.2 && Math.floor(s.t * 8) % 2) return;                                                  // about to be taken back: it blinks
+      }
+      const warn = jelly && u >= IN && u < IN + WARN;                     // just washed up: it wobbles and flashes, not stinging yet
+      if (warn) x += Math.round(Math.sin(s.t * 40));
+      const bob = jelly && !warn && u >= IN ? Math.round(Math.abs(Math.sin(s.t * 4 + it.id))) : 0;
+      if (!K.has('beach', it.kind)) rect(x - 4, y - 6, 8, 6, jelly ? '#8E5BC8' : '#FFF8E7');
+      else {
+        K.figure('beach', x, y - bob, it.kind, 0, it.id % 2 === 1, size);
+        if (warn && Math.floor(s.t * 10) % 2) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; K.figure('beach', x, y - bob, it.kind, 0, it.id % 2 === 1, size); ctx.restore(); }
+      }
+      if (warn) bang(x, y - 34 - Math.round(Math.abs(Math.sin(s.t * 9)) * 2));
+      if (!jelly && u >= IN && (s.t * 0.8 + it.id * 0.37) % 1 < 0.1) { const gx = x + 5, gy = y - 12; rect(gx - 1, gy, 3, 1, '#FFFFFF'); rect(gx, gy - 1, 1, 3, '#FFFFFF'); }   // a glint: something to pick up
+    }
+    // The big bottle: washed up behind the heroes; once lifted, held up in front of them while the note flies out.
+    function drawBig(front) {
+      if (!big || s.t < big.at) return;
+      const u = s.t - big.at, left = big.at + big.stay - s.t, v = s.lift === null ? -1 : s.t - s.lift;
+      if ((v >= 0) !== front || v >= 1.4) return;
+      let x = big.x, y = IY + 5;
+      if (v >= 0) {                                                       // a dip, then up it goes, then it fades
+        y -= v < 0.12 ? -1 : Math.round(40 * (1 - (1 - clamp((v - 0.12) / 0.45, 0, 1)) ** 3)) + (v > 0.6 ? Math.round(Math.sin(v * 10)) : 0);
+        if (v > 1.0 && Math.floor(v * 12) % 2) return;
+      } else if (left <= 0) return;
+      else if (u < 0.7) { y = Math.round(SEA + (y - SEA) * (1 - (1 - u / 0.7) ** 2)); foam(x - 8, y, 1); foam(x + 8, y, 1); }
+      else if (left < 0.6) { y = Math.round(y - (y - SEA) * (1 - left / 0.6) ** 2); foam(x - 8, y, 1); foam(x + 8, y, 1); }
+      else {
+        rect(x - 20, IY + 1, 40, 4, 'rgba(176,132,72,.45)');
+        if (s.hold > 0 || (s.near && !solo())) x += Math.round(Math.sin(s.t * 50) * (s.hold > 0.5 ? 2 : 1));     // straining at it
+      }
+      if (!(v < 0 && left < 2 && left >= 0.6 && Math.floor(s.t * 6) % 2)) K.figure('beach', x, y, 'bottle', 0, false, 0.66);   // blinking: it is about to float away
+    }
+    // Over the heroes' heads: what the bottle needs, and an arrow to it for whoever is not there yet.
+    function bigMarks() {
+      if (!bigOut()) return;
+      const top = IY - 52, bob = Math.round(Math.abs(Math.sin(s.t * 5)) * 3);
+      if (solo()) {                                                       // alone, standing at it: a bar that fills while the button is held
+        if (s.near || s.hold > 0) { rect(big.x - 12, top, 24, 6, INK); rect(big.x - 11, top + 1, Math.round(22 * clamp(s.hold, 0, 1)), 4, '#FFD43A'); }
+      } else ['ken', 'kel'].forEach((w, i) => {                          // with two: a place for each of them, lit when they stand there
+        const here = w === who ? s.near : !!(live.at && live.at[w]), sx = big.x - 9 + i * 12;
+        rect(sx - 1, top - 1, 8, 8, INK); rect(sx, top, 6, 6, here ? COLOR[w] : Math.floor(s.t * 3) % 2 ? '#FFF8E7' : '#D8CFC4');
+      });
+      if (!s.near) arrow(big.x, top - 14 + bob);
+    }
+    function tideWater() {                                                // the tide creeps up the sand and sloshes there
+      const y = SEA + Math.round(10 * clamp((s.t - tide + 1) / 2, 0, 1) + Math.sin(s.t * 2.4) * 2);
+      rect(0, SEA - 4, W, y - SEA + 4, 'rgba(64,190,214,.5)');
+      for (let x = 0; x < W; x += 4) rect(x + (Math.floor(s.t * 5) % 2) * 2, y - 2 + ((x / 4) % 2), 2, 2, '#FFFFFF');
+    }
+
     return {
-      s, kind: 'collect', peek: () => ({ me: s.me.x, items: items.filter((it) => out(it) && !taken(it)).map((it) => ({ id: it.id, x: it.x, kind: it.kind, left: it.at + cfg.stay - s.t })) }),
-      sync(n) { live = n; paint(); },
+      s, kind: 'collect',
+      peek: () => ({ me: s.me.x, y: s.me.y, two: !!live.two, near: s.near, hold: s.hold, lifted: lifted(), big: bigOut() ? { x: big.x, left: big.at + big.stay - s.t } : null,
+        items: items.filter((it) => out(it) && !taken(it)).map((it) => ({ id: it.id, x: it.x, kind: it.kind, left: it.at + it.stay - s.t })) }),
+      sync(n) {
+        const was = live; live = n;
+        for (const id of n.got) if (!was.got.includes(id) && !s.asked.has(id) && items[id]) gotIt(items[id], false);      // the other one picked it up
+        for (const k of n.stung) if (!was.stung.includes(k) && k.endsWith(':' + them)) { s.mateHurt = s.t; burst(s.mate.x, GY - 10, 6, ['#B58CF0', '#FFFFFF'], 50); beep(220, 180); }
+        if (n.at && n.at[them] && !(was.at && was.at[them]) && bigOut()) { beep(587, 784); s.tipUntil = 0; }                                // the other one is at the bottle
+        paint();
+      },
       fx(m) { if (m.k === 'walk') s.mate.to = m.x; if (m.k === 'hop' && s.mate.y <= 0) s.mate.vy = 170; },
-      over(won) { s.over = true; s.lost = !won; paint(); view.end(won, won ? 'Celý vzkaz!' : live.lives <= 0 ? 'Au, medúzy!' : 'Moře bylo rychlejší.', won ? (cfg.won || 'Kousky do sebe zapadly.') : `Máte ${live.got.length} z ${live.need}. Zkuste to ještě jednou.`); },
-      down(x, y) { if (s.over || s.t < 0 || y < 22) return; runTo(x); },
-      move(x, y) { if (y >= 22) runTo(x); },                              // or follow a finger dragged along the sand
+      over(won) {
+        s.over = true; s.won = won; s.lost = !won; s.holding = false; paint();
+        if (won && !(s.lift !== null && s.t - s.lift < 1)) { cheer('Hurá!'); beep(880, 1175); }   // (not over the bottle's own cheer)
+        view.tip.textContent = '';
+        s.endIn = won ? 1.6 : 1;                                          // a moment to see it, then the card
+      },
+      down(x, y) {
+        if (s.over || y < 22) return;
+        if (solo() && s.near && Math.abs(x - big.x) < 20 && y > IY - 36 && y < IY + 14) { s.holding = true; beep(330); return; }   // holding the bottle itself works too
+        s.mark = { x: clamp(x, 10, W - 10), at: s.t }; runTo(x);
+      },
+      move(x, y) { if (y >= 22 && !s.holding) runTo(x); },                // or follow a finger dragged along the sand
+      tap() { letGo(); },
       update(dt) {
-        if (s.over) return;
         s.t = clock(live);
+        s.fx = s.fx.filter((p) => s.t - p.at < p.life);
+        for (const p of s.fx) if (p.vx !== undefined) { p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 260 * dt; }
+        s.flies = s.flies.filter((f) => s.t - f.at < 0.35);
+        if (s.endIn > 0 && (s.endIn -= dt) <= 0) finish();
         for (const b of [s.me, s.mate]) {
-          if (b.vy !== 0 || b.y > 0) { b.y += b.vy * dt; b.vy -= 560 * dt; if (b.y <= 0) { b.y = 0; b.vy = 0; } }
+          if (b.vy !== 0 || b.y > 0) {
+            b.y += b.vy * dt; b.vy -= 560 * dt;
+            if (b.y <= 0) { b.y = 0; b.vy = 0; puff(b.x, GY + 6, b.face); if (b === s.me && s.t - s.buffer < 0.3) { s.buffer = -9; hop(); } }
+          }
+          const dir = b.to === null ? 0 : Math.sign(b.to - b.x);
+          if (dir && dir !== b.dir && b.y === 0) puff(b.x - dir * 6, GY + 6, dir > 0);     // a kick of sand when starting off or turning round
+          b.dir = dir; if (dir) b.face = dir < 0;
           if (b.to === null) continue;
           const d = b.to - b.x, step = SPEED * dt;
           if (Math.abs(d) <= step) { b.x = b.to; b.to = null; } else b.x += Math.sign(d) * step;
         }
+        if (s.over) return;
+        // the big bottle: standing at it, holding it up alone, or both of them there
+        const near = bigOut() && Math.abs(s.me.x - big.x) <= NEAR;
+        if (near !== s.near) {
+          s.near = near;
+          if (!solo()) Net.send({ type: 'ev', e: 'at', id: 'big', on: near });
+          if (near && !solo() && live.at && live.at[them]) s.lift = s.t;   // the other one is there already: up it comes, at once
+          if (near) { beep(523, 659); s.tipUntil = 0; }                     // what the bottle needs now, in place of any passing word
+        }
+        if (s.holding && !near) s.holding = false;
+        if (s.holding) {
+          const before = Math.floor(s.hold * 4); s.hold += dt;
+          if (Math.floor(s.hold * 4) > before) beep(300 + before * 90);
+          if (s.hold >= 1) { s.holding = false; s.lift = s.t; Net.send({ type: 'ev', e: 'lift', id: 'big' }); }
+        } else if (s.hold > 0) s.hold = Math.max(0, s.hold - dt * 2);
+        if (s.lift !== null && !live.lifted && s.t - s.lift > 1.5) { s.lift = null; s.liftFx = false; s.cork = false; }   // the room did not see them both there after all
+        if (lifted() && !s.liftFx) {
+          s.liftFx = true; s.hold = 0; if (s.lift === null) s.lift = s.t;
+          cheer('Hej rup!'); beep(523, 659, 784, 1046); plus('+' + live.bigPart, big.x, IY - 62);
+          burst(big.x, IY - 8, 14, ['#FFD43A', '#FFF1A8', '#7CE07C'], 90);
+        }
+        if (s.lift !== null && !s.cork && s.t - s.lift > 0.5) {         // the cork pops and the note inside flies up
+          s.cork = true; beep(880, 1320);
+          s.fx.push({ x: big.x + 14, y: IY - 48, vx: 50, vy: -120, at: s.t, life: 0.7, c: '#B98850', w: 2 });
+          s.flies.push({ kind: 'paper', x: big.x, y: IY - 44, to: slot(), at: s.t });
+        }
+        if (big && !s.told.big && s.t >= big.at + 0.7) { s.told.big = true; beep(392, 523, 659); if (!s.near) say(solo() ? 'Velká láhev! Běž k ní.' : 'Velká láhev! Musíte k ní oba.', 3); }
+        if (big && !s.told.gone && !lifted() && s.t >= big.at + big.stay) { s.told.gone = true; beep(330, 220); say('Láhev odplavala.', 2); }
+        if (!s.told.tide && s.t >= tide) { s.told.tide = true; cheer('Příliv!'); beep(392, 523, 392, 523); say('Příliv! Rychle sbírej!', 3); }
+        const end = Math.ceil(cfg.seconds - s.t); if (end <= 5 && end > 0 && end !== s.tick) { s.tick = end; beep(end === 1 ? 660 : 440); }   // the last seconds tick away
         for (const it of items) {
           if (!out(it) || Math.abs(it.x - s.me.x) > 8) continue;
-          if (it.kind === 'jelly') {                                     // it stings once it has washed up and is plain to see, unless hopped over
-            if (s.t - it.at > 0.6 && s.me.y < 6 && !s.stungBy.has(it.id)) { s.stungBy.add(it.id); s.hurt = s.t; beep(200, 150); Net.send({ type: 'ev', e: 'sting', id: it.id }); }
-          }
-          else if (!taken(it)) { s.asked.add(it.id); beep(660, 880); Net.send({ type: 'ev', e: 'grab', id: it.id }); }
+          const u = s.t - it.at;
+          if (it.kind === 'jelly') { if (u >= IN + WARN && s.me.y < 6 && !s.stungBy.has(it.id) && s.t > s.safe) stung(it); }   // unless hopped over
+          else if (!taken(it) && u > IN * 0.6) { s.asked.add(it.id); gotIt(it, true); Net.send({ type: 'ev', e: 'grab', id: it.id }); }
         }
         if (s.t >= cfg.seconds && Net.now() - s.sent > 1000) { s.sent = Net.now(); Net.send({ type: 'ev', e: 'finish' }); }
+        // a word when something happens, or what the bottle needs right now
+        let tip = s.t < s.tipUntil ? s.tipText : '';
+        if (!tip && bigOut()) {
+          const mateAt = !!(live.at && live.at[them]);
+          if (solo()) tip = s.near ? 'Drž tlačítko Zvedni!' : '';
+          else if (s.near && !mateAt) tip = `Počkej na ${heroName(them)}${them === 'ken' ? 'a' : ''}.`;
+          else if (!s.near && mateAt) tip = `${heroName(them)} čeká u láhve!`;
+        }
+        if (view.tip.textContent !== tip) view.tip.textContent = tip;
+        const label = solo() && s.near ? 'Zvedni' : 'Skok';
+        if (label !== s.label) { s.label = label; keys.label('jump', label); keys.mark('jump', label === 'Zvedni'); }
         paint();
       },
       draw() {
         K.background(sc.bg, 0, place.look);
-        for (const it of items) {
-          if (!out(it) || taken(it)) continue;
-          const u = s.t - it.at, left = it.at + cfg.stay - s.t;
-          if (u < 0.35) { const w = Math.round(28 * (u / 0.35)); rect(it.x - w / 2, IY - 3, w, 3, '#FFFFFF'); continue; }   // a wave brings it in
-          if (left < 0.8 && Math.floor(s.t * 10) % 2) continue;                                // about to be taken back
-          rect(it.x - 11, IY, 22, 3, 'rgba(176,132,72,.45)'); rect(it.x - 8, IY + 3, 16, 1, 'rgba(176,132,72,.35)');   // a patch of wet sand
-          if (K.has('beach', it.kind)) K.figure('beach', it.x, IY + 2 - (it.kind === 'jelly' ? Math.round(Math.abs(Math.sin(s.t * 4 + it.id))) : 0), it.kind, 0, it.id % 2 === 1, { bottle: 0.42, paper: 0.5, jelly: 0.46 }[it.kind]);
-          else rect(it.x - 4, IY - 6, 8, 6, it.kind === 'jelly' ? '#8E5BC8' : '#FFF8E7');
+        if (s.t > tide - 1) tideWater();
+        for (const it of items) drawItem(it);
+        drawBig(false);
+        if (s.mark && s.t - s.mark.at < 0.35) {                           // where a tap sends the hero: corners closing in
+          const d = 2 + Math.round(5 * (1 - (s.t - s.mark.at) / 0.35)), x = Math.round(s.mark.x), y = GY + 4;
+          for (const sx of [-1, 1]) for (const sy of [-1, 1]) { rect(x + sx * d - (sx > 0 ? 1 : 0), y + sy * Math.ceil(d / 2), 2, 1, '#FFFFFF'); }
         }
-        const pose = (b) => (b.to !== null ? 'run' : 'stand'), flip = (b) => b.to !== null && b.to < b.x;
-        const pose2 = (b) => (b.y > 0 ? 'jump' : pose(b));
-        if (mateHere()) K.hero(mate(), s.mate.x, GY + 4 - s.mate.y, pose2(s.mate), s.t + 0.3, flip(s.mate));
-        const stung = s.t - s.hurt < 0.8;                                  // stung: dizzy for a moment, blinking
-        if (!stung || Math.floor(s.t * 12) % 2) K.hero(who, s.me.x, GY + 6 - s.me.y, s.lost || stung ? 'dizzy' : pose2(s.me), s.t, flip(s.me));
+        const heave = s.lift !== null && s.t - s.lift < 1.3;
+        const pose = (b) => (s.over && s.won) || (heave && Math.abs(b.x - big.x) <= NEAR + 4) ? 'cheer' : b.y > 0 ? 'jump' : b.to !== null ? 'run' : 'stand';
+        if (mateHere()) { const hurt = s.t - s.mateHurt < 0.8; if (!hurt || Math.floor(s.t * 12) % 2) K.hero(them, s.mate.x, GY + 4 - s.mate.y, hurt ? 'dizzy' : pose(s.mate), s.t + 0.3, s.mate.face); }
+        const hurt = s.t - s.hurt < 0.8;                                   // stung: dizzy for a moment, blinking
+        if (!hurt || Math.floor(s.t * 12) % 2) K.hero(who, s.me.x, GY + 6 - s.me.y, hurt || (s.lost && live.lives <= 0) ? 'dizzy' : pose(s.me), s.t, s.me.face);
+        drawBig(true); bigMarks();
+        const first = !s.asked.size && !live.got.length && items.find((it) => it.kind !== 'jelly' && out(it) && s.t - it.at >= IN);
+        if (first) arrow(first.x, IY - 30 + Math.round(Math.abs(Math.sin(s.t * 5)) * 3));   // the very first piece: this is what to pick up
+        for (const p of s.fx) {
+          const u = (s.t - p.at) / p.life;
+          if (p.puff) { if (K.has('things', 'fluff')) { ctx.save(); ctx.globalAlpha = 1 - u; K.figure('things', p.x, p.y, 'fluff', 0, p.flip, 0.2 + u * 0.12); ctx.restore(); } }
+          else if (p.star) { if (K.has('things', 'flash')) K.figure('things', p.x, p.y, 'flash', 0, false, 0.5); }
+          else if (u < 0.7 || Math.floor(s.t * 20) % 2) rect(p.x, p.y, p.w, p.w, p.c);
+        }
+        for (const f of s.flies) {                                         // pieces on their way up into the note
+          const u = clamp((s.t - f.at) / 0.35, 0, 1), e = u * u;
+          K.figure('beach', f.x + (f.to.x - f.x) * e, f.y + (f.to.y - f.y) * e - Math.sin(u * Math.PI) * 14 + 6, f.kind, 0, false, SIZE[f.kind] * (1 - u * 0.5));
+        }
       },
     };
   }
