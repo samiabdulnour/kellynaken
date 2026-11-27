@@ -179,3 +179,12 @@ button{font:inherit;color:inherit}
   clip-path:polygon(30% 0,70% 0,100% 30%,100% 70%,70% 100%,30% 100%,0 70%,0 30%)}
 .sky i.moon{background:var(--paper)}
 .sky.late i{animation:blink .5s steps(2,jump-none) infinite}
+/* The tower: the tip sits low, clear of the crane at the top; the hook's button shakes when it cannot do that now;
+   the hearts pop when a perfect landing gives one back; the meter shows the flags (red once reached). */
+.tip.low{inset:auto 0 1em}
+:root:not(.roomy) #ui:has(.pad) .tip.low{inset:auto 0 7.5em}
+.key.no{animation:shake .35s steps(4)}
+.lives.gain{animation:pop .35s ease-out}
+.meter.flags{position:relative}
+.meter.flags b{position:absolute;top:-.25em;width:.25em;height:1.25em;margin-left:-.125em;background:var(--paper)}
+.meter.flags b.on{background:var(--red)}

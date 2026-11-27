@@ -107,11 +107,14 @@
       return list;
     },
     // Sami's tower gets harder as it grows; n is how many storeys already stand on the lobby. The storey on the hook
-    // swings further and faster, from the eighth storey the wind pushes it slowly to one side and back (the crane has
-    // to lean against it), and it has to land ever closer to the middle of the one below.
-    sway(t, n) { return (4 + n * 1.5) * Math.sin(t * (1.4 + n * 0.08)) + course.wind(t, n); },
-    wind(t, n) { return n >= 7 ? (n - 6) * 2.4 * Math.sin(t * 0.35 + 1) : 0; },
-    slack(base, n) { return Math.max(8, base - n * 0.5); },
+    // swings further (and a little faster), from the ninth storey the wind pushes it slowly to one side and back (the
+    // crane has to lean against it), and it has to land ever closer to the middle of the one below. `amp` (0 to 1) is
+    // how hard it swings just now: driving the crane makes it swing, standing still calms it (game.js); the phase
+    // comes from the shared clock, so both phones see it swing alike.
+    swing(n) { return { a: 5 + n * 1.1, w: 1.5 + n * 0.04 }; },
+    sway(t, n, amp = 1) { const g = course.swing(n); return amp * g.a * Math.sin(t * g.w) + course.wind(t, n); },
+    wind(t, n) { return n >= 8 ? (n - 7) * 1.6 * Math.sin(t * 0.35 + 1) : 0; },
+    slack(base, n) { return Math.max(9, base - n * 0.4); },
     // Padlocks: on the picture's spots, never two on one spot at the same time (or anywhere, for a picture without spots).
     shoot(seed, sc, every) {
       const r = rng(seed), targets = [], spots = sc.shoot.spots, stay = sc.shoot.stay;
@@ -199,7 +202,8 @@
       if (sc.play === 'find') Object.assign(sn, { found: [], need: sc.find.need });
       if (sc.play === 'memory') { const first = two ? (Math.random() < 0.5 ? 'ken' : 'kel') : null; Object.assign(sn, { deck: course.memory(sn.seed, sc), open: [], done: [], misses: 0, maxMiss: sc.memory.miss + (two ? 2 : 0), first, turn: first, hideAt: 0 }); }
       if (sc.play === 'collect') Object.assign(sn, { got: [], stung: [], need: Math.round(sc.collect.need * (two ? 1.5 : 1)), lives: two ? 4 : 3 });
-      if (sc.play === 'tower') Object.assign(sn, { floors: [96], crane: 96, need: Math.round(sc.tower.need * (two ? 1.3 : 1)), lives: two ? 5 : 4, n: 0, last: null, busyUntil: 0, endAt: 0, endPhase: null, holding: false, lifts: 0 });
+      // the tower: two build a little higher (`two`), and a flag every `check` storeys is where a lost game goes on from (see 'retry')
+      if (sc.play === 'tower') Object.assign(sn, { floors: [96], crane: 96, need: two ? sc.tower.two || sc.tower.need : sc.tower.need, lives: two ? 5 : 4, n: 0, last: null, busyUntil: 0, endAt: 0, endPhase: null, holding: false, lifts: 0, check: 0, from: 0 });
       if (sc.play === 'rescue') Object.assign(sn, { stage: 'throw', hits: 0, needHits: sc.rescue.hits * (two ? 2 : 1), lives: two ? 4 : 3, pull: 0, needPull: Math.round(sc.rescue.pull * (two ? 2 : 1)), pullAt: 0 });
       if (sc.play === 'salon') Object.assign(sn, { lives: two ? 4 : 3, need: Math.round(sc.salon.need * (two ? 1.6 : 1)), served: 0, coins: 0, cust: [], next: 0, tt: 0, workers: { ken: null, kel: null } });
       // the flat: every piece in the heap, nobody holding anything; two get a fifth more time before night
@@ -302,6 +306,7 @@
       if (k === 'find') { const u = (now() - sn.startAt) / 1000 / sc.find.seconds; return u <= 0.6 ? 3 : u <= 0.85 ? 2 : 1; }
       if (k === 'drums') { const r = sn.hits / Math.max(1, sn.need); return r >= 1.25 ? 3 : r >= 1.1 ? 2 : 1; }
       if (k === 'flat') { const u = ((sn.wonAt || now()) - sn.startAt) / 1000 / sn.seconds; return u <= 0.5 ? 3 : u <= 0.8 ? 2 : 1; }   // how much daylight was left
+      if (k === 'tower' && sn.from) return Math.min(2, by(sn.maxLives - sn.lives, Math.floor(sn.maxLives / 2)));   // built on from a flag: not all of it cleanly
       if (sn.maxLives) return by(sn.maxLives - sn.lives, Math.floor(sn.maxLives / 2));
       return 3;
     }
@@ -399,9 +404,12 @@
           // where the storey hung when she let it go, as her phone saw it (the room hears the crane only now and then)
           const t = (now() - sn.startAt) / 1000, seen = +m.x, hook = Number.isFinite(seen) ? clamp(seen, 0, 192) : sn.crane + course.sway(t, sn.floors.length - 1), off = hook - sn.floors[sn.floors.length - 1];
           const ok = Math.abs(off) <= course.slack(sc.tower.slack, sn.floors.length - 1);
-          sn.last = { n: ++sn.n, x: hook, ok, perfect: Math.abs(off) <= 2.5 };
+          sn.last = { n: ++sn.n, x: hook, x0: Number.isFinite(+m.x0) ? clamp(+m.x0, 0, 192) : hook, ok, perfect: ok && Math.abs(off) <= 2.5 };   // x0: where it hung when let go
           if (ok) sn.floors.push(hook); else sn.lives--;
-          sn.busyUntil = now() + 1100;
+          if (sn.last.perfect && sn.lives < sn.maxLives) { sn.lives++; sn.last.back = true; }      // a perfect landing gives a lost heart back
+          const every = sc.tower.check || 5, built = sn.floors.length - 1;
+          if (ok && built % every === 0 && built < sn.need - 1) sn.check = built;              // a flag: a lost game goes on from here
+          sn.busyUntil = now() + 700;                                                    // while it falls
           if (sn.floors.length >= sn.need) { sn.endAt = now() + 1000; sn.endPhase = 'won'; }
           else if (sn.lives <= 0) { sn.endAt = now() + 1000; sn.endPhase = 'lost'; }
         }
@@ -486,7 +494,10 @@
       else if (m.type === 'done' && sn && sn.phase === 'stub') complete();
       else if (m.type === 'ev') event(who, m);
       else if (m.type === 'cont' && sn && sn.phase === 'won') complete();
-      else if (m.type === 'retry' && sn && sn.phase === 'lost') start(sn.index, true);
+      else if (m.type === 'retry' && sn && sn.phase === 'lost') {
+        start(sn.index, true);
+        if (sn.check) Object.assign(S.scene, { floors: sn.floors.slice(0, sn.check + 1), check: sn.check, from: sn.check });   // the tower: on from its last flag
+      }
       push();
     }
 
