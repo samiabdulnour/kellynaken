@@ -207,7 +207,8 @@ window.WORLD = {
         // Koalas sit still, small, in the forks and on the trunks of the bush picture (S15). A hiding place is [x, y, pose]:
         // where its feet are on the picture, and whether it hugs the trunk (branch), looks round it (side) or peeks over leaves (peek).
         { id: 'australia-outback', name: 'Buš', at: [151, 102], label: 'left', bg: 'australia-bush', play: 'find', code: 'KOALA', ground: 284,
-          find: { seconds: 100, need: 10, hidden: true, size: 0.28, show: 0.45, every: [6, 10],                 // a wide bush, four and a half screens
+          // Alone 10 of the 21 hiding places have a koala in them, with two 14.
+          find: { seconds: 100, need: 10, needTwo: 14, hidden: true, size: 0.28, show: 0.45, every: [6, 10],     // a wide bush, four and a half screens
             spots: [[78, 130, 'branch'], [36, 94, 'peek'], [132, 80, 'peek'], [205, 140, 'branch'], [262, 88, 'side'], [190, 52, 'peek'], [152, 170, 'side'],
               [314, 160, 'side'], [352, 140, 'branch'], [402, 62, 'peek'], [418, 160, 'side'], [505, 160, 'side'], [472, 76, 'peek'], [560, 86, 'peek'],
               [640, 150, 'branch'], [606, 40, 'peek'], [706, 160, 'branch'], [766, 112, 'peek'], [820, 150, 'branch'], [792, 60, 'peek'], [742, 176, 'side']] },

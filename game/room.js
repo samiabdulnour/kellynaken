@@ -75,9 +75,10 @@
       // the pick-up falls down the middle lane between two beats, about a third of the way into the song
       return { notes, beat, pick: sc.pickup ? { lane: 1, at: 2.6 + (Math.floor(cfg.beats * 0.3) + 0.5) * beat } : null };
     },
-    // Koalas in the trees: which of the scene's hiding places are used, and when each one peeks out.
-    find(seed, sc) {
-      const cfg = sc.find, r = rng(seed), spots = cfg.spots.map((at, i) => ({ at, i, k: r() })).sort((a, b) => a.k - b.k).slice(0, cfg.need);
+    // Koalas in the trees: which of the scene's hiding places are used (as many as are to be found), and when each
+    // one peeks out.
+    find(seed, sc, need) {
+      const cfg = sc.find, r = rng(seed), spots = cfg.spots.map((at, i) => ({ at, i, k: r() })).sort((a, b) => a.k - b.k).slice(0, need || cfg.need);
       return { koalas: spots.map((sp, id) => ({ id, x: sp.at[0], y: sp.at[1], pose: sp.at[2] || 'side', first: 1.5 + r() * cfg.every[1], period: cfg.every[0] + r() * (cfg.every[1] - cfg.every[0]) })) };
     },
     // Who comes into the salon and when: what each wants done, in order, and how they look.
@@ -196,7 +197,7 @@
       if (sc.play === 'run') sn.lives = two ? 5 : 3;
       if (sc.play === 'platform') Object.assign(sn, { two, hp: { ken: 3, kel: 3 }, max: 3, out: {}, beaten: [], got: [] });   // hearts of one's own; out of them, a bubble
       if (sc.play === 'shoot') Object.assign(sn, { lives: two ? 4 : 3, hits: 0, need: Math.round(sc.shoot.need * (two ? 1.6 : 1)), every: sc.shoot.every / (two ? 1.4 : 1), hit: [], missed: [], item: null });
-      if (sc.play === 'find') Object.assign(sn, { found: [], need: sc.find.need });
+      if (sc.play === 'find') Object.assign(sn, { found: [], need: (two && sc.find.needTwo) || sc.find.need });   // two have more koalas to find
       if (sc.play === 'memory') { const first = two ? (Math.random() < 0.5 ? 'ken' : 'kel') : null; Object.assign(sn, { deck: course.memory(sn.seed, sc), open: [], done: [], misses: 0, maxMiss: sc.memory.miss + (two ? 2 : 0), first, turn: first, hideAt: 0 }); }
       if (sc.play === 'collect') Object.assign(sn, { got: [], stung: [], need: Math.round(sc.collect.need * (two ? 1.5 : 1)), lives: two ? 4 : 3 });
       if (sc.play === 'tower') Object.assign(sn, { floors: [96], crane: 96, need: Math.round(sc.tower.need * (two ? 1.3 : 1)), lives: two ? 5 : 4, n: 0, last: null, busyUntil: 0, endAt: 0, endPhase: null, holding: false, lifts: 0 });
