@@ -92,19 +92,26 @@ fs.writeFileSync(here + '.artifact/index.html', html);
 const walk = (dir) => fs.readdirSync(here + dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(dir + '/' + e.name) : [dir + '/' + e.name])).sort();
 const build = crypto.createHash('sha256'); for (const f of walk('game')) build.update(f).update(fs.readFileSync(here + f));
 const BUILD = build.digest('hex').slice(0, 10);
+// The stylesheet asks for the game's own font (game/assets/fonts/) with the version too.
+const gameCss = read('game/game.css').replace(/url\((assets\/[\w./-]+)\)/g, (m, f) => `url(${f}?v=${BUILD})`);
+if (!gameCss.includes(`.woff2?v=${BUILD})`)) throw new Error('could not put the version into the font links');
 const gamePage = (extra) => {
-  let page = read('game/index.html').replace(/(href|src)="((?:assets\/)?[\w.-]+\.(?:css|js))"/g, (m, a, f) => `${a}="${f}?v=${BUILD}"`);
+  let page = read('game/index.html').replace(/(href|src)="((?:assets\/(?:fonts\/)?)?[\w.-]+\.(?:css|js|woff2))"/g, (m, a, f) => `${a}="${f}?v=${BUILD}"`);
   page = page.replace('<script src="assets/manifest.js', `<script>window.BUILD = '${BUILD}';${extra || ''}</script>\n<script src="assets/manifest.js`);
   if (!page.includes(`window.BUILD = '${BUILD}'`)) throw new Error('could not put the version into the game page');
+  // The page preloads the bold font (the title needs it at once). It must ask for exactly what game.css asks for, or the font downloads twice.
+  for (const [, f] of page.matchAll(/rel="preload" href="([^"]+)"/g)) if (!gameCss.includes(`url(${f})`)) throw new Error('the page preloads what game.css does not ask for: ' + f);
   return page;
 };
 fs.rmSync(here + 'docs/v2', { recursive: true, force: true });
 fs.cpSync(here + 'game', here + 'docs/v2', { recursive: true });
 fs.writeFileSync(here + 'docs/v2/index.html', gamePage());
+fs.writeFileSync(here + 'docs/v2/game.css', gameCss);
 // /v3/: the same game for trying levels out: played alone on one device, every level open, its own save.
 fs.rmSync(here + 'docs/v3', { recursive: true, force: true });
 fs.cpSync(here + 'game', here + 'docs/v3', { recursive: true });
 fs.writeFileSync(here + 'docs/v3/index.html', gamePage(' window.INSPECT = true;').replace('<title>Kellyn a Ken</title>', '<title>Kellyn a Ken · zkušební verze</title>'));
+fs.writeFileSync(here + 'docs/v3/game.css', gameCss);
 
 console.log('Built docs/index.html, docs/v2/ and docs/v3/');
 for (const [id, pl] of Object.entries(cfg.players)) {
