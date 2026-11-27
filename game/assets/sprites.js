@@ -3,7 +3,7 @@ window.SPRITES = {
   "ken": {
     "file": "ken-poses.png",
     "w": 126,
-    "h": 107,
+    "h": 110,
     "scale": 0.5,
     "fps": 9,
     "poses": {
@@ -35,8 +35,18 @@ window.SPRITES = {
         10,
         11
       ],
+      "guitar": [
+        12,
+        13
+      ],
+      "rock": [
+        14
+      ],
+      "leap": [
+        15
+      ],
       "stand": [
-        12
+        16
       ]
     },
     "faces": {
@@ -79,8 +89,8 @@ window.SPRITES = {
   },
   "kel": {
     "file": "kel-poses.png",
-    "w": 92,
-    "h": 104,
+    "w": 100,
+    "h": 112,
     "scale": 0.5,
     "fps": 9,
     "poses": {
@@ -112,8 +122,18 @@ window.SPRITES = {
         10,
         11
       ],
+      "bass": [
+        12,
+        13
+      ],
+      "groove": [
+        14
+      ],
+      "leap": [
+        15
+      ],
       "stand": [
-        12
+        16
       ]
     },
     "faces": {
@@ -919,6 +939,41 @@ window.SPRITES = {
       ],
       "stand": [
         0
+      ]
+    }
+  },
+  "band": {
+    "file": "band.png",
+    "w": 122,
+    "h": 138,
+    "scale": 0.5,
+    "fps": 1,
+    "poses": {
+      "kit1": [
+        0
+      ],
+      "kit2": [
+        1
+      ],
+      "kitjoy": [
+        2
+      ],
+      "stand": [
+        0
+      ]
+    },
+    "sizes": {
+      "kit1": [
+        122,
+        138
+      ],
+      "kit2": [
+        122,
+        138
+      ],
+      "kitjoy": [
+        122,
+        138
       ]
     }
   },

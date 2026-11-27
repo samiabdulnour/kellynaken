@@ -10,10 +10,12 @@ a row of five faces.
 For each character it writes game/assets/sprites/<id>.png (the big figures, plus running frames made from the
 side view) and <id>-faces.png, and it writes game/assets/sprites.js to say what is where.
 
-It also reads art/source/poses/A1.png ... A6.png: rows of four drawn poses for the two heroes (running, jumping,
-dizzy, cheering, surfing, shooting or throwing, drumming), already cut out and drawn much finer, about 105 pixels
-tall. Those become <id>-poses.png and are what the game draws the heroes from; the game shows them at half size,
-two of their pixels to one pixel of a background.
+It also reads art/source/poses/A1.png ... A8.png: rows of four drawn poses for the two heroes (running, jumping,
+dizzy, cheering, surfing, shooting or throwing, drumming; A7 and A8 playing the guitar and the bass in the band),
+already cut out and drawn much finer, about 105 pixels tall. Those become <id>-poses.png and are what the game draws
+the heroes from; the game shows them at half size, two of their pixels to one pixel of a background.
+(A7, A8 and objects/P21, Alan at his drum kit, are generated bodies wearing the heroes' and Alan's own heads, cut
+from A1, A4 and Alan's sheet, already on the 6-pixel grid.)
 
 The big figures are the base: they are the most detailed drawings on the sheet, about 45 game pixels tall.
 The sheet is drawn in big square "pixels" (about 4.4 real pixels wide on a sheet 1536 wide), so each figure is
@@ -232,8 +234,10 @@ def sheet(frames, anchors):
 # ---- the drawn poses: rows of four figures, already cut out, drawn about 105 game-art pixels tall ----
 POSES = os.path.join(SOURCE, 'poses')
 POSE_ROWS = {                                   # which row holds which frames, for each hero
-    'ken': [('A1', ['run', 'run', 'run', 'run']), ('A2', ['jump', 'dizzy', 'cheer', 'surf']), ('A3', ['aim', 'shoot', 'drum', 'drum'])],
-    'kel': [('A4', ['run', 'run', 'run', 'run']), ('A5', ['jump', 'dizzy', 'cheer', 'surf']), ('A6', ['aim', 'shoot', 'drum', 'drum'])],
+    'ken': [('A1', ['run', 'run', 'run', 'run']), ('A2', ['jump', 'dizzy', 'cheer', 'surf']), ('A3', ['aim', 'shoot', 'drum', 'drum']),
+            ('A7', ['guitar', 'guitar', 'rock', 'leap'])],          # the band: strumming down and up, leaning back, in the air
+    'kel': [('A4', ['run', 'run', 'run', 'run']), ('A5', ['jump', 'dizzy', 'cheer', 'surf']), ('A6', ['aim', 'shoot', 'drum', 'drum']),
+            ('A8', ['bass', 'bass', 'groove', 'leap'])],            # the band: plucking (with a nod), leaning back, in the air
 }
 POSE_PIXEL = 6.0                                # how wide one drawn "pixel" is in those rows
 
@@ -396,6 +400,7 @@ OBJECT_ROWS = {                                  # code: (name in the game, what
     'P12': ('salonkit', ['scissors', 'comb', 'brush', 'dryer', 'spray', 'dye', 'curlers', 'clip', 'mirror', 'shampoo']),
     'P13': ('dog', ['stand', 'trot1', 'trot2', 'sit', 'bark', 'sniff']),          # praděda Václav's Yorkshire terrier
     'P14': ('voyage', ['ship', 'smoke', 'gull1', 'gull2']),                        # the intro to Australia: the refugee ship
+    'P21': ('band', ['kit1', 'kit2', 'kitjoy']),                                   # Alan at his drum kit: sticks up, sticks down, a cheer (the kit stays put)
 }
 
 
