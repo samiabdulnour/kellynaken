@@ -2861,10 +2861,12 @@
     const COLOUR = { ken: '#CC2233', kel: '#F0448F' }, LEAF = ['#5E8C3A', '#9BC45A', '#D4E89A'];
     const { koalas } = Room.course.find(sn.seed, sc, placed);                                // the goal may get smaller (room.js), the koalas stay
     // walk and mate: each kid on the path (draw: kid), where they look (face), how quick their legs go, and when they
-    // last found a koala (yay, which one: k), waved at one found before (wave, wk) and tapped on leaves (miss)
-    const onPath = (x) => ({ at: -9, dir: 1, face: 1, x, prev: x, spd: 0, legs: 0, yay: -9, k: null, wave: -9, wk: null, miss: -9 });
+    // last found a koala (yay, which one: k, turned to it: af), waved at one found before (wave, wk) and tapped on
+    // leaves (miss); the other one's pace towards where they are (go), how far their last message moved them (step),
+    // and until when their find or wave (on) waits for them to get there (wait)
+    const onPath = (x) => ({ at: -9, dir: 1, face: 1, af: 1, x, prev: x, spd: 0, legs: 0, yay: -9, k: null, wave: -9, wk: null, miss: -9, go: SPEED, wait: 0, on: 'yay' });
     const s = { t: 0, over: false, lost: false, off: 0, v: 0, placed: false, got: new Set(), sent: 0, when: {}, by: {}, again: {}, pan: 0, pend: null, clk: 0,
-      walk: { last: 0, ...onPath(0) }, mate: { off: 0, ...onPath(W / 2) }, told: 0, bits: [], calm: 0, hint: null, hintAt: 0, near: null,
+      walk: { last: 0, ...onPath(0) }, mate: { off: 0, step: 0, ...onPath(W / 2) }, told: 0, bits: [], calm: 0, hint: null, hintAt: 0, near: null,
       tipTill: 4, misses: [], nag: -9, poof: null, edge: null, bumped: false, n: sn.found.length, need: sn.need, endAt: 0, hello: null };
     for (const id of sn.found) s.when[id] = -9;                                           // found before this phone came in: no fuss
     let live = sn, shown = '';
@@ -2905,16 +2907,23 @@
       s.poof = { x: x + s.off, y, at: s.t };
       for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + (i - 4.5) * 0.4; fly(x, y, Math.cos(a) * (34 + (i % 3) * 10), Math.sin(a) * (46 + (i % 2) * 16), 1.1, LEAF[1 + (i % 2)], true); }
     };
-    // A koala found, by this one or (heard from the room) the other one: they turn to it and act it out (kid). Another
-    // find during the act starts it again at the point, without the crouch.
-    const ACT = 0.76, spot = (h, k, x) => { const u = s.t - h.yay; h.yay = u >= 0 && u < ACT ? s.t - 0.06 : s.t; h.k = k; h.face = k.x < x ? -1 : 1; };
+    // A koala found, by this one or (heard from the room) the other one: they stop, turn to it and act it out (kid),
+    // turned to it till the end. Another find during the act starts it again at the point, without the crouch, the hop
+    // going on from where it is. While a kid acts (busy), the arrows wait and leaves tapped get no turn.
+    const ACT = 0.76, WAVE = 0.3, SHRUG = 0.25;
+    const acting = (h) => !!h.k && s.t - h.yay >= 0 && s.t - h.yay < ACT, busy = (h) => acting(h) || (!!h.wk && s.t - h.wave >= 0 && s.t - h.wave < WAVE);
+    const spot = (h, k, x) => {
+      const e = clamp((s.t - h.yay - 0.06) / 0.3, 0, 1);
+      h.yay = acting(h) ? s.t - 0.06 - Math.min(e, 1 - e) * 0.3 : s.t; h.k = k; h.af = h.face = k.x < x ? -1 : 1;
+    };
     function find(k) {
-      s.got.add(k.id); s.when[k.id] = s.t; s.by[k.id] = who; s.calm = s.t; spot(s.walk, k, s.off + W / 2);
+      s.got.add(k.id); s.when[k.id] = s.t; s.by[k.id] = who; s.calm = s.t; spot(s.walk, k, s.off + W / 2); s.v = 0;
       if (s.hint === k) s.hint = null;
       beep(660, 880, 1320);
       const p = where(k); plus('+1', clamp(p.x, 10, W - 10), p.y - 10);
       for (let i = 0; i < 4; i++) fly(p.x, p.y, (i - 1.5) * 18, -50 - (i % 2) * 20, 0.9, i % 2 ? '#FFD43A' : '#FFF8E7');   // a few stars fall after the burst
       if (s.tipTill) { s.tipTill = 0; view.tip.textContent = ''; }                          // the advice did its job
+      Net.send({ type: 'fx', k: 'look', off: Math.round(s.off) }); s.told = Net.now();        // where they stopped, ahead of the find
       Net.send({ type: 'ev', e: 'find', id: k.id });
       paint();
     }
@@ -2957,31 +2966,33 @@
     // the stick or the bunny along ('carry'), the legs as quick as the view goes by. Resting: holding it ('idle',
     // breathing), and every 2-3 s a look the other way for 0.4 s, with a 1 px bob at each turn. A koala found: turned
     // to it, a crouch (60 ms), a point up at it with a 4 px hop while four sparkles fly from the hand to it (300 ms),
-    // a cheer (400 ms). A koala found before: a wave back (a 300 ms cheer), turned to it. Leaves: a glance there (the
-    // tap turned them) and a 1 px shrug. Won: cheering, a little bounce; lost: dizzy. While the hands are busy the
-    // stick or the bunny waits at their feet.
+    // a cheer with two little bounces (400 ms). A koala found before: a wave back (a 300 ms cheer with a 2 px hop),
+    // turned to it. Leaves: a glance there (the tap turned them) and a shrug, palms up (250 ms); walking, a skip. Won:
+    // cheering, a little bounce; lost: dizzy, the stick or the bunny behind them. While the hands are busy the stick or
+    // the bunny waits at their feet.
     function kid(w, h, x, y, walking, lag, c) {
-      const u = s.t - h.yay, wv = s.t - h.wave, m = s.t - h.miss, toward = (k) => (where(k).x < x ? -1 : 1);
+      const u = s.t - h.yay, wv = s.t - h.wave, m = s.t - h.miss;
       let pose = K.pose(w, 'idle', 'stand'), f = K.loop(s.clk + lag, 1.5), face = h.face, dy = 0, free = true;
-      if (u >= 0 && u < ACT && h.k && !s.lost) {                                          // (the last koala too: the win waits for it)
-        face = toward(h.k); f = K.frame(0);
+      if (acting(h) && !s.lost) {                                                         // (the last koala too: the win waits for it)
+        face = h.af; f = K.frame(0);
         if (u < 0.06) { pose = K.pose(w, 'heave', 'jump'); if (pose === 'jump') dy = 2; }                          // the crouch
         else if (u < 0.36) { pose = K.pose(w, 'point', w === 'kel' ? 'shoot' : 'cheer'); dy = -Math.round(Math.sin(((u - 0.06) / 0.3) * Math.PI) * 4); }
-        else pose = 'cheer';
-      } else if (wv >= 0 && wv < 0.3 && h.wk && !s.over) { pose = 'cheer'; f = 0; face = toward(h.wk); }
+        else { pose = 'cheer'; dy = -Math.round(Math.abs(Math.sin(((u - 0.36) / 0.4) * Math.PI * 2)) * 2); }
+      } else if (wv >= 0 && wv < WAVE && h.wk && !s.over) { pose = 'cheer'; f = 0; dy = -Math.round(Math.sin((wv / WAVE) * Math.PI) * 2); }
       else if (s.lost) { pose = 'dizzy'; f = 0; }
       else if (s.over) { pose = 'cheer'; f = 0; dy = -Math.round(Math.abs(Math.sin(s.clk * 6 + lag * 4)) * 2); }
+      else if (m >= 0 && m < SHRUG && !walking) { pose = K.pose(w, 'shrug', 'stand'); f = 0; dy = -Math.round(Math.sin((m / SHRUG) * Math.PI)); }
       else {
         free = false;
-        if (walking) { pose = K.pose(w, 'carry', 'run'); f = h.legs; face = h.dir; }
+        if (walking) { pose = K.pose(w, 'carry', 'run'); f = h.legs; face = h.dir; if (m >= 0 && m < 0.16) dy = -Math.round(Math.sin((m / 0.16) * Math.PI) * 2); }
         else {                                                                              // looking round, now and then
           const r = s.t - Math.max(h.at + 0.2, h.yay + ACT, h.wave + 0.3, h.miss + 0.4) - 1.2 + lag, q = r % 5, g = q < 2.3 ? q : q - 2.3;
           if (r > 0 && g < 0.4) face = -face;
           if (r > 0 && (g < 0.08 || (g >= 0.4 && g < 0.48))) dy = -1;
         }
-        if (m >= 0 && m < 0.12) dy = -1;                                                    // the shrug after a tap on leaves
       }
-      if (free) gearAtFeet(w, x, y, face < 0);
+      const d = face < 0 ? -1 : 1, behind = pose === 'dizzy';                             // sitting dizzy, the legs are where the gear would lie: it goes behind
+      if (free) gearAtFeet(w, behind ? x - (w === 'ken' ? 11 : 34) * d : x, y, behind && w === 'ken' ? d > 0 : d < 0);
       K.hero(w, x, y + dy, pose, f, face < 0);
       if (u >= 0.06 && u < 0.6 && h.k && !s.lost) {                                         // sparkles from the pointing hand to the koala, eased out and in, each with a tail
         const a = K.hand(w, 'point', 0, face < 0), b = where(h.k), sx = x + a.x, sy = y + dy + a.y;
@@ -3005,16 +3016,21 @@
         for (const id of n.found) if (!(id in s.when)) {                                  // the other one found it: a soft ding, and the stars if it is in view
           s.when[id] = s.t; s.by[id] = mate();
           const k = koalas[id], p = k && where(k);
-          if (k) spot(s.mate, k, s.mate.off + W / 2);                                     // they act it out where they are (if they are in view; else their pin hops)
+          if (k && acting(s.mate)) spot(s.mate, k, s.mate.off + W / 2);                  // they act it out (in view; else their pin hops) once they get to where they stopped
+          else if (k) Object.assign(s.mate, { k, af: k.x < s.mate.off + W / 2 ? -1 : 1, wait: s.t + 0.6, on: 'yay', go: Math.max(s.mate.go, Math.abs(s.mate.off + W / 2 - s.mate.x) / 0.12) });
           if (k && !s.over) { beep(784); if (p.x > -4 && p.x < W + 4) plus('+1', clamp(p.x, 10, W - 10), p.y - 10, COLOUR[mate()]); }   // one low note: softer than one's own three
         }
         paint();
       },
       fx(m) {
-        if (m.k === 'look') { const d = m.off - s.mate.off; if (Math.abs(d) > 0.5) { s.mate.dir = s.mate.face = Math.sign(d); s.mate.at = s.t; } s.mate.off = m.off; }
-        const at = s.mate.off + W / 2, k = koalas[m.id | 0];                              // the other one's taps, acted out the same here
-        if (m.k === 'miss') { s.mate.miss = s.t; if (Math.abs(m.x - at) > 6) s.mate.face = m.x < at ? -1 : 1; }
-        if (m.k === 'wave' && k) { s.mate.wave = s.t; s.mate.wk = k; s.mate.face = k.x < at ? -1 : 1; }
+        const h = s.mate;
+        if (m.off !== undefined) {                                                         // where they are: there in 0.3 s, at an even pace
+          const d = m.off - h.off; if (Math.abs(d) > 0.5) { h.dir = h.face = Math.sign(d); h.at = s.t; h.step = Math.abs(d); }
+          h.off = m.off; h.go = Math.max(20, Math.abs(m.off + W / 2 - h.x) / 0.3);
+        }
+        const at = h.off + W / 2, k = koalas[m.id | 0];                                   // the other one's taps, acted out the same here
+        if (m.k === 'miss' && !busy(h)) { h.miss = s.t; if (Math.abs(m.x - at) > 6) h.face = m.x < at ? -1 : 1; }
+        if (m.k === 'wave' && k && !acting(h)) { h.wk = k; h.face = k.x < at ? -1 : 1; h.wait = s.t + 0.6; h.on = 'wave'; h.go = Math.max(h.go, Math.abs(at - h.x) / 0.12); }   // (a quick last step there)
       },
       over(won) {
         s.over = true; s.lost = !won; s.endAt = s.t; s.hint = null; s.pan = 0; keys.mark('left', false); keys.mark('right', false); paint();
@@ -3040,14 +3056,16 @@
         const old = cfg.hidden && near(koalas.filter((q) => found(q) && at(q)));
         if (old) {                                                                         // found already: it waves again (one note: nothing new), and the kid waves back
           s.pend = null; s.again[old.id] = s.t; beep(988);
-          s.walk.wave = s.t; s.walk.wk = old; s.walk.face = old.x < s.off + W / 2 ? -1 : 1; Net.send({ type: 'fx', k: 'wave', id: old.id });
+          if (!acting(s.walk)) { s.walk.wave = s.t; s.walk.wk = old; s.walk.face = old.x < s.off + W / 2 ? -1 : 1; s.v = 0; Net.send({ type: 'fx', k: 'wave', id: old.id, off: Math.round(s.off) }); }
         }
       },
       tap() {
         if (s.pend && !s.over) {
           puff(s.pend.x, s.pend.y); drum('cymbal');                                        // only leaves there: a rustle, nothing lost
-          s.walk.miss = s.t; if (Math.abs(s.pend.x - W / 2) > 6) s.walk.face = s.pend.x < W / 2 ? -1 : 1;   // the kid glances there
-          Net.send({ type: 'fx', k: 'miss', x: Math.round(s.pend.x + s.off) });
+          if (!busy(s.walk)) {                                                             // the kid glances there and shrugs
+            s.walk.miss = s.t; if (Math.abs(s.pend.x - W / 2) > 6) s.walk.face = s.pend.x < W / 2 ? -1 : 1;
+            Net.send({ type: 'fx', k: 'miss', x: Math.round(s.pend.x + s.off) });
+          }
           s.misses = s.misses.filter((m) => s.t - m < 3).concat(s.t);
           if (s.misses.length >= 5 && s.t - s.nag > 5) { s.nag = s.t; say('Koukej, co se hýbe!'); }   // tapping all over: look first
         }
@@ -3061,8 +3079,12 @@
           s.hello = koalas.filter((k) => !found(k) && Math.abs(k.x - mid) < W / 2 - 16).sort((a, b) => Math.abs(a.x - mid) - Math.abs(b.x - mid))[0] || null;
         }
         s.t = clock(live); s.clk += dt;
-        // The other one where their last message put them, eased in between; and everyone's legs as quick as they go.
-        const mt = s.mate.off + W / 2; s.mate.x = Math.abs(mt - s.mate.x) > 120 ? mt : s.mate.x + (mt - s.mate.x) * Math.min(1, dt * 10);
+        // The other one where their messages put them, walking there at an even pace; a find or a wave of theirs waits
+        // till they get there (they stopped for it), and they stay put while they act it out (catching up after). And
+        // everyone's legs as quick as they go.
+        const mm = s.mate, mt = mm.off + W / 2, gap = Math.abs(mt - mm.x);
+        if (!busy(mm)) mm.x = gap > 120 ? mt : mm.x + Math.sign(mt - mm.x) * Math.min(gap, mm.go * dt);
+        if (mm.wait) { const there = Math.abs(mt - mm.x) <= 0.5; if (there) { mm.x = mt; mm[mm.on] = s.t; if (mm.on === 'yay') mm.face = mm.af; } if (there || s.t > mm.wait) mm.wait = 0; }   // (walked on: none)
         for (const [h, x] of [[s.walk, s.off], [s.mate, s.mate.x]]) {
           h.spd += (Math.abs(x - h.prev) / Math.max(dt, 0.001) - h.spd) * Math.min(1, dt * 10); h.prev = x;
           h.legs += dt * 0.6 * clamp(h.spd / SPEED, 0.45, 1.3);
@@ -3079,11 +3101,14 @@
         }
         // Walking with the arrows: it speeds up and slows down rather than jerking. The end of the path is shown, not
         // just stopped at: a bump and a low note.
-        s.v += (s.pan * SPEED - s.v) * Math.min(1, dt * 8);
-        if (!s.pan && Math.abs(s.v) < 1) s.v = 0;
+        // While the kid acts out a find or a wave the arrows wait; a drag cuts it short.
+        const want = busy(s.walk) ? 0 : s.pan * SPEED;
+        s.v += (want - s.v) * Math.min(1, dt * (want ? 8 : 14));
+        if (!want && Math.abs(s.v) < 1) s.v = 0;
         const was = s.off; s.off = clamp(s.off + s.v * dt, 0, most());
-        if (s.pan && s.off === was) { s.v = 0; if (!s.bumped) { s.bumped = true; s.edge = { at: s.t, dir: s.pan }; s.walk.face = s.pan; beep(196); } }
+        if (want && s.off === was) { s.v = 0; if (!s.bumped) { s.bumped = true; s.edge = { at: s.t, dir: s.pan }; s.walk.face = s.pan; beep(196); } }
         if (Math.abs(s.off - s.walk.last) > 0.3) { s.walk.dir = s.walk.face = Math.sign(s.off - s.walk.last); s.walk.at = s.t; s.walk.last = s.off; }   // the view moved: walking
+        if (s.walk.at === s.t) { const h = s.walk; if (acting(h) && s.t - h.yay >= 0.36) h.yay = s.t - ACT; if (s.t - h.wave >= 0 && s.t - h.wave < WAVE) h.wave = -9; }
         if (Net.now() - s.told > (s.t - s.walk.at < 0.3 ? 200 : 1500)) { s.told = Net.now(); Net.send({ type: 'fx', k: 'look', off: Math.round(s.off) }); }   // where one is, for the other one's bar
         if (s.t >= cfg.seconds && Net.now() - s.sent > 1000) { s.sent = Net.now(); Net.send({ type: 'ev', e: 'finish' }); }
         if (s.tipTill && s.t > s.tipTill) { s.tipTill = 0; view.tip.textContent = ''; }
@@ -3163,9 +3188,9 @@
         }
         // the kids on the path: one's own in the middle of the view, the other where they have walked to on theirs
         const bump = s.edge && s.t - s.edge.at < 0.3, mx = Math.round(s.mate.x - off), seen = mateHere() && mx > -20 && mx < W + 20;
-        if (seen) kid(mate(), s.mate, mx, PATH - 2, s.t - s.mate.at < 0.35, 0.37, COLOUR[mate()]);   // their messages come every 200 ms while they walk
+        if (seen) kid(mate(), s.mate, mx, PATH - 2, (s.t - s.mate.at < 0.3 && s.mate.step > 2) || s.mate.spd > 30, 0.37, COLOUR[mate()]);   // walking (their messages come every 200 ms), not the last inch
         const nx = bump ? Math.round(Math.sin((s.t - s.edge.at) / 0.3 * Math.PI) * 3) * s.edge.dir : 0;   // bumps into the end of the path and back
-        kid(who, s.walk, W / 2 + nx, PATH, s.t - s.walk.at < 0.2 && !bump, 0, '#FFD43A');
+        kid(who, s.walk, W / 2 + nx, PATH, s.t - s.walk.at < 0.2 && !bump && (s.pan || s.walk.spd > 16), 0, '#FFD43A');   // a drift of the view after a short press: resting
         if (most() > 0) {                                                                   // where in the forest each of them is: one's own view in yellow, the kids as pins in their colours
           const BW = 56, bx = W / 2 - BW / 2, by = H - 7, at = (wx) => bx + Math.round(wx / width() * BW), vw = Math.max(4, Math.round(W / width() * BW));
           // a find by the other one out of view: their pin hops 2 px and flashes
