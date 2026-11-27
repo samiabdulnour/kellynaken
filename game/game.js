@@ -107,10 +107,10 @@
     return `<span class="face" style="width:${c.w * u}em;height:${c.h * u}em;background-image:url(${K.asset(`assets/sprites/${c.file}`)});background-size:${c.w * c.n * u}em ${c.h * u}em;background-position:${-mood * c.w * u}em 0"></span>`;
   };
   // While a hero's hands are busy with something else (a cheer), Kendrick's stick lies and Kellyn's bunny sits at their
-  // feet, in front of them (the title, the story screen).
+  // feet, just ahead of them (the title, the story screen). Drawn before the hero, so the front shoe stays on top.
   const gearAtFeet = (w, x, footY, flip) => {
     const k = w === 'ken' ? 'stick' : 'bunny';
-    if (K.has('things', k)) K.figure('things', x + (w === 'ken' ? 7 : 11) * (flip ? -1 : 1), footY, k, 0, flip, w === 'ken' ? 0.5 : 0.45);
+    if (K.has('things', k)) K.figure('things', x + 13 * (flip ? -1 : 1), footY, k, 0, flip, w === 'ken' ? 0.5 : 0.45);
   };
 
   // ---- which screen is up: the room says where everyone is, and both devices follow ----
@@ -177,8 +177,9 @@
       K.background('title', 0, { sky: '#1B2A5C', far: '#3A2F5B', far2: '#4A3B6B', ground: '#3A2F33', line: '#5B4A4E' });
       const t = this.t, h = this.hop, turn = (t - 2) % 4, whose = Math.floor((t - 2) / 4) % 2 ? 'kel' : 'ken';
       [['ken', 64, false, 0], ['kel', 128, true, 0.3]].forEach(([w, x, flip, lag]) => {
-        const len = h ? 0.4 : 0.5, u = h ? (h.who === w ? t - h.at : -1) : t > 2 && whose === w ? turn : -1;
-        if (u >= 0 && u < len) { K.hero(w, x, 210 - Math.round(Math.sin((u / len) * Math.PI) * (h ? 5 : 4)), 'cheer', t, flip); gearAtFeet(w, x, 210, flip); }
+        // a tapped name's hop; or this one's turn, which a tap on the other name lets finish (it began before the tap)
+        const mine = h && h.who === w, len = mine ? 0.4 : 0.5, u = mine ? t - h.at : t > 2 && whose === w && (!h || t - turn <= h.at) ? turn : -1;
+        if (u >= 0 && u < len) { gearAtFeet(w, x, 210, flip); K.hero(w, x, 210 - Math.round(Math.sin((u / len) * Math.PI) * (mine ? 5 : 4)), 'cheer', t, flip); }
         else K.hero(w, x, 210, K.pose(w, 'idle', 'cheer'), K.loop(t + lag, 1.5), flip);
       });
     },
@@ -388,7 +389,7 @@
         box = add(`<div class="say">${about ? face(about, 0) : key === 'hero' ? face(who, 0) : key ? face(key, 3) : ''}${key ? `<b>${esc(speaker(key))}</b>` : ''}<p>${esc(text)}</p><i>&gt;</i></div>`);
         box.addEventListener('click', () => { beep(440); nods[who] = t; Net.send({ type: 'next', line: at }); });        // either of them may tap; the line number stops a double tap skipping one
       }
-      if (sn.phase === 'talk') for (const w of ['ken', 'kel']) { const r = !!(sn.read && sn.read[w]); if (r && !heard[w] && t - nods[w] > 0.3) nods[w] = t; heard[w] = r; }
+      if (sn.phase === 'talk') for (const w of ['ken', 'kel']) { const r = !!(sn.read && sn.read[w]); if (r && !heard[w] && t - nods[w] > 0.5) nods[w] = t; heard[w] = r; }
       if (box && sn.phase === 'talk') {                                                // read it: wait for the other one to finish reading
         const done = !!(sn.read && sn.read[who]);
         box.classList.toggle('read', done); box.querySelector('i').textContent = done ? `Čeká se na ${heroName(mate())}…` : '>';
@@ -458,16 +459,19 @@
         const e = Math.min(1, t / 1.2), came = 1 - (1 - e) * (1 - e), on = e < 1, landed = t - 1.2, joy = t - Math.max(saidAt, 1.26);    // walking in from the left as the scene opens
         const at = (x) => Math.round(-26 + (x + 26) * came), jobs = crane >= 0 && said && sn.line >= crane;
         const kid = (w, x, lag) => {
-          let pose = K.pose(w, gear ? 'idle' : 'stand', 'stand'), f = K.loop(t + lag, 1.5), y = gy;
-          if (on) { pose = board ? 'surf' : gear ? K.pose(w, 'carry', 'run') : 'run'; f = t * 0.7; }
+          let pose = K.pose(w, gear ? 'idle' : 'stand', 'stand'), f = K.loop(t + lag, 1.5), y = gy, squash = !on && landed < 0.06;
+          const n = t - nods[w];
+          if (on) { pose = board ? 'surf' : gear ? K.pose(w, 'carry', 'run') : 'run'; f = (x + 26) / 90; }   // a step every 10 px: no running on the spot as they slow down
           else if (key === 'hero' && joy >= 0 && joy < 0.5) { pose = 'cheer'; f = 0; y -= Math.round(Math.sin((joy / 0.5) * Math.PI) * 3); }
-          else if (t - nods[w] < 0.2) y -= Math.round(Math.sin(((t - nods[w]) / 0.2) * Math.PI) * 2);           // the nod: read it, on we go
+          else if (n < 0.05) squash = true;                                                                // the nod (read it, on we go): a dip,
+          else if (n < 0.3) y -= Math.round(Math.sin(((n - 0.05) / 0.25) * Math.PI) * 4);                    // then a hop
           if (board) K.figure('aussie', x - 2, gy + 4, 'surfboard', 0, true, 0.48);
-          if (!on && landed < 0.06) { ctx.save(); ctx.translate(x, y); ctx.scale(1.08, 0.92); K.hero(w, 0, 0, pose, f); ctx.restore(); }   // the landing squash
-          else K.hero(w, x, y, pose, f);
           if (gear && pose === 'cheer') gearAtFeet(w, x, gy, false);
+          if (squash) { ctx.save(); ctx.translate(x, y); ctx.scale(1.08, 0.92); K.hero(w, 0, 0, pose, f); ctx.restore(); }   // the landing squash, the nod's dip
+          else K.hero(w, x, y, pose, f);
           if (!jobs) return;
-          if (w === (mateHere() ? 'ken' : who)) { const p = K.hand(w, pose === 'cheer' ? 'cheer' : 'stand', 1); remote(x + p.x, y + p.y); }
+          const up = pose === 'cheer', p = K.hand(w, up ? 'cheer' : 'stand', 1), sx = squash ? 1.08 : 1, sy = squash ? 0.92 : 1;
+          if (w === (mateHere() ? 'ken' : who)) remote(x + p.x * sx + (up ? 5 : 0), y + p.y * sy - (up ? 3 : 0));   // waved up high: held by its corner, clear of the face
           else post(x + 13, gy);
         };
         if (mateHere()) kid(mate(), at(98), 0.3);

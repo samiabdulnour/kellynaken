@@ -524,7 +524,20 @@ def czech_flag(frames, parts):
     return frames
 
 
-OBJECT_FIX = {'hill': czech_flag}
+def black_stick(frames, parts):
+    """The stick lying on the ground came out wooden: make it Kendrick's drawn stick, black, keeping the white tape."""
+    f = frames[parts.index('stick')]
+    a = np.asarray(f).copy()
+    r, g, b = (a[..., i].astype(int) for i in range(3))
+    lum = 0.299 * r + 0.587 * g + 0.114 * b
+    wood = (a[..., 3] > 0) & (r - b > 15) & ~((lum >= 185) & (r - g < 40))       # the wood, its outline and the knob, not the tape
+    for low, c in ((0, (34, 31, 31)), (80, (45, 42, 42)), (140, (75, 71, 71)), (172, (88, 83, 84))):   # his stick's shades
+        a[wood & (lum >= low), :3] = c
+    frames[parts.index('stick')] = Image.fromarray(a, 'RGBA')
+    return frames
+
+
+OBJECT_FIX = {'hill': czech_flag, 'things': black_stick}
 OBJECT_SCALE = {'dog': 0.3, 'customers': 0.25}
 # Sheets drawn on a coarser grid than the people, made twice as fine with Scale2x (which rounds off diagonal edges
 # rather than just making the pixels bigger), so they can stand as tall as the grown-ups without looking blocky.

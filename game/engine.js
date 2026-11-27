@@ -231,7 +231,8 @@ const K = (() => {
   // measured on the drawn frames, one [x, y] per frame of the pose. Hands together: stand (empty, for a remote, a
   // shell, a buoy), Kendrick's idle (on top of the stick); throw: the hand behind the head, then the hand let go;
   // tap: the fist up, then struck; heave: the grip low, then pulled back; lift: between the hands; point: the
-  // fingertip; drumhit and drum: the tip of the stick that is down (drumhit) or up (drum); cheer: the back fist, then
+  // fingertip; drumhit and drum: the tip of the stick that is down (drumhit) or up (drum), except Kellyn's drumhit 1:
+  // the fist low in front (that stick points back across her, its tip at about [-1, -20]); cheer: the back fist, then
   // the front one; run: the front fist. Kendrick's stick poses (carry, swing, shoot, aim, airgear) give the blade;
   // Kellyn's bunny poses (idle, carry, swing, aim, airgear 0) the bunny; her airgear 1 is her hand flung back.
   const HANDS = {
