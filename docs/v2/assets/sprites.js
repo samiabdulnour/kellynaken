@@ -2,7 +2,7 @@
 window.SPRITES = {
   "ken": {
     "file": "ken-poses.png",
-    "w": 126,
+    "w": 140,
     "h": 110,
     "scale": 0.5,
     "fps": 9,
@@ -45,8 +45,53 @@ window.SPRITES = {
       "leap": [
         15
       ],
+      "carry": [
+        16,
+        17,
+        18,
+        19
+      ],
+      "idle": [
+        20,
+        21
+      ],
       "stand": [
-        16
+        22,
+        23
+      ],
+      "drumhit": [
+        24,
+        25
+      ],
+      "throw": [
+        26,
+        27
+      ],
+      "tap": [
+        28,
+        29
+      ],
+      "heave": [
+        30,
+        31
+      ],
+      "lift": [
+        32,
+        33
+      ],
+      "point": [
+        34,
+        35
+      ],
+      "shrug": [
+        36
+      ],
+      "swing": [
+        37
+      ],
+      "airgear": [
+        38,
+        39
       ]
     },
     "faces": {
@@ -89,7 +134,7 @@ window.SPRITES = {
   },
   "kel": {
     "file": "kel-poses.png",
-    "w": 100,
+    "w": 106,
     "h": 112,
     "scale": 0.5,
     "fps": 9,
@@ -132,8 +177,53 @@ window.SPRITES = {
       "leap": [
         15
       ],
+      "carry": [
+        16,
+        17,
+        18,
+        19
+      ],
+      "idle": [
+        20,
+        21
+      ],
       "stand": [
-        16
+        22,
+        23
+      ],
+      "drumhit": [
+        24,
+        25
+      ],
+      "throw": [
+        26,
+        27
+      ],
+      "tap": [
+        28,
+        29
+      ],
+      "heave": [
+        30,
+        31
+      ],
+      "lift": [
+        32,
+        33
+      ],
+      "point": [
+        34,
+        35
+      ],
+      "shrug": [
+        36
+      ],
+      "swing": [
+        37
+      ],
+      "airgear": [
+        38,
+        39
       ]
     },
     "faces": {
