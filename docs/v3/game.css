@@ -9,8 +9,8 @@
   color-scheme:dark;
 }
 /* The font is Pixelify Sans with C, c and Z drawn again so they cannot be read as O, o and 2 (tools/font.py), under its own name. */
-@font-face{font-family:'Kellyn Pixel';src:url(assets/fonts/KellynPixel-Regular.woff2?v=11c791105c) format('woff2');font-weight:400;font-style:normal;font-display:swap}
-@font-face{font-family:'Kellyn Pixel';src:url(assets/fonts/KellynPixel-Bold.woff2?v=11c791105c) format('woff2');font-weight:700;font-style:normal;font-display:swap}
+@font-face{font-family:'Kellyn Pixel';src:url(assets/fonts/KellynPixel-Regular.woff2?v=323a68e0b7) format('woff2');font-weight:400;font-style:normal;font-display:swap}
+@font-face{font-family:'Kellyn Pixel';src:url(assets/fonts/KellynPixel-Bold.woff2?v=323a68e0b7) format('woff2');font-weight:700;font-style:normal;font-display:swap}
 *{box-sizing:border-box}
 html,body{height:100%;margin:0}
 body{background:var(--ink);color:var(--paper);display:grid;place-items:center;overflow:hidden;
@@ -183,7 +183,7 @@ button{font:inherit;color:inherit}
 .flying{position:absolute;margin:0;pointer-events:none;transform-origin:0 0;z-index:3}
 .flying canvas{display:block;width:100%;height:100%;image-rendering:pixelated;image-rendering:crisp-edges}
 :root:not(.roomy) #ui:has(.list) .tip:not(.up){inset:5.75em 0 auto}
-#ui:has(.list) .plus{font-size:1.3em;text-shadow:.07em .07em 0 var(--ink),-.07em -.07em 0 var(--ink),.07em -.07em 0 var(--ink),-.07em .07em 0 var(--ink)}
+#ui:has(.list) .plus,#ui:has(.note) .plus{font-size:1.3em;text-shadow:.07em .07em 0 var(--ink),-.07em -.07em 0 var(--ink),.07em -.07em 0 var(--ink),-.07em .07em 0 var(--ink)}
 .lives.hit{animation:shake .45s steps(4)}
 @keyframes shake{25%{transform:translateX(-.3em)}75%{transform:translateX(.3em)}}
 /* Moving in (Byt): a square for every piece, green once it stands in its place; and the evening as a strip of sky from
@@ -226,8 +226,9 @@ button{font:inherit;color:inherit}
 .starbar i{width:1.25em;height:1.25em;background:var(--ink-soft);clip-path:polygon(50% 0,63% 36%,100% 38%,71% 61%,81% 100%,50% 77%,19% 100%,29% 61%,0 38%,37% 36%)}
 .starbar i.on{background:var(--yellow);animation:starpop .5s steps(3)}
 @keyframes starpop{from{transform:scale(2.2)}}
-/* The beach: a torn note under the bar, an empty line for every letter, filled in as the pieces are found.
-   A heart that is lost blinks as it goes; the clock turns to sea blue when the tide comes. */
+/* Pláž Bondi: the torn note under the bar, an empty line for every letter, filled in as the pieces are found (a piece
+   flies up into its place, and its letters pop in); the ones still missing blink once the bottle has said so. The
+   shells found are counted in the bar, by a little shell that pops as one comes. */
 .note{position:absolute;top:calc(100% + .45em);left:50%;transform:translateX(-50%);pointer-events:none;filter:drop-shadow(.125em .125em 0 var(--ink))}
 .note > div{display:grid;gap:.1em;justify-items:center;padding:.4em .55em .45em;background:#F2E4BE;color:var(--ink);
   clip-path:polygon(0 .2em,6% 0,11% .18em,17% .04em,23% .22em,29% 0,35% .14em,41% .02em,47% .2em,53% 0,59% .16em,65% .03em,71% .22em,77% 0,83% .15em,89% .02em,95% .2em,100% 0,
@@ -239,10 +240,13 @@ button{font:inherit;color:inherit}
 @keyframes notepop{0%{transform:scale(0)}50%{transform:scale(1.6);color:var(--red)}100%{transform:none}}
 .note.full > div{animation:noteshine .25s steps(2,jump-none) 6}
 @keyframes noteshine{50%{background:var(--yellow)}}
-.lives i.lost{animation:heartlose .7s steps(7)}
-@keyframes heartlose{0%,30%,60%{background:var(--paper);transform:scale(1.4)}15%,45%,75%{background:var(--red)}100%{transform:none}}
-.meter.time.tide i{background:#3FB8E0}
 :root:not(.roomy) #ui:has(.note) .tip:not(.up){inset:7em 0 auto}
+.note b.miss{animation:want .5s steps(2,jump-none) infinite}
+.note b.miss:not(.on){box-shadow:inset 0 -.15em 0 var(--red)}
+/* On the beach a cheer ("Všechny kousky!", "Hej rup!") is outlined in ink, or it melts into the orange cliffs behind it. */
+#ui:has(.note) .praise{text-shadow:.06em 0 0 var(--ink),-.06em 0 0 var(--ink),0 .06em 0 var(--ink),0 -.06em 0 var(--ink),.06em .06em 0 var(--ink),-.06em -.06em 0 var(--ink),.06em -.06em 0 var(--ink),-.06em .06em 0 var(--ink),.1em .12em 0 var(--red),.14em .18em 0 var(--ink)}
+.count.shells{display:flex;align-items:center;gap:.3em;min-width:3.5em;color:var(--paper)}
+.count.shells canvas{display:block;image-rendering:pixelated;image-rendering:crisp-edges}
 /* Žraločí útes: the lives are lifebuoys, red and white rings; one lost sinks away, one handed back pops in. A press that
    has to wait shakes the button and says "Počkej!" by the meter; the button is plain green while it is the moment to throw. */
 .lives.buoys{gap:.2em}
