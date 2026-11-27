@@ -2624,24 +2624,51 @@
 
   // The salon: customers come in and wait by the door. Each wants a few things done, in order (wash, cut, dye, dry)
   // and then to pay. Tap a customer to take them by the hand, then tap the place they need next; whoever stands at a
-  // place works there, and two at one place work twice as fast. Customers who wait too long walk out.
+  // place works there, and two at one place work twice as fast. Holding Pracuj down while working makes it go half as
+  // fast again. Customers who wait too long walk out; someone being worked on is happy and waits for ever.
   function Salon(sc, place, sn) {
     const cfg = sc.salon, who = me(), ST = cfg.stations, SPEED = 84, max = sn.lives;
     const NAME = { wash: 'umýt', cut: 'ostříhat', dye: 'obarvit', dry: 'vyfoukat', pay: 'zaplatit' };
     const QUEUE = [[14, 284], [42, 284], [70, 284]], CUST = 0.55;                // three chairs in a row along the bottom, by the door
     const home = (w) => (w === who ? { x: 96, y: 236 } : { x: 120, y: 250 });
-    const s = { t: 0, over: false, lost: false, me: { ...home(who), to: null, go: null, walked: [] }, mate: { ...home(mate()), to: null }, shout: 0, seenNo: {}, no: null, tipAt: 0, pops: [] };
+    const s = { t: 0, over: false, lost: false, me: { ...home(who), to: null, go: null, walked: [] }, mate: { ...home(mate()), to: null }, shout: 0, seenNo: {}, no: null, tipTill: 0, pops: [],
+      strays: [], hold: false, tick: 0, syncT: 0, seen: {}, emit: {}, bits: [], taps: [], cash: sn.coins, took: false, hintAt: -9, helpAt: null, rescue: null, joy: -9, wasBusy: false, taught: 0 };
     let live = sn;
-    const view = stage('<span class="lives"></span><span class="count"></span><span class="clock"></span><span class="meter"><i></i></span>', 'Klepni na zákazníka a pak na místo, kam ho vedeš. Kde stojíš, tam pracuješ.');
-    const say = (text) => { view.tip.textContent = text; s.tipAt = s.t; };
+    const view = stage('<span class="lives"></span><span class="count"></span><span class="cash"><i></i><b></b></span><span class="clock"></span><span class="meter"><i></i></span>', 'Klepni na zákazníka!');
+    const say = (text, secs = 2.6) => { view.tip.textContent = text; s.tipTill = s.t + secs; };   // a tip, for a moment (the first one stays till it is done)
     const shout = add('<p class="shout" hidden>NELÍTEJTE!</p>');
-    // Leading someone who cannot go where they want yet: let go of them, and they wait in the line again.
-    const keys = pad([{ id: 'drop', label: 'Pustit', big: true, hidden: true, press: () => {
+    const help = add('<p class="pomoz" hidden>Pomoz!</p>');                                    // over the partner, when a second pair of hands would help
+    help.addEventListener('pointerdown', (e) => {
+      e.preventDefault(); if (s.over || (s.helpAt === null && s.rescue === null)) return; ripple(s.mate.x, s.mate.y - 20, true); beep(520, 660);
+      const q = s.rescue !== null && live.cust.find((c) => c.id === s.rescue);
+      if (q) { const p = where(q); return walk(p.x + 12, p.y + 2, { take: q.id }); }               // to take over the one about to walk out
+      if (s.helpAt !== null) { const p = spotFor(s.helpAt); walk(p.x, p.y, { st: s.helpAt }); }
+    });
+    // Pustit, while leading someone who cannot go where they want yet: they wait on a chair by the door again. It sits on
+    // the left, by those chairs and away from Pracuj, so a thumb busy with the work never lets go of anyone by mistake.
+    // Pracuj, held down while working at a place, makes the work go half as fast again; let go, it goes on as before.
+    const keys = pad([{ id: 'drop', label: 'Pustit', side: 'left', hidden: true, press: () => {
       const c = leading(who); if (!c || s.over) return;
-      if (queued().length >= QUEUE.length) { beep(180); return say('Židle u dveří jsou plné. Odveď ho tam, kam chce.'); }
+      if (queued().length >= QUEUE.length) { nope('drop'); return say('Židle u dveří jsou plné.'); }
       beep(330, 260); Net.send({ type: 'ev', e: 'drop', c: c.id });
-    } }]);
-    const spot = (i) => ({ x: ST[i].x + (ST[i].side || 13), y: ST[i].y + 18 });                    // where a hairdresser stands to work there
+    } }, { id: 'work', label: 'Pracuj', big: true, press: () => hold(true), release: () => hold(false) }]);
+    // A button that can do nothing just now shakes, with a low beep (and a tip saying what to do instead).
+    const nope = (id) => {
+      beep(180); const b = K.ui.querySelector(`.key[data-k="${id}"]`);
+      if (b && b.animate) b.animate([{ transform: 'translateX(-.3em)' }, { transform: 'translateX(.3em)' }, { transform: 'translateX(-.15em)' }, { transform: 'none' }], { duration: 320 });
+    };
+    function hold(on) {
+      if (s.over) return;
+      s.hold = on; Net.send({ type: 'ev', e: 'hold', on });
+      if (!on) return;
+      if (busyAt(who)) { beep(660, 990); s.tick = 0.3; if (s.tipTill) { view.tip.textContent = ''; s.tipTill = 0; } return; }   // straight into it, on this phone at once
+      if (s.me.to && s.me.go && s.me.go.st !== undefined) return beep(520);                   // on the way to a place: it counts once there
+      nope('work'); s.hintAt = s.t;
+      const c = leading(who);
+      say(c ? `Chce ${NAME[c.order[c.step]]}. Klepni tam.` : s.helpAt !== null || s.rescue !== null ? 'Běž pomoct!' : 'Klepni na zákazníka.');
+    }
+    const spot = (i, far) => { const d = ST[i].side || 13; return { x: ST[i].x + d + (far ? Math.sign(d) * 16 : 0), y: ST[i].y + 18 + (far ? 8 : 0) }; };   // where a hairdresser stands to work there
+    const spotFor = (i) => { const a = spot(i), m = s.mate.to || s.mate; return mateHere() && Math.hypot(m.x - a.x, m.y - a.y) < 8 ? spot(i, true) : a; };   // the partner there already: a step further out
     // Sitting down. The two styling chairs face the mirror, so only the head shows over the back of the chair; at the
     // basin and on the stool under the dryer they sit sideways (the seated sheet, tools/seated.py); at the till they
     // stand. Rows of a customer's picture, for each of the six: the top of the head, the chin, the hip and the knee.
@@ -2674,16 +2701,45 @@
     const queued = () => live.cust.filter((c) => c.at === -2).sort((a, b) => a.id - b.id);
     const worked = (c) => c.at >= 0 && ST[c.at].k === c.order[c.step];                       // being seen to: the work bar shows instead of what they want
     const body = (w) => (w === who ? s.me : s.mate);
+    const busyAt = (w) => { const at = live.workers[w]; return at !== null && at !== undefined && live.cust.some((c) => c.at === at && ST[at].k === c.order[c.step]); };   // hands busy with the work
+    const quick = (w) => (w === who ? s.hold : !!(live.hold && live.hold[w]));                // Pracuj held (one's own at once, the partner's as the room says)
+    const hands = (i) => ['ken', 'kel'].filter((w) => live.workers[w] === i);
+    const tended = (c) => worked(c) && hands(c.at).length > 0;                                 // being worked on just now: happy, no patience lost
+    const fedUp = (c) => c.pat <= c.max / 4;                                                   // the cross face: the partner may take them out of the other's hand
+    const stuck = (c) => c.by && c.by !== who && fedUp(c) && !body(c.by).to;                     // ... while the other stands about with them
+    const rate = (i) => hands(i).reduce((a, w) => a + (quick(w) ? 1.5 : 1), 0);              // how fast the work goes there, as in the room
+    // How far the work on someone has got: moved on smoothly between the room's messages at the speed of the hands
+    // there (one's own button counting at once), and never back.
+    function progress(c) {
+      const key = c.id + ':' + c.step, f = clamp((c.work + Math.max(0, s.t - s.syncT) * rate(c.at)) / cfg.work[ST[c.at].k], 0, 1);
+      return (s.seen[key] = Math.max(s.seen[key] || 0, f));
+    }
+    const head = (c, p) => (ST[c.at] && ST[c.at].k === 'pay' ? { x: ST[c.at].x, y: ST[c.at].y - 22 } : { x: p.cx, y: Math.min(p.top, c.at >= 0 && ST[c.at].k === 'dry' ? 90 : p.top) + 8 });   // where the work goes on
+    // Little bits flying off the work: soap bubbles at the basin, snipped hair at the chair, drops of dye, puffs from the
+    // dryer, a glint at the till. Many more while Pracuj is held. A burst of stars when a job is done.
+    const BITS = {
+      wash: () => ({ vx: (Math.random() - 0.5) * 14, vy: -10 - Math.random() * 12, g: 0, life: 0.8, w: 2, col: Math.random() < 0.5 ? '#FFF8E7' : '#BFE8FF' }),
+      cut: () => ({ vx: (Math.random() - 0.5) * 26, vy: -8 - Math.random() * 8, g: 90, life: 0.6, w: 1, h: 2, col: Math.random() < 0.5 ? '#5A3B20' : '#C99A5B' }),
+      dye: () => ({ vx: (Math.random() - 0.5) * 18, vy: -14 - Math.random() * 10, g: 110, life: 0.55, w: 1, col: Math.random() < 0.5 ? '#8E5BC8' : '#F0448F' }),
+      dry: () => ({ vx: (Math.random() < 0.5 ? -1 : 1) * (22 + Math.random() * 16), vy: -3 - Math.random() * 4, g: 0, life: 0.4, w: 3, h: 1, col: '#FFF8E7' }),
+      pay: () => ({ vx: (Math.random() - 0.5) * 16, vy: -16 - Math.random() * 10, g: 40, life: 0.5, w: 1, col: '#FFD43A' }),
+    };
+    const TICK = { wash: 784, cut: 1319, dye: 988, dry: 659, pay: 1568 };                    // the quick tick of work while Pracuj is held
+    const burst = (x, y) => { for (let k = 0; k < 10; k++) { const a = k / 10 * Math.PI * 2; s.bits.push({ x, y, vx: Math.cos(a) * 36, vy: Math.sin(a) * 30 - 8, g: 40, life: 0.5, w: 2, col: k % 2 ? '#FFD43A' : '#FFF8E7', at: s.t }); } };
+    const ripple = (x, y, ok) => s.taps.push({ x, y, ok, at: s.t });                       // where a finger landed: a ring on the floor
+    const ARROW = ['....#####....', '....#ooo#....', '....#ooo#....', '....#ooo#....', '#####ooo#####', '.#ooooooooo#.', '..#ooooooo#..', '...#ooooo#...', '....#ooo#....', '.....#o#.....', '......#......'];
     function where(c) {                                                                         // where a customer is right now, and how
       if (c.at >= 0) return seat(c, c.at);                                                      // in the chair, at the basin, under the dryer
       const stand = (x, y) => ({ how: 'stand', x, y, cx: x, top: y - 62 });
       if (c.by) { const b = body(c.by); return stand(b.x - 12, b.y - 2); }
       const [x, y] = QUEUE[clamp(queued().indexOf(c), 0, QUEUE.length - 1)]; return stand(x, y);
     }
+    const cash = view.hud.querySelector('.cash');
     const paint = () => {
       hearts(view.hud.firstElementChild, live.lives, max);
       view.hud.children[1].textContent = `${live.served} / ${live.need}`;
-      const left = Math.max(0, Math.ceil(cfg.seconds - s.t)); view.hud.children[2].textContent = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
+      const kc = String(Math.round(s.cash)); if (cash.lastElementChild.textContent !== kc) cash.lastElementChild.textContent = kc;   // the coins in the till, counting up
+      const left = clamp(Math.ceil(cfg.seconds - s.t), 0, cfg.seconds); view.hud.querySelector('.clock').textContent = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
       view.hud.lastElementChild.firstElementChild.style.width = clamp(live.served / live.need, 0, 1) * 100 + '%';
     };
     paint();
@@ -2691,11 +2747,16 @@
       const m = s.me;
       if (live.workers[who] !== null && live.workers[who] !== undefined) Net.send({ type: 'ev', e: 'at', st: -1 });   // leaving one's place
       m.to = { x: clamp(x, 10, W - 10), y: clamp(y, 150, H - 4) }; m.go = go;
+      m.stray = !go && !leading(who); if (m.stray) s.strays.push(s.t);                          // off across the bare floor, for nothing (with someone by the hand it is looking for the place)
       Net.send({ type: 'fx', k: 'walk', x: m.to.x, y: m.to.y });
     }
     function arrive() {
       const go = s.me.go; s.me.go = null; if (!go) return;
-      if (go.take !== undefined) Net.send({ type: 'ev', e: 'take', c: go.take });
+      if (go.take !== undefined) {
+        const c = live.cust.find((q) => q.id === go.take);
+        if (c && c.by && c.by !== who && !fedUp(c)) { beep(180); return say(`${heroName(c.by)} byl${c.by === 'kel' ? 'a' : ''} rychlejší.`); }   // the partner was quicker
+        Net.send({ type: 'ev', e: 'take', c: go.take });
+      }
       if (go.st !== undefined) {
         const c = leading(who);
         if (c) Net.send({ type: 'ev', e: 'lead', c: c.id, st: go.st });
@@ -2706,7 +2767,8 @@
     function customer(c, p) {
       let { x, y } = p;
       const did = (k) => c.order.indexOf(k) > -1 && c.order.indexOf(k) < c.step;
-      const shook = c.no && s.no && s.no.id === c.id && s.t - s.no.at < 0.6 ? Math.round(Math.sin(s.t * 50) * 2) : 0;
+      const shook = (s.no && s.no.id === c.id && s.t - s.no.at < 0.6 ? Math.round(Math.sin(s.t * 50) * 2) : 0)
+        + (!tended(c) && c.pat / c.max < 0.2 ? Math.round(Math.sin(s.t * 31)) : 0);                // shaking their head, or fidgeting, about to walk out
       if (K.has('customers', 'c0')) {                                                              // drawn customers: a new hairdo once only paying is left
         const k = c.id % 6, look = (c.step >= c.order.length - 1 ? 'd' : 'c') + k;
         if (p.how === 'back') {                                                                    // in a styling chair: the head over its back
@@ -2741,46 +2803,90 @@
     }
     function bubble(c, p) {                                                                       // what they want next, and how patient they still are
       const k = c.order[c.step], ready = c.at >= 0 && ST[c.at].k !== k, b = ready ? Math.round(Math.abs(Math.sin(s.t * 6)) * 2) : 0;
-      const x = Math.round(p.cx), y = Math.round(Math.min(p.top, p.how === 'side' && p.flip ? 90 : p.top)) - 14 - b;
-      rect(x - 8, y - 8, 16, 15, INK); rect(x - 7, y - 7, 14, 13, '#FFF8E7'); rect(x - 1, y + 7, 2, 2, INK);
+      const x = clamp(Math.round(p.cx), 14, W - 14), y = Math.round(Math.min(p.top, p.how === 'side' && p.flip ? 90 : p.top)) - 20 - b;
+      rect(x - 8, y - 8, 16, 15, INK); rect(x - 7, y - 7, 14, 13, '#FFF8E7');
       icon(k, x, y - 1);
-      const f = clamp(c.pat / c.max, 0, 1);
-      rect(x - 8, y + 10, 16, 3, INK); rect(x - 7, y + 11, Math.max(1, Math.round(14 * f)), 1, f > 0.5 ? '#1FA463' : f > 0.25 ? '#FFD43A' : '#CC2233');
+      patience(c, x, y + 9);
+    }
+    // How patient someone still is: a face that goes from glad to cross, at the start of a thick bar running down; nearly
+    // out of patience, both blink red. (Nobody loses patience while being worked on, so then the work card shows instead.)
+    const MOOD = {
+      glad: ['.#######.', '#ooooooo#', '#oo#o#oo#', '#oo#o#oo#', '#ooooooo#', '#o#ooo#o#', '#oo###oo#', '#ooooooo#', '.#######.'],
+      meh: ['.#######.', '#ooooooo#', '#oo#o#oo#', '#oo#o#oo#', '#ooooooo#', '#ooooooo#', '#oo###oo#', '#ooooooo#', '.#######.'],
+      cross: ['.#######.', '#ooooooo#', '#o#ooo#o#', '#oo#o#oo#', '#oo#o#oo#', '#ooooooo#', '#oo###oo#', '#o#ooo#o#', '.#######.'],
+    };
+    function patience(c, x, y) {
+      const f = clamp(c.pat / c.max, 0, 1), mood = f > 0.5 ? 'glad' : f > 0.25 ? 'meh' : 'cross', blink = mood === 'cross' && Math.sin(s.t * 12) > 0;
+      rect(x - 10, y, 23, 5, INK); rect(x - 4, y + 1, Math.max(1, Math.round(16 * f)), 3, mood === 'glad' ? '#1FA463' : mood === 'meh' ? '#FFD43A' : blink ? '#FF8A7A' : '#CC2233');
+      bits(MOOD[mood], x - 13, y - 2, mood === 'glad' ? '#7CE07C' : mood === 'meh' ? '#FFD43A' : blink ? '#CC2233' : '#F26B5B');
     }
     return {
       s, kind: 'salon',
       peek: () => ({ me: { x: s.me.x, y: s.me.y, walking: !!s.me.to }, mine: leading(who) && leading(who).id, workers: live.workers, stations: ST.map((st, i) => ({ k: st.k, i, x: st.x, y: st.y, busy: live.cust.some((c) => c.at === i) })),
-        cust: live.cust.map((c) => ({ id: c.id, at: c.at, by: c.by, want: c.order[c.step], work: c.work, ...where(c) })) }),
+        cust: live.cust.map((c) => ({ id: c.id, at: c.at, by: c.by, want: c.order[c.step], work: c.work, pat: c.pat / c.max, ...where(c) })),
+        working: busyAt(who), hold: s.hold, help: s.helpAt, rescue: s.rescue, shout: s.shout, coins: live.coins, shown: Math.round(s.cash), tip: view.tip.textContent }),
       sync(n) {
         for (const c of n.cust) {
           const was = live.cust.find((q) => q.id === c.id);
-          if (c.by === who && was && was.at >= 0 && was.by !== who) { beep(660, 880); say(`Hotovo! Teď chce ${NAME[c.order[c.step]]}. Klepni tam.`); }
+          if (was && c.step > was.step && was.at >= 0) { const h = head(was, where(was)); burst(h.x, h.y); }    // a job done: a burst of stars
+          if (c.by === who && was && was.at >= 0 && was.by !== who) { beep(660, 880); say(`Hotovo! Teď chce ${NAME[c.order[c.step]]}.`); }
+          if (was && was.by === who && c.by && c.by !== who) { beep(520, 660); say(`${heroName(c.by)} ti pomáhá.`); }   // nearly out of patience in this one's hand: the other took them on
         }
         for (const c of n.cust) if (c.no && c.no !== s.seenNo[c.id]) {
           s.seenNo[c.id] = c.no;
-          if (c.by === who) { s.no = { id: c.id, at: s.t }; beep(180); const st = ST.find((x) => x.k === c.order[c.step]), i = ST.indexOf(st); say(n.cust.some((q) => q.at === i) ? 'Tam už někdo sedí. Počkej, nebo ho pusť.' : `Teď chce ${NAME[c.order[c.step]]}.`); }
+          if (c.by === who) { s.no = { id: c.id, at: s.t }; s.hintAt = s.t; beep(180); const st = ST.find((x) => x.k === c.order[c.step]), i = ST.indexOf(st); say(n.cust.some((q) => q.at === i) ? 'Tam už někdo sedí.' : `Teď chce ${NAME[c.order[c.step]]}.`); }
         }
-        // someone leaves: paid, with coins at the till, or fed up, with a cross little cloud where they stood
+        // someone leaves: paid, with coins at the till and in the bar, or fed up, with a cross little cloud where they stood
         const gone = live.cust.filter((c) => !n.cust.some((q) => q.id === c.id));
-        if (n.served > live.served) { const p = ST.find((x) => x.k === 'pay'); s.pops.push({ coin: true, x: p.x + 4, y: p.y - 40, at: s.t }); beep(880, 1100); }
-        if (n.lives < live.lives) for (const c of gone) { const p = where(c); s.pops.push({ coin: false, x: p.x, y: p.y - 50, at: s.t }); }
-        live = n; paint(); keys.show('drop', !s.over && !!leading(who));
+        if (n.served > live.served) {
+          const p = ST.find((x) => x.k === 'pay'), got = n.coins - live.coins;
+          s.pops.push({ coin: true, x: p.x + 4, y: p.y - 40, at: s.t }); beep(880, 1100); s.joy = s.t;
+          if (got > 0) plus(`+${got} Kč`, p.x, p.y - 46);
+          cash.classList.remove('pop'); void cash.offsetWidth; cash.classList.add('pop');
+          if (n.served === n.need - 1) cheer('Ještě jeden!'); else if (n.served === 1) cheer('Super!');    // the last customer is the finale
+        }
+        if (n.lives < live.lives) {
+          for (const c of gone) { const p = where(c); s.pops.push({ coin: false, x: p.x, y: p.y - 50, at: s.t }); }
+          const el = view.hud.firstElementChild; el.classList.remove('hit'); void el.offsetWidth; el.classList.add('hit'); beep(220, 160);
+        }
+        if (live.paused && !n.paused && s.hold) Net.send({ type: 'ev', e: 'hold', on: true });   // back from a pause with a finger still on Pracuj (the room let go of it)
+        live = n; s.syncT = s.t; paint(); keys.show('drop', !s.over && !!leading(who));
       },
       fx(m) { if (m.k === 'walk') s.mate.to = { x: m.x, y: m.y }; },
-      over(won) { s.over = true; s.lost = !won; shout.hidden = true; paint(); view.end(won, won ? 'Zvládnuto!' : 'Zákazníci utekli.', won ? `Obsloužili jste ${live.served} zákazníků a v kase je ${live.coins} korun.` : `Obsloužili jste ${live.served} z ${live.need}. Zkuste to ještě jednou.`); },
+      over(won) { s.over = true; s.lost = !won; s.cash = live.coins; shout.hidden = true; help.hidden = true; paint(); view.end(won, won ? 'Zvládnuto!' : 'Zákazníci utekli.', won ? `Obsloužili jste ${live.served} zákazníků a v kase je ${live.coins} korun.` : `Obsloužili jste ${live.served} z ${live.need}. Zkuste to ještě jednou.`); },
+      // A tap answers at once on this phone: a ring where the finger landed and a beep, then the walk. Leading someone to
+      // a place they do not want, or one where someone sits, is refused before walking: they shake their head and the
+      // arrow over the right place jumps.
       down(x, y) {
-        if (s.over || s.t < 0 || y < 22) return;
+        if (s.over || y < 22) return;
+        if (s.t < 0) return ripple(x, y, false);                                                   // not yet: 2, 1, Start!
         const mineNow = leading(who);
-        const hit = live.cust.filter((q) => !q.by).map((q) => ({ q, p: where(q) })).find(({ p }) => Math.abs(p.cx - x) < 14 && y > p.top - 26 && y < p.y + 3);
-        if (hit && worked(hit.q)) { if (live.workers[who] !== hit.q.at) { beep(440); const i = hit.q.at, p = spot(i); return walk(p.x, p.y, { st: i }); } return say('Ještě chvilku, pracuje se.'); }   // help, never pull them away
-        if (!mineNow && hit) {                                                                     // a customer to take: one waiting, or one left at a place
-          beep(520); view.tip.textContent = '';
-          const p = hit.q.at >= 0 ? spot(hit.q.at) : { x: hit.p.x + 12, y: hit.p.y + 2 };
+        const hit = live.cust.filter((q) => !q.by || stuck(q)).map((q) => ({ q, p: where(q) })).find(({ p }) => Math.abs(p.cx - x) < 14 && y > p.top - 26 && y < p.y + 3);
+        const no = (text) => { ripple(x, y, false); beep(180); s.no = { id: mineNow.id, at: s.t }; s.hintAt = s.t; say(text); };
+        if (mineNow) {
+          const i = hit && hit.q.at >= 0 ? hit.q.at : ST.findIndex((st) => Math.abs(st.x - x) < 18 && y > st.y - 48 && y < st.y + 28);
+          if (i > -1) {
+            const want = mineNow.order[mineNow.step];
+            if (ST[i].k !== want) return no(`Chce ${NAME[want]}.`);
+            if (live.cust.some((q) => q.at === i)) return no('Tam už někdo sedí.');
+            ripple(x, y, true); beep(440); const p = spotFor(i); return walk(p.x, p.y, { st: i });
+          }
+          if (hit) return no('Už někoho vedeš.');                                                    // one at a time
+          ripple(x, y, false); return walk(x, y, null);
+        }
+        if (hit && worked(hit.q)) {                                                                // being worked on: help, never pull them away
+          ripple(x, y, true);
+          if (live.workers[who] !== hit.q.at) { beep(440); const i = hit.q.at, p = spotFor(i); return walk(p.x, p.y, { st: i }); }
+          beep(520); return say(s.hold ? 'Ještě chvilku!' : 'Drž Pracuj!');
+        }
+        if (hit) {                                                                                 // a customer to take: one waiting, or one left at a place
+          ripple(x, y, true); beep(520); if (!s.took) { s.took = true; view.tip.textContent = ''; }
+          const p = hit.q.at >= 0 ? spotFor(hit.q.at) : { x: hit.p.x + 12, y: hit.p.y + 2 };
           return walk(p.x, p.y, { take: hit.q.id });
         }
         const i = ST.findIndex((st) => Math.abs(st.x - x) < 18 && y > st.y - 48 && y < st.y + 28);
-        if (i > -1) { beep(440); const p = spot(i); return walk(p.x, p.y, { st: i }); }
-        walk(x, y, null);
+        if (i > -1) { ripple(x, y, true); beep(440); const p = spotFor(i); return walk(p.x, p.y, { st: i }); }
+        ripple(x, y, false); walk(x, y, null);
       },
       update(dt) {
         if (s.over) return;
@@ -2789,24 +2895,59 @@
           if (!b.to) continue;
           const dx = b.to.x - b.x, dy = b.to.y - b.y, d = Math.hypot(dx, dy), step = SPEED * dt;
           if (d <= step) { b.x = b.to.x; b.y = b.to.y; b.to = null; if (b === s.me) arrive(); }
-          else { b.x += dx / d * step; b.y += dy / d * step; if (b === s.me) s.me.walked.push([s.t, step]); }
+          else { b.x += dx / d * step; b.y += dy / d * step; if (b === s.me && s.me.stray) s.me.walked.push([s.t, step]); }
         }
-        // Mamka does not like running about her salon
-        s.me.walked = s.me.walked.filter(([t]) => s.t - t < 3);
-        if (sc.cast && s.me.walked.reduce((a, [, d]) => a + d, 0) > 240 && s.t - s.shout > 10) { s.shout = s.t; beep(300, 300); }   // only for real running about
-        if (s.tipAt && s.t - s.tipAt > 2.6) { view.tip.textContent = ''; s.tipAt = 0; }
+        // Mamka does not like running about her salon. Only real running about counts: to and fro over the bare floor, four
+        // times or more and most of six seconds on end. Walking to customers and places never does, nor looking for the
+        // place with a customer by the hand.
+        s.me.walked = s.me.walked.filter(([t]) => s.t - t < 6); s.strays = s.strays.filter((t) => s.t - t < 6);
+        if (sc.cast && s.me.walked.reduce((a, [, d]) => a + d, 0) > 380 && s.strays.length >= 4 && (!s.shout || s.t - s.shout > 15)) { s.shout = s.t; beep(300, 300); }
+        if (s.tipTill && s.t > s.tipTill) { view.tip.textContent = ''; s.tipTill = 0; }
         shout.hidden = !(s.shout && s.t - s.shout < 2);
+        // the work: bits flying off it (more of them for each hand holding Pracuj), and a quick tick while one's own is held
+        for (const c of live.cust) {
+          if (!tended(c)) continue;
+          const i = c.at; s.emit[i] = (s.emit[i] || 0) + dt * hands(i).reduce((a, w) => a + (quick(w) ? 9 : 3), 0);
+          for (; s.emit[i] >= 1; s.emit[i]--) { const h = head(c, where(c)); s.bits.push({ ...BITS[ST[i].k](), x: h.x + Math.round((Math.random() - 0.5) * 8), y: h.y, at: s.t }); }
+        }
+        for (const b of s.bits) { b.x += b.vx * dt; b.y += b.vy * dt; b.vy += b.g * dt; }
+        s.bits = s.bits.filter((b) => s.t - b.at < b.life);
+        if (s.hold && busyAt(who) && (s.tick -= dt) <= 0) { s.tick = 0.28; beep(TICK[ST[live.workers[who]].k]); }
+        s.cash += (live.coins - s.cash) * Math.min(1, dt * 5); if (Math.abs(live.coins - s.cash) < 1) s.cash = live.coins;
+        // "Pomoz!" over the partner while they work alone at a job that a second pair of hands would get done sooner,
+        // and this one is free to come; tapping it (or the customer) brings the help
+        const at = live.workers[mate()], c = mateHere() && at !== null && at !== undefined ? live.cust.find((q) => q.at === at && worked(q)) : null;
+        const free = !leading(who) && !busyAt(who) && live.workers[who] !== at && !(s.me.go && s.me.go.st === at);
+        const left = c ? cfg.work[ST[at].k] * (1 - progress(c)) / Math.max(1, rate(at)) : 0;
+        s.helpAt = c && free && left > (s.helpAt === at ? 0.8 : 1.6) ? at : null;
+        // or the partner leads someone about to walk out: come and take them on (first, as it matters more)
+        const lost = mateHere() && !leading(who) ? live.cust.find(stuck) : null;
+        s.rescue = lost && !(s.me.go && s.me.go.take === lost.id) ? lost.id : null;
+        help.hidden = s.helpAt === null && s.rescue === null;
+        if (!help.hidden) { const pos = pinAt([clamp(Math.round(s.mate.x), 24, W - 24), Math.round(s.mate.y) - 54]); if (help.dataset.at !== pos) { help.dataset.at = pos; help.style.cssText = pos; } }
+        // Starting work, what was said before is done with. The first jobs say how to hurry them (not the quick one at
+        // the till), and that goes with the job.
+        const busy = busyAt(who), TEACH = 'Drž Pracuj, půjde to rychleji!';
+        if (busy && !s.wasBusy) {
+          view.tip.textContent = ''; s.tipTill = 0;
+          if (!s.hold && s.taught < 2 && ST[live.workers[who]].k !== 'pay') { s.taught++; say(TEACH, 3); }
+        } else if (!busy && s.wasBusy && view.tip.textContent === TEACH) { view.tip.textContent = ''; s.tipTill = 0; }
+        s.wasBusy = busy; keys.mark('work', busy && !s.hold);                                   // the button blinks while there is work to hurry
         paint();
       },
       draw() {
         K.background(sc.bg, 0, place.look);
+        const mine = leading(who), want = mine ? ST.findIndex((st) => st.k === mine.order[mine.step]) : -1;
         ST.forEach((st, i) => {                                                                   // the places to work, as mats on the floor
           if (!st.chair) { if (K.has('stations', st.k)) K.figure('stations', st.x, st.y + 2, st.k, 0, st.k === 'dry' && !SITS, 0.64); else { rect(st.x - 13, st.y - 3, 26, 9, INK); rect(st.x - 12, st.y - 2, 24, 7, '#FFF8E7'); icon(st.k, st.x, st.y + 1); } }
           if (st.k === 'dry' && SITS) {                                                           // a stool in front of the dryer, to sit on under the hood
             rect(STOOL.x - 9, STOOL.y - 1, 18, 4, '#8D8C96'); rect(STOOL.x - 8, STOOL.y, 16, 2, '#3B3A42');
             rect(STOOL.x - 1, STOOL.y + 3, 3, 8, '#B8BEC6'); rect(STOOL.x - 7, STOOL.y + 11, 15, 2, '#55545C'); rect(STOOL.x - 8, STOOL.y + 12, 2, 2, INK); rect(STOOL.x + 7, STOOL.y + 12, 2, 2, INK);
           }
-          if (st.k !== 'pay') { const py = 38; rect(st.x - 8, py - 7, 16, 14, INK); rect(st.x - 7, py - 6, 14, 12, '#FFF8E7'); icon(st.k, st.x, py - 1); }   // a little sign on the wall: what is done here
+          if (st.k !== 'pay') {                                                                   // a little sign on the wall: what is done here (blinking where the one in hand wants to go)
+            const py = 38; if (i === want && Math.sin(s.t * 10) > -0.3) rect(st.x - 10, py - 9, 20, 18, '#FFD43A');
+            rect(st.x - 8, py - 7, 16, 14, INK); rect(st.x - 7, py - 6, 14, 12, '#FFF8E7'); icon(st.k, st.x, py - 1);
+          }
         });
         const things = [];                                                                        // everyone on the floor, drawn from the back to the front
         for (const c of live.cust) {
@@ -2817,22 +2958,49 @@
             if (!worked(c)) bubble(c, p);
           }]);
         }
-        if (sc.cast) things.push([286, () => K.figure(sc.cast[0], 178, 286, 'three', s.t, true)]);           // Mamka keeps an eye on things from the corner
-        const busyAt = (w) => { const at = live.workers[w]; return at !== null && at !== undefined && live.cust.some((c) => c.at === at && ST[at].k === c.order[c.step]); };   // hands busy with the work
-        // at work: standing at the customer with the tool of the job in hand, going to and fro
+        if (sc.cast) things.push([286, () => K.figure(sc.cast[0], 178, 286 - (s.t - s.joy < 0.5 ? Math.round(Math.sin((s.t - s.joy) / 0.5 * Math.PI) * 6) : 0), s.t - s.joy < 0.5 ? 'joy' : s.shout && s.t - s.shout < 2 ? 'front' : 'three', s.t, true)]);   // Mamka keeps an eye on things from the corner, and jumps for joy at every customer who pays
+        // at work: standing at the customer with the tool of the job in hand, going to and fro (quicker, with a bob, while Pracuj is held)
         // the tool of the job, small, in the hand that works (no card over the face): shampoo, scissors, dye, the dryer
         const TOOL = { wash: 'shampoo', cut: 'scissors', dye: 'dye', dry: 'dryer' };
         const tool = (w, b) => {
-          if (!busyAt(w)) return; const st = ST[live.workers[w]], d = st.x < b.x ? -1 : 1, tx = b.x + d * 9 + Math.round(Math.sin(s.t * 10) * 2), ty = b.y - 17 + Math.round(Math.cos(s.t * 10));
+          if (!busyAt(w)) return; const st = ST[live.workers[w]], d = st.x < b.x ? -1 : 1, q = quick(w) ? 24 : 10, a = quick(w) ? 3 : 2;
+          const tx = b.x + d * 9 + Math.round(Math.sin(s.t * q) * a), ty = b.y - 17 - bob(w) + Math.round(Math.cos(s.t * q) * (a - 1));
           if (TOOL[st.k] && K.has('salonkit', TOOL[st.k])) K.figure('salonkit', tx, ty + 6, TOOL[st.k], 0, d < 0, 0.18); else icon(st.k, tx, ty);
         };
-        if (mateHere()) things.push([s.mate.y, () => { K.hero(mate(), s.mate.x, s.mate.y, s.mate.to ? 'run' : 'stand', s.mate.to ? s.t * 0.7 : s.t, s.mate.to ? s.mate.to.x < s.mate.x : busyAt(mate()) && ST[live.workers[mate()]].x < s.mate.x); tool(mate(), s.mate); }]);
-        things.push([s.me.y, () => { K.hero(who, s.me.x, s.me.y, s.lost ? 'dizzy' : s.me.to ? 'run' : 'stand', s.me.to ? s.t * 0.7 : s.t, s.me.to ? s.me.to.x < s.me.x : busyAt(who) && ST[live.workers[who]].x < s.me.x); tool(who, s.me); }]);
+        const bob = (w) => (busyAt(w) && quick(w) ? Math.round(Math.abs(Math.sin(s.t * 12))) : 0);
+        if (mateHere()) things.push([s.mate.y, () => { K.hero(mate(), s.mate.x, s.mate.y - bob(mate()), s.mate.to ? 'run' : 'stand', s.mate.to ? s.t * 0.7 : s.t, s.mate.to ? s.mate.to.x < s.mate.x : busyAt(mate()) && ST[live.workers[mate()]].x < s.mate.x); tool(mate(), s.mate); }]);
+        things.push([s.me.y, () => { K.hero(who, s.me.x, s.me.y - bob(who), s.lost ? 'dizzy' : s.me.to ? 'run' : 'stand', s.me.to ? s.t * 0.7 : s.t, s.me.to ? s.me.to.x < s.me.x : busyAt(who) && ST[live.workers[who]].x < s.me.x); tool(who, s.me); }]);
         things.sort((a, b) => a[0] - b[0]).forEach(([, f]) => f());
-        ST.forEach((st, i) => {                                                                   // how far the work has got, on top of everyone
+        // How far the work has got, on top of everyone: a card with the job and a thick bar filling smoothly, with arrows
+        // running through it while the work goes quicker (Pracuj held, or both at it). Left alone, the card rises and
+        // shows how patient they still are, to call someone back.
+        ST.forEach((st, i) => {
           const c = live.cust.find((q) => q.at === i);
-          if (c && st.k === c.order[c.step]) { const p = where(c), f = clamp(c.work / cfg.work[st.k], 0, 1), bx = Math.round(p.cx), by = Math.round(Math.min(p.top, st.k === 'dry' ? 90 : p.top)) - 12; rect(bx - 13, by - 9, 26, 14, INK); rect(bx - 12, by - 8, 24, 12, '#FFF8E7'); icon(st.k, bx, by - 3); rect(bx - 12, by + 5, 24, 4, INK); rect(bx - 11, by + 6, Math.max(1, Math.round(22 * f)), 2, '#1FA463'); }
+          if (!c || st.k !== c.order[c.step]) return;
+          const p = where(c), f = progress(c), r = rate(i), bx = clamp(Math.round(p.cx), 14, W - 14), by = Math.round(Math.min(p.top, st.k === 'dry' ? 90 : p.top)) - (r ? 12 : 22);
+          if (!r && Math.sin(s.t * 8) > 0) rect(bx - 14, by - 10, 28, 20, '#FFD43A');
+          rect(bx - 13, by - 9, 26, 18, INK); rect(bx - 12, by - 8, 24, 12, '#FFF8E7'); icon(st.k, bx - (r > 1 ? 4 : 0), by - 3);
+          rect(bx - 12, by + 5, Math.max(1, Math.round(24 * f)), 3, r > 1 && Math.sin(s.t * 20) > 0 ? '#7CE07C' : '#1FA463');
+          for (let k = 0; k < (r >= 2.5 ? 3 : r >= 2 ? 2 : r > 1 ? 1 : 0); k++) {                  // >, >>, >>>: how much quicker
+            const cx = bx + 2 + k * 3 + Math.floor(s.t * 10) % 2;
+            for (let j = 0; j < 5; j++) rect(cx + (j < 3 ? j : 4 - j), by - 6 + j, 1, 1, '#E0862E');
+          }
+          if (!r) patience(c, bx, by + 13);
         });
+        // where the one in hand wants to go: an arrow bouncing over the seat (it jumps when they were led wrong)
+        if (mine && want > -1 && !live.cust.some((q) => q.at === want)) {
+          const p = seat(mine, want), big = s.t - s.hintAt < 1, b = Math.round(Math.abs(Math.sin(s.t * (big ? 12 : 6))) * (big ? 6 : 3));
+          bits(ARROW, Math.round(p.cx) - 6, Math.round(Math.min(p.top, ST[want].k === 'dry' ? 90 : p.top)) - 16 - b, '#FFD43A');
+        }
+        // the very first customer: a hand points at them until someone is taken by the hand
+        const first = !s.took && !mine && queued()[0];
+        if (first) { const p = where(first), b = Math.round(Math.abs(Math.sin(s.t * 5)) * 3); bits(HAND, Math.round(p.cx) + 6 + b, Math.round(p.top) + 24 + b, '#FFF8E7'); }
+        for (const b of s.bits) rect(b.x, b.y, b.w, b.h || b.w, b.col);
+        s.taps = s.taps.filter((p) => s.t - p.at < 0.35);
+        for (const p of s.taps) {                                                                 // a ring spreading where the finger landed
+          const u = (s.t - p.at) / 0.35, r = 2 + u * 8;
+          for (let k = 0; k < 8; k++) { const a = k / 8 * Math.PI * 2; rect(p.x + Math.cos(a) * r - 1, p.y + Math.sin(a) * r * 0.6 - 1, 2, 2, p.ok ? '#FFD43A' : '#FFF8E7'); }
+        }
         s.pops = s.pops.filter((p) => s.t - p.at < 0.9);
         for (const p of s.pops) {
           const u = (s.t - p.at) / 0.9, y = Math.round(p.y - u * 18);
@@ -3712,130 +3880,344 @@
     };
   }
 
-  // The tower: Sami's house in Sydney goes up storey by storey. Kendrick drives the crane along its arm (drag), and
-  // Kellyn lets each storey go (tap) when it hangs over the top of the house; the higher the house, the more the
-  // storey swings on the hook. A storey that misses falls off. On one device, one player does both.
+  // The tower: Sami's house in Sydney goes up storey by storey. Kendrick drives the crane along its arm (◀ ▶, or a
+  // finger on the picture), and Kellyn works the hook (the big button, or a tap anywhere): down to the pile for a storey,
+  // and over the house she lets it go. On one device, one player does both. The storey swings on its rope: driving
+  // makes it swing harder, a crane that stands still lets it calm down, so the driver can steady it for the one who
+  // lets go. The button turns green when letting go now lands the storey. A press answers at once on its own phone (the
+  // hook goes down, the storey falls) and the room only confirms it; a press that cannot work now shakes the button and
+  // says why. Every fifth storey gets a flag: a lost game goes on from there. A perfect landing gives a heart back.
   function Tower(sc, place, sn) {
-    const cfg = sc.tower, who = me(), GY = 236, SH = 25, JIB = 30, CABLE = 30, SW = 40;
+    const cfg = sc.tower, who = me(), GY = 236, SH = 25, JIB = 30, CABLE = 26, SW = 40, HANG = 10;   // HANG: rope from the hook to the storey
     const two = () => mateHere(), steers = () => !two() || who === 'ken', drops = () => !two() || who === 'kel';
     const POSES = ['floor', 'plants', 'lights'];
-    const STACK = cfg.stack || 24, LIFT = 1;                                     // the storeys wait on the ground at STACK; fetching one takes LIFT seconds
-    const s = { t: 0, over: false, lost: false, crane: sn.crane, mateCrane: sn.crane, sent: 0, told: 0, cam: 0, fall: null, seen: 0, spark: null, target: null, lifts: sn.lifts, liftAt: -9 };
+    const STACK = cfg.stack || 24, LIFT = 1, LEAD = 0.15, LATE = 0.5, CALM = 0.4, G = 900, EVERY = cfg.check || 5;   // LEAD: how far ahead the green button looks; LATE: how long after it a press still counts (a young finger is slow)
+    // The pile stands on a platform always this high on the screen: on the ground at first; once the camera rises with
+    // the house, a hoist carries it up beside the house, so the pile and the hook fetching from it stay in sight.
+    const PILE = GY + 2, pileY = (k) => PILE - k * SH * 0.8;
+    const s = { t: 0, over: false, lost: false, crane: sn.crane, cv: 0, mateCrane: sn.crane, cx: sn.crane, px: sn.crane, v: 0, amp: CALM, lag: 0, lagV: 0,
+      sent: 0, told: 0, fxAt: 0, cam: 0, fall: null, seen: sn.last ? sn.last.n : 0, target: null, lifts: sn.lifts, liftAt: -9, grabbed: true, pend: null,
+      bits: [], bump: -9, knock: -9, shake: -9, openAt: -9, flagAt: -9, flagK: 0, litLast: -9, litX: 0, said: '', saidUntil: 0, saidIn: '', state: '', stateAt: 0, painted: '' };
     let live = sn;
-    const view = stage('<span class="lives"></span><span class="count"></span><span class="meter"><i></i></span>', '');
-    const crane = () => (steers() ? s.crane : s.mateCrane);
-    const hook = () => crane() + Room.course.sway(s.t, live.floors.length - 1);
+    const view = stage('<span class="lives"></span><span class="count"></span><span class="meter flags"><i></i></span>', '');
+    view.tip.classList.add('low');
+    const mateName = () => heroName(mate());
+    const built = () => live.floors.length - 1;                                    // storeys already standing on the lobby
+    const crane = () => (steers() ? s.crane : s.cx);
     const top = () => live.floors[live.floors.length - 1];
+    const slack = () => Room.course.slack(cfg.slack, built());
+    const wind = (t = s.t) => Room.course.wind(t, built());
+    const hookAt = (t) => crane() + s.v * (t - s.t) + s.lag + Room.course.sway(t, built(), s.amp);   // where the storey hangs, now or a moment ahead
+    const hook = () => hookAt(s.t);
     const pose = (i, n) => (i === 0 ? 'lobby' : i === n - 1 ? 'roof' : POSES[i % 3]);
+    const holding = () => (s.pend ? s.pend.k === 'pick' : live.holding);          // what this phone did counts until the room answers
+    const busy = () => Net.now() < live.busyUntil || s.t - s.liftAt < LIFT || !!(s.fall && !s.fall.landed && !s.fall.passed);
+    const overStack = () => Math.abs(crane() - STACK) <= 12;
+    const done = () => !!live.endAt || shown() >= live.need;                        // the roof is on (or the last heart gone): nothing more to fetch
+    const overHouse = () => Math.abs(crane() + s.lag + wind() - top()) <= slack();  // the swing goes back and forth over the top of the house
+    const lands = (t, k) => Math.abs(hookAt(t) - top()) <= slack() * k;
+    // green: it lands if let go now, and still will a moment from now (a child's finger is a little late)
+    const lit = () => !s.over && s.t >= 0 && !busy() && !done() && (holding() ? lands(s.t, 1) && lands(s.t + LEAD, 0.85) : overStack());
+    // how many storeys are drawn: the room's, with one that this phone has let go landing (or still falling) on top
+    const shown = () => { let k = live.floors.length; if (s.fall && s.fall.ok) k = s.fall.landed ? Math.max(k, s.fall.i + 1) : Math.min(k, s.fall.i); return k; };
+    const flags = () => Array.from({ length: Math.ceil((live.need - 1) / EVERY) - 1 }, (_, k) => (k + 1) * EVERY);
     const paint = () => {
-      hearts(view.hud.children[0], live.lives, sn.lives);
-      view.hud.children[1].textContent = `${live.floors.length - 1} / ${live.need - 1}`;          // storeys built on top of the lobby
-      view.hud.children[2].firstElementChild.style.width = clamp(live.floors.length / live.need, 0, 1) * 100 + '%';
+      // a heart goes when the storey falls past, and one given back comes when the storey lands
+      const k = shown() - 1, f = s.fall, lives = live.lives + (f && !f.ok && !f.passed && f.sure ? 1 : 0) - (f && f.back && !f.landed ? 1 : 0), key = `${lives}/${k}/${live.need}`;
+      if (key === s.painted) return; s.painted = key;
+      hearts(view.hud.children[0], lives, live.maxLives || sn.lives);
+      view.hud.children[1].textContent = `${k} / ${live.need - 1}`;                // storeys built on top of the lobby
+      const m = view.hud.children[2];
+      m.innerHTML = `<i style="width:${clamp(k / (live.need - 1), 0, 1) * 100}%"></i>` + flags().map((f) => `<b class="${k >= f ? 'on' : ''}" style="left:${f / (live.need - 1) * 100}%"></b>`).join('');
     };
-    const tip = () => { if (!s.over && !s.seen) view.tip.textContent = !two() ? 'Jeď nad hromádku, zvedni patro, přivez ho nad dům a pusť.' : steers() ? `Ty řídíš jeřáb: k hromádce pro patro a pak nad dům. ${heroName(mate())} patra zvedá a pouští.` : `Ty patra zvedáš a pouštíš. Jeřáb řídí ${heroName(mate())}.`; };
-    view.tip.classList.add('up'); paint(); tip();
-    // The arrows for whoever drives the crane, the big button for whoever lets the storeys go (alone: both).
+    const again = (el, cls) => { el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); };
+    // A short tip, for a few seconds (`say`), or the one for what is to be done now (see update).
+    const say = (text, secs = 3, state) => { s.said = text; s.saidAt = s.t; s.saidUntil = s.t + secs; s.saidIn = state || ''; view.tip.textContent = text; };   // `state`: gone once that is sorted out
+    const TIPS = {
+      solo: { fetch: 'Jeď pro další patro.', pick: 'Zvedni patro!', bring: 'Vez patro nad dům.', aim: 'Když tlačítko svítí zeleně, pusť!' },
+      drive: { fetch: 'Jeď pro další patro.', pick: () => `${mateName()} zvedá patro.`, bring: 'Vez patro nad dům.', aim: 'Zastav, ať se to nehoupe.' },
+      hook: { fetch: () => `Počkej, až ${mateName()} dojede nad hromádku.`, pick: 'Zvedni patro!', bring: () => `Počkej, až ${mateName()} dojede nad dům.`, aim: 'Když tlačítko svítí zeleně, pusť!' },
+    };
+    const role = () => (!two() ? 'solo' : steers() ? 'drive' : 'hook');
+    const tipFor = (state) => { const t = TIPS[role()][state]; return typeof t === 'function' ? t() : t || ''; };
+    // The hook cannot do that now: the button shakes, a low beep, and (when there is one) why.
+    function no(text) {
+      beep(180);
+      const b = K.ui.querySelector('.key[data-k="drop"]');
+      if (b) { again(b, 'no'); clearTimeout(s.noT); s.noT = setTimeout(() => b.classList.remove('no'), 400); }   // shaken once, it can turn green again
+      if (text) say(text, 2.5, s.state);
+    }
+    paint();
+    if (live.from) { say('Stavíte dál od vlajky!', 3); s.flagAt = clock(live); s.flagK = live.from; }   // the flag pops up now, in the countdown
+    // The arrows for whoever drives the crane, the big button for whoever works the hook (alone: both).
     const hold = (to) => ({ press: () => { if (!s.over) s.target = to; }, release: () => { s.target = null; } });
-    const keys = pad([...(steers() ? [{ id: 'left', side: 'left', ...hold(12) }, { id: 'right', side: 'left', ...hold(168) }] : []), ...(drops() ? [{ id: 'drop', label: 'Zvedni', big: true, press: () => hookIt() }] : [])]);
-    function dropIt() { if (s.over || s.t < 0 || Net.now() < live.busyUntil || !live.holding) return; beep(330); Net.send({ type: 'ev', e: 'drop', x: hook() }); }
-    function pickIt() { if (s.over || s.t < 0 || Net.now() < live.busyUntil || live.holding) return; if (Math.abs(crane() - STACK) > 12) { beep(180); view.tip.textContent = 'Nejdřív jeď jeřábem nad hromádku pater.'; s.toldAt = s.t; return; } beep(440, 520); Net.send({ type: 'ev', e: 'pick', x: crane() }); }
-    const hookIt = () => (live.holding ? dropIt() : pickIt());                       // one button: pick up, then let go
+    const keys = pad([...(steers() ? [{ id: 'left', side: 'left', ...hold(12) }, { id: 'right', side: 'left', ...hold(168) }] : []), ...(drops() ? [{ id: 'drop', label: 'Zvedni', big: true, press: () => hookIt() }] : [])], 'tower');
+    function hookIt() {
+      if (s.over) return;
+      if (s.t < 0 || busy() || done()) return no();                                // still counting down, the hook on its way, or all done
+      return holding() ? dropIt() : pickIt();
+    }
+    function pickIt() {
+      if (!overStack()) return no(steers() ? 'Nejdřív jeď nad hromádku.' : `Počkej, až ${mateName()} dojede nad hromádku.`);
+      beep(440, 520); s.liftAt = s.t; s.grabbed = false; s.pend = { k: 'pick', at: s.t }; s.litLast = -9;   // down it goes, right away
+      Net.send({ type: 'ev', e: 'pick', x: crane() });
+    }
+    function dropIt() {
+      // green is a promise: a press a moment after it went out still goes where it was green (drifting over, at most
+      // a few pixels, as it falls)
+      const now = hook(), late = s.t - s.litLast <= LATE && Math.abs(now - top()) > slack();
+      const x = late ? now + clamp(s.litX - now, -10, 10) : now, off = x - top(), ok = Math.abs(off) <= slack();
+      if (!ok && !overHouse()) return no(steers() ? 'Nejdřív jeď nad dům.' : `Počkej, až ${mateName()} dojede nad dům.`);
+      if (!ok && Math.abs(off) > slack() * 1.8) return no('Ještě ne! Počkej na zelenou.');   // nowhere near: not a storey thrown away
+      beep(330); s.openAt = s.t; s.pend = { k: 'drop', at: s.t }; s.litLast = -9;
+      fall({ x, x0: now, ok, perfect: ok && Math.abs(off) <= 2.5 }, false);
+      Net.send({ type: 'ev', e: 'drop', x, x0: now });
+    }
+    // A storey let go: it falls from where it hung, on this phone straight away; `sure` once the room has said how it went.
+    function fall(r, sure) {
+      s.fall = { x: r.x, x0: r.x0 === undefined ? r.x : r.x0, ok: r.ok, perfect: r.perfect, back: !!r.back, sure, at: s.t, i: live.floors.length, from: JIB + CABLE + HANG + SH - Math.round(s.cam), landed: false, passed: false, hearted: false };
+    }
+    function heartBack(f) {                                                         // a perfect landing gave a lost heart back
+      if (f.hearted || !f.back || !f.landed) return; f.hearted = true;
+      plus('+♥', f.x, GY - f.i * SH + Math.round(s.cam) - SH - 4, '#FF6B8A'); again(view.hud.children[0], 'gain'); beep(880, 1320);
+    }
+    function dust(x, y, n, colors, up) {
+      for (let k = 0; k < n; k++) {
+        const side = k % 2 ? 1 : -1, sp = 12 + ((k * 37) % 23);
+        s.bits.push({ x, y, vx: up ? (k - n / 2) * 9 : side * sp, vy: up ? -30 - ((k * 53) % 40) : -6 - ((k * 29) % 14), c: colors[k % colors.length], at: s.t, life: up ? 0.8 : 0.5 });
+      }
+    }
+    // The storey has landed (or gone past the top of the house): the thud, the dust, and what it means.
+    function landed(f) {
+      const y = GY - f.i * SH, x = Math.round(f.x);
+      s.bump = s.t;
+      dust(x - SW / 2, y, 6, ['#E9E2D6', '#CFC6B8']); dust(x + SW / 2, y, 6, ['#E9E2D6', '#CFC6B8']);
+      if (f.perfect) { cheer('Perfektní!'); beep(660, 880, 1100); dust(x, y - SH, 10, ['#FFD43A', '#FFF1A8', '#FFFFFF'], true); }
+      else beep(392, 523);
+      heartBack(f);
+      const k = f.i, last = k >= live.need - 1;
+      if (last) { s.saidUntil = 0; dust(x, y - SH - 10, 24, ['#FF4D4D', '#FFD43A', '#3E7BD6', '#1FA463', '#F0448F', '#FFFFFF'], true); beep(523, 659, 784, 1047); return; }
+      if (k % EVERY === 0) { s.flagAt = s.t; s.flagK = k; if (!f.perfect) cheer('Vlajka!'); if (k === EVERY) say('Kdyby to spadlo, začnete tady.', 3.5); }
+      if (k === 8) say(role() === 'hook' ? 'Fouká vítr! Pouštěj na zelenou.' : 'Fouká vítr! Drž patro nad domem.', 3.5);
+      if (k === live.need - 2) say('Už jen střecha!', 3);
+    }
+    function missed(f) {
+      s.shake = s.t; beep(220, 165, 110);
+      again(view.hud.children[0], 'hit');
+      if (Math.abs(f.x - top()) < SW) dust(f.x > top() ? top() + SW / 2 : top() - SW / 2, GY - f.i * SH, 6, ['#CFC6B8', '#9C948A']);   // it scraped the edge
+      if (drops()) say(role() === 'solo' && s.amp > 0.6 ? 'Zastav a počkej, ať se to nehoupe.' : 'Když tlačítko svítí zeleně, pusť!', 3);
+      else if (s.amp > 0.6) say('Zastav, ať se to nehoupe.', 3);                    // the driver can calm it for the next one
+    }
     function steer(x) {
+      const was = s.crane;
       s.crane = clamp(x, 12, 168);
+      if (s.crane !== x && Math.abs(s.cv) > 30) s.knock = s.t;                       // the end of the arm: a little knock
+      if (s.crane === was) return;
       const now = Net.now();
       if (now - s.sent > 60) { s.sent = now; Net.send({ type: 'fx', k: 'crane', x: s.crane }); }
       if (now - s.told > 140) { s.told = now; Net.send({ type: 'ev', e: 'crane', x: s.crane }); }
     }
+    // a line of whole pixels from (x0, y0) to (x1, y1)
+    function line(x0, y0, x1, y1, c) {
+      const n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0), 1);
+      for (let k = 0; k <= n; k++) rect(Math.round(x0 + (x1 - x0) * k / n), Math.round(y0 + (y1 - y0) * k / n), 1, 1, c);
+    }
+    const easeInOut = (u) => (u < 0.5 ? 2 * u * u : 1 - 2 * (1 - u) * (1 - u));
+    const easeOut = (u) => 1 - (1 - u) * (1 - u) * (1 - u);
     return {
       s, kind: 'tower',
-      peek: () => ({ steers: steers(), drops: drops(), crane: crane(), hook: hook(), top: top(), busy: Net.now() < live.busyUntil, floors: live.floors.length, need: live.need, holding: live.holding, stack: STACK }),
+      peek: () => ({ steers: steers(), drops: drops(), crane: crane(), hook: hook(), top: top(), busy: busy(), floors: live.floors.length, need: live.need, holding: holding(), stack: STACK,
+        lit: lit(), amp: s.amp, slack: slack(), wind: wind(), state: s.state, tip: view.tip.textContent, lives: live.lives, check: live.check }),
       steerTo: (x) => { s.target = x; },
       sync(n) {
-        if (n.last && n.last.n !== s.seen) {                           // a storey has been let go: show it falling
-          s.seen = n.last.n; if (!s.over) view.tip.textContent = '';
-          s.fall = { x: n.last.x, ok: n.last.ok, perfect: n.last.perfect, at: s.t, i: n.last.ok ? n.floors.length - 1 : -1, from: JIB + CABLE - s.cam };
-          if (n.last.perfect && !s.over) cheer('Perfektní!');
-          // a new stage of the climb: say what gets harder
-          const built = n.floors.length - 1, said = { 5: 'Výš se to víc houpe. Pouštěj, když je patro přesně nad domem!', 7: 'Fouká vítr! Jeřáb musí vítr dorovnávat.', 11: 'Už jsme skoro nahoře. Opatrně!' }[built];
-          if (said && n.last.ok && !s.over) { view.tip.textContent = said; s.toldAt = s.t; }
-          beep(...(n.last.ok ? (n.last.perfect ? [660, 880, 1100] : [520, 660]) : [200, 150]));
+        if (n.lifts !== s.lifts) {                                                   // a storey picked up: on this phone already, or now
+          s.lifts = n.lifts;
+          if (s.pend && s.pend.k === 'pick') s.pend = null; else { s.liftAt = s.t; s.grabbed = false; beep(300, 400); }
         }
-        if (n.lifts !== s.lifts) { s.lifts = n.lifts; s.liftAt = s.t; beep(300, 400, 500); }      // the hook goes down for a storey and brings it up
-        if (!steers()) s.mateCrane = n.crane;
+        if (n.last && n.last.n !== s.seen) {                                         // a storey let go
+          s.seen = n.last.n;
+          if (s.pend && s.pend.k === 'drop' && s.fall && !s.fall.sure) {             // this phone's own: the room has the last word
+            Object.assign(s.fall, { ok: n.last.ok, perfect: n.last.perfect, back: !!n.last.back, x: n.last.x, sure: true });
+            heartBack(s.fall);
+          } else { s.openAt = s.t; beep(330); fall(n.last, true); }                    // the other phone let it go
+          if (s.pend && s.pend.k === 'drop') s.pend = null;
+        }
+        if (!steers() && Net.now() - s.fxAt > 300) s.mateCrane = n.crane;             // the room hears the crane less often than the phone does
         live = n; paint();
       },
-      fx(m) { if (m.k === 'crane' && !steers()) s.mateCrane = m.x; },
-      over(won) { s.over = true; s.lost = !won; paint(); view.end(won, won ? 'Dům stojí!' : 'Spadlo to.', won ? 'Sydney má nový mrakodrap.' : 'Zkuste to ještě jednou.'); },
+      fx(m) { if (m.k === 'crane' && !steers()) { s.mateCrane = m.x; s.fxAt = Net.now(); } },
+      over(won) {
+        s.over = true; s.lost = !won; paint(); keys.mark('drop', false);
+        view.end(won, won ? 'Dům stojí!' : 'Spadlo to.', won ? 'Sydney má nový mrakodrap.' : live.check ? `Stavíte dál od ${live.check}. patra.` : 'Zkuste to ještě jednou.');
+      },
       down(x, y) {
         if (s.over || y < 22) return;
-        if (drops() && !steers()) return hookIt();                     // Kellyn: a tap anywhere works the hook
-        if (steers()) s.target = x;                                    // Kendrick: the crane heads for the finger
+        if (drops() && !steers()) return hookIt();                                   // Kellyn: a tap anywhere works the hook
+        if (steers()) s.target = x;                                                  // Kendrick: the crane heads for the finger
       },
       move(x, y) { if (!s.over && steers()) s.target = x; },
       update(dt) {
-        if (s.over) return;
         s.t = clock(live);
-        if (s.target !== null && steers()) { const d = s.target - s.crane; steer(s.crane + clamp(d, -110 * dt, 110 * dt)); if (Math.abs(d) < 0.5) s.target = null; }
-        if (drops()) {                                                       // the hook's button: Zvedni over the stack, Pusť! with a storey; lit when it is the moment
-          keys.label('drop', live.holding ? 'Pusť!' : 'Zvedni');
-          keys.mark('drop', !s.over && Net.now() >= live.busyUntil && (live.holding ? Math.abs(hook() - top()) <= Room.course.slack(cfg.slack, live.floors.length - 1) * 0.6 : Math.abs(crane() - STACK) <= 12));
+        if (!s.over) {
+          // the crane speeds up and slows down rather than jumping: it heads for the finger (or the end of the arm, while an arrow is held)
+          if (steers()) {
+            const want = s.target === null ? 0 : clamp((s.target - s.crane) * 6, -110, 110);
+            s.cv += (want - s.cv) * Math.min(1, dt * (s.target === null ? 20 : 10));   // let go: it brakes, rolling on a few pixels
+            if (Math.abs(s.cv) > 0.3) steer(s.crane + s.cv * dt); else s.cv = 0;
+            if ((s.crane <= 12 && s.cv < 0) || (s.crane >= 168 && s.cv > 0)) s.cv = 0;
+            if (s.target !== null && Math.abs(s.target - s.crane) < 0.5 && Math.abs(s.cv) < 4) s.target = null;
+          } else s.cx += (s.mateCrane - s.cx) * Math.min(1, dt * 14);                // the partner's crane, smoothed between messages
+          // the swing: driving pumps it up, standing still lets it calm down; the load trails a moving crane and swings past when it stops
+          const c = crane(), v = dt > 0 ? (c - s.px) / dt : 0; s.px = c;
+          s.v += (v - s.v) * Math.min(1, dt * 12);
+          const speed = Math.abs(s.v);
+          if (speed > 8) s.amp = Math.min(1, s.amp + dt * speed / 110 * 0.9);
+          else s.amp = CALM + (s.amp - CALM) * Math.exp(-dt / 1.6);
+          s.lagV += ((-s.v * 0.1 - s.lag) * 40 - s.lagV * 6) * dt; s.lag += s.lagV * dt;
+          if (s.pend && s.t - s.pend.at > 1.5) s.pend = null;                        // the room never took it: go by what it says
+          // the hook's button: Zvedni over the pile, Pusť! with a storey; green when it is the moment
+          if (drops()) {
+            const g = lit();
+            keys.label('drop', holding() ? 'Pusť!' : 'Zvedni'); keys.mark('drop', g);
+            if (g && holding()) { s.litLast = s.t; s.litX = hook(); }
+          }
+          // what to do now, as a tip: right away while they learn (the first two storeys), later only when it takes long
+          const state = busy() || done() ? 'busy' : !holding() ? (overStack() ? 'pick' : 'fetch') : overHouse() ? 'aim' : 'bring';
+          if (state !== s.state) { s.state = state; s.stateAt = s.t; }
+          if (s.saidIn && s.saidIn !== state && s.t - s.saidAt > 1.2) s.saidUntil = 0;     // sorted out: gone, but not before it can be read
+          let tip = '';
+          if (s.t < s.saidUntil) tip = s.said;
+          else if (state !== 'busy' && s.t > 0.5) {
+            const learning = built() < 2, wait = s.t - s.stateAt;
+            const due = state !== 'aim' ? wait > (learning ? 0.4 : 6) : role() === 'drive' ? s.amp > 0.62 && wait > 1.5 : wait > (learning ? 1.2 : 5);
+            if (due) tip = tipFor(state);
+          }
+          if (view.tip.textContent !== tip) view.tip.textContent = tip;
         }
-        if (s.toldAt && s.t - s.toldAt > 3.5) { view.tip.textContent = ''; s.toldAt = 0; }
-        const want = Math.max(0, (live.floors.length - (s.fall && s.fall.ok && s.t - s.fall.at < 0.5 ? 1 : 0)) * SH - (GY - 170));
+        // the storey in the air: has it landed, or gone past the house?
+        const f = s.fall;
+        if (f) {
+          const u = s.t - f.at, y = f.from + 0.5 * G * u * u, land = GY - f.i * SH;
+          if (f.ok && !f.landed && y >= land) { f.landed = true; f.landAt = s.t; landed(f); }
+          if (!f.ok && !f.passed && y >= land) { f.passed = true; f.passAt = s.t; missed(f); }
+          if (u > 2.2) s.fall = null;
+        }
+        // the lift: the hook reaches the pile (a clunk), then it comes up with a storey that starts to swing
+        if (!s.grabbed && s.t - s.liftAt >= LIFT * 0.4) {
+          s.grabbed = true; beep(140); s.amp = Math.max(s.amp, 0.65);
+          dust(STACK, pileY(Math.max(0, Math.min(3, live.need - live.floors.length) - 1)) - SH * 0.8 - Math.round(s.cam), 4, ['#E9E2D6', '#CFC6B8']);
+        }
+        for (const b of s.bits) { b.x += b.vx * dt; b.y += b.vy * dt; b.vy += 90 * dt; }
+        s.bits = s.bits.filter((b) => s.t - b.at < b.life);
+        const want = Math.max(0, shown() * SH - (GY - 170));                        // the camera rises with the house, easing in
         s.cam += (want - s.cam) * Math.min(1, dt * 3);
-        if (s.fall && s.t - s.fall.at > 1.2) s.fall = null;
         paint();
       },
       draw() {
+        const shake = s.t - s.shake < 0.3 ? Math.round(Math.sin(s.t * 70) * 2) : 0;
+        ctx.save(); ctx.translate(shake, 0);
         const cam = Math.round(s.cam), img = K.picture(sc.bg), back = Math.round(cam * 0.5);
         if (img) { ctx.drawImage(img, 0, back); if (back > 0) ctx.drawImage(img, 0, 0, W, 1, 0, 0, W, back + 1); }   // the sky stretches up as the camera rises
         else K.background(sc.bg, 0, place.look);
-        const sy = (y) => y + cam, n = live.need;
-        // the house so far; a storey still falling is drawn by the fall
-        live.floors.forEach((x, i) => {
-          if (s.fall && s.fall.ok && s.fall.i === i && s.t - s.fall.at < 0.45) return;
-          if (K.has('storeys', pose(i, n))) K.figure('storeys', x, sy(GY - i * SH), pose(i, n), 0, false);
+        const sy = (y) => y + cam, n = live.need, f = s.fall, ft = f ? s.t - f.at : 0;
+        const dip = s.t - s.bump < 0.12 ? 1 : 0;                                    // a landing pushes the house down a pixel
+        // the house so far (a storey still in the air is drawn by its fall; one that has landed here but not yet in the room's list, from the fall)
+        const xs = live.floors.slice();
+        if (f && f.ok && f.landed && f.i >= xs.length) xs[f.i] = f.x;
+        xs.forEach((x, i) => {
+          if (f && f.ok && f.i === i && !f.landed) return;
+          const settle = f && f.ok && f.i === i && s.t - f.landAt < 0.16 ? (s.t - f.landAt < 0.08 ? 2 : 1) : 0;   // it sinks in a little and comes back up
+          if (K.has('storeys', pose(i, n))) K.figure('storeys', x, sy(GY - i * SH) + dip + settle, pose(i, n), 0, false);
           else { rect(x - SW / 2, sy(GY - (i + 1) * SH), SW, SH, INK); rect(x - SW / 2 + 1, sy(GY - (i + 1) * SH) + 1, SW - 2, SH - 2, '#E6CFA0'); }
         });
-        // the people down on the site, who scroll away as the house rises
-        // the stack of storeys waiting on the ground, as many as are still to come (up to three)
-        const left = live.need - live.floors.length - (live.holding ? 1 : 0);
-        for (let k = 0; k < Math.min(3, left); k++) if (K.has('storeys', 'floor')) K.figure('storeys', STACK, sy(GY + 2 - k * SH * 0.8), POSES[(live.floors.length + k + 1) % 3], 0, false, 0.4);
+        // a white flash round a storey that landed perfectly
+        if (f && f.ok && f.perfect && f.landed && s.t - f.landAt < 0.18) {
+          const x = Math.round(f.x) - SW / 2, y = sy(GY - (f.i + 1) * SH);
+          rect(x - 1, y - 1, SW + 2, 1, '#FFFFFF'); rect(x - 1, y + SH, SW + 2, 1, '#FFFFFF'); rect(x - 1, y, 1, SH, '#FFFFFF'); rect(x + SW, y, 1, SH, '#FFFFFF');
+        }
+        // a flag every few storeys: where a lost game goes on from (it pops up when it is reached)
+        for (const k of flags()) {
+          if (k >= xs.length || (f && f.ok && f.i === k && !f.landed)) continue;
+          const grow = k === s.flagK ? clamp((s.t - s.flagAt) / 0.3, 0, 1) : 1;
+          const px = Math.round(xs[k]) + SW / 2 - 2, py = sy(GY - k * SH) - SH + dip, h = Math.round(14 * easeOut(grow));
+          rect(px, py - h + 4, 1, h, '#5A4A40');
+          if (h > 8) { const wave = Math.floor(s.t * 4) % 2; rect(px + 1, py - h + 4, 6, 4, '#CC2233'); rect(px + 1, py - h + 5, 6 - wave, 1, '#E8505E'); rect(px + 7 - wave, py - h + 4 + wave, 1, 4 - 2 * wave, '#CC2233'); }
+        }
+        // the pile of storeys waiting, as many as are still to come (up to three), on its platform; under a raised one the
+        // hoist's mast, down to the ground (or out of the picture)
+        const left = live.need - live.floors.length - (holding() ? 1 : 0) - (f && f.ok && !f.sure && f.i >= live.floors.length ? 1 : 0);
+        const lifting = s.t - s.liftAt < LIFT, pileN = Math.min(3, left + (lifting && !s.grabbed ? 1 : 0)), ground = Math.min(H, sy(GY + 2));
+        if (ground > PILE + 2) {
+          rect(STACK - 12, PILE + 2, 1, ground - PILE - 2, '#B8860B'); rect(STACK + 11, PILE + 2, 1, ground - PILE - 2, '#B8860B');
+          for (let y = PILE + 6; y < ground; y += 6) rect(STACK - 11, y, 22, 1, '#F2C94C');
+        }
+        rect(STACK - 15, PILE - 1, 30, 3, INK); rect(STACK - 14, PILE - 1, 28, 1, '#F2C94C');
+        for (let k = 0; k < pileN; k++) if (K.has('storeys', 'floor')) K.figure('storeys', STACK, pileY(k), POSES[(live.floors.length + k + 1) % 3], 0, false, 0.4);
         (sc.cast || []).forEach((id, i) => K.figure(id, 150 + i * 24, sy(GY + 4), 'three', s.t, true));
-        if (mateHere()) K.hero(mate(), 62, sy(GY + 6), 'stand', s.t + 0.3);
-        K.hero(who, 46, sy(GY + 6), s.lost ? 'dizzy' : 'stand', s.t);
-        const wind = Room.course.wind(s.t, live.floors.length - 1);
-        if (Math.abs(wind) > 1) for (let k = 0; k < 7; k++) {                                      // the wind, as streaks blowing across the sky
-          const dir = Math.sign(Math.cos(s.t * 0.35 + 1)) || 1, sp = 40 + Math.abs(wind) * 6, y = 44 + ((k * 37) % 150);
+        if (mateHere()) K.hero(mate(), 66, sy(GY + 6), 'stand', s.t + 0.3);
+        K.hero(who, 50, sy(GY + 6), s.lost ? 'dizzy' : 'stand', s.t);
+        const wnd = wind();
+        if (Math.abs(wnd) > 1) for (let k = 0; k < 7; k++) {                                      // the wind, as streaks blowing across the sky
+          const dir = Math.sign(Math.cos(s.t * 0.35 + 1)) || 1, sp = 40 + Math.abs(wnd) * 6, y = 44 + ((k * 37) % 150);
           const x = ((k * 53 + dir * s.t * sp) % (W + 40) + W + 40) % (W + 40) - 20;
           rect(Math.round(x), y, 14, 1, 'rgba(255,255,255,.7)'); rect(Math.round(x) + (dir > 0 ? -6 : 14), y + 2, 6, 1, 'rgba(255,255,255,.5)');
         }
         // the crane: only its arm across the top (the mast is out of the picture), the cabin, the trolley, the cable and the hook
         rect(4, JIB, 188, 5, '#B8860B'); rect(4, JIB + 1, 188, 1, '#F2C94C'); for (let x = 6; x < 190; x += 6) rect(x, JIB + 2, 1, 2, '#F2C94C');
         rect(172, JIB - 9, 18, 9, '#B8860B'); rect(174, JIB - 7, 7, 5, '#BFE3F2');                    // the cabin
-        const c = Math.round(crane()), lift = s.t - s.liftAt < LIFT ? (s.t - s.liftAt) / LIFT : -1;
-        // fetching: the cable runs down to the stack on the ground and back up with a storey
-        const deep = lift >= 0 ? Math.sin(lift * Math.PI) * (sy(GY) - JIB - CABLE - SH * 0.8) : 0;
-        const hx = lift >= 0 ? c : live.holding ? hook() : c, hy = JIB + CABLE + Math.round(deep);
-        rect(c - 5, JIB + 5, 10, 3, INK);
-        for (let k = 0; k <= 10; k++) rect(Math.round(c + (hx - c) * k / 10), Math.round(JIB + 8 + (hy - JIB - 8) * k / 10), 1, 2, '#46536A');
-        rect(Math.round(hx) - 3, hy - 1, 6, 2, INK);                                                // the hook
-        if (!live.holding && !s.over && lift < 0) for (let y = JIB + 10; y < sy(GY) - SH; y += 7) rect(STACK, y, 1, 3, 'rgba(255,212,58,.55)');   // where to fetch the next one
-        if (lift > 0.5 && K.has('storeys', 'floor')) K.figure('storeys', hx, hy + SH + 1, pose(live.floors.length, n), 0, false);   // on its way up
-        if (!s.over && Net.now() >= live.busyUntil && live.holding && live.floors.length < n) {
-          const i = live.floors.length;
-          if (K.has('storeys', pose(i, n))) K.figure('storeys', hx, hy + SH + 1, pose(i, n), 0, false);
-          // a faint line straight down, to help aim
-          for (let y = hy + SH + 4; y < sy(GY - live.floors.length * SH); y += 6) rect(Math.round(hx), y, 1, 2, 'rgba(255,248,231,.35)');
+        const knock = s.t - s.knock < 0.15 ? 1 : 0, c = Math.round(crane()) + (s.crane >= 168 ? -knock : knock);
+        const held = holding() && !lifting, aiming = held && !busy() && !s.over;
+        // where the crane should go next: a yellow arrow on the arm, and little marks running along it towards there
+        const goal = held ? Math.round(top() - wnd) : STACK;
+        if (!s.over && !busy() && !done() && Math.abs(goal - c) > (held ? 4 : 8)) {
+          const bob = Math.floor(s.t * 4) % 2;
+          for (let k = 0; k < 5; k++) { rect(goal - 5 + k, JIB - 8 - bob + k, 11 - 2 * k, 1, '#FFD43A'); rect(goal - 6 + k, JIB - 8 - bob + k, 1, 1, INK); rect(goal + 5 - k, JIB - 8 - bob + k, 1, 1, INK); }
+          rect(goal - 6, JIB - 9 - bob, 13, 1, INK);
+          const dir = Math.sign(goal - c), run = (s.t * 30) % 8;
+          for (let x = c + dir * (8 + run); dir > 0 ? x < goal - 4 : x > goal + 4; x += dir * 8) rect(Math.round(x), JIB + 2, 2, 2, '#FFFFFF');
         }
+        // fetching: the hook goes down to the pile (eased), takes a storey and brings it up; the storey starts to swing
+        const base = JIB + CABLE, u = lifting ? (s.t - s.liftAt) / LIFT : -1;
+        const pileTop = pileY(Math.max(0, Math.min(3, left + 1) - 1)) - SH * 0.8 - HANG;
+        let hx = c + s.lag * 0.5, hy = base, load = false, size = 0.5;
+        if (lifting) {
+          if (u < 0.4) hy = base + (pileTop - base) * easeInOut(u / 0.4);
+          else if (u < 0.52) hy = pileTop;
+          else { const k = (u - 0.52) / 0.48, e = easeOut(k); hy = pileTop + (base - pileTop) * e; hx = c + (hook() - c) * k * k; size = k < 0.15 ? 0.4 : k < 0.3 ? 0.45 : 0.5; }
+          load = u >= 0.4;
+          if (u >= 0.4 && u < 0.52) size = 0.4;
+        } else if (held) { hx = hook(); load = true; }
+        if (!lifting && s.t - s.liftAt < LIFT + 0.25) hy += Math.round(Math.sin((s.t - s.liftAt - LIFT) / 0.25 * Math.PI) * 2);   // the rope gives a little at the top
+        hx = Math.round(hx); hy = Math.round(hy);
+        rect(c - 5, JIB + 5, 10, 3, INK);                                                      // the trolley, its wheels turning as it goes
+        if (Math.abs(s.v) > 8) { const w = Math.floor(s.t * 12) % 2; rect(c - 4 + w, JIB + 5, 1, 1, '#F2C94C'); rect(c + 2 + w, JIB + 5, 1, 1, '#F2C94C'); }
+        line(c, JIB + 8, hx, hy - 3, '#46536A');                                               // the cable
+        rect(hx - 2, hy - 3, 5, 3, '#F2C94C'); rect(hx - 2, hy - 3, 5, 1, '#B8860B');          // the hook block
+        const open = s.t - s.openAt < 0.25;                                                     // letting go: the hook opens
+        rect(hx, hy, 1, 2, INK);
+        if (open) { rect(hx - 2, hy + 2, 2, 1, INK); rect(hx + 1, hy + 2, 2, 1, INK); } else { rect(hx - 1, hy + 2, 3, 1, INK); rect(hx - 2, hy + 1, 1, 1, INK); }
+        if (load) {
+          const i = live.floors.length + (f && f.ok && !f.sure && f.i >= live.floors.length ? 1 : 0), py = hy + HANG;
+          line(hx, hy + 2, hx - 15, py, '#46536A'); line(hx, hy + 2, hx + 15, py, '#46536A');   // the slings
+          if (K.has('storeys', pose(i, n))) K.figure('storeys', hx, py + SH * size * 2, pose(i, n), 0, false, size);
+        }
+        // aiming: the strip on top of the house where it has to land, and a line straight down from the storey (green: let go now)
+        if (aiming) {
+          const ty = sy(GY - (live.floors.length - 1) * SH) - SH, g = lit(), sl = Math.round(slack()), tx = Math.round(top());
+          rect(tx - sl, ty - 1, sl * 2 + 1, 1, g ? '#7CE07C' : 'rgba(255,248,231,.45)');
+          for (let y = hy + HANG + SH + 3; y < ty - 3; y += 5) rect(hx, y, 1, 3, g ? 'rgba(124,224,124,.9)' : 'rgba(255,248,231,.35)');
+          rect(hx - 2, ty - 3, 5, 1, g ? '#7CE07C' : 'rgba(255,248,231,.6)');
+        }
+        if (!held && !lifting && !s.over && !busy() && !done()) for (let y = JIB + 10; y < pileY(Math.max(0, pileN - 1)) - SH; y += 7) rect(STACK, y, 1, 3, 'rgba(255,212,58,.55)');   // where to fetch the next one
         // a storey on its way down: onto the house, or past it and off the screen
-        if (s.fall) {
-          const u = s.t - s.fall.at, i = s.fall.ok ? s.fall.i : live.floors.length;
-          const land = s.fall.ok ? sy(GY - i * SH) : H + 60, y0 = s.fall.from + SH + 1 + cam;    // from the hook, where it hung (`from` is on the house, not the screen)
-          const y = Math.min(land, y0 + 420 * u * u), x = s.fall.ok ? s.fall.x : s.fall.x + u * 30;
-          if (y < land || s.fall.ok) K.figure('storeys', x, y, pose(i, n), 0, false);
-          if (s.fall.ok && y >= land && s.fall.perfect && u < 1) { for (let k = 0; k < 4; k++) rect(Math.round(x - 22 + k * 14), Math.round(land - SH - 6 - (u - 0.45) * 20), 3, 3, '#FFD43A'); }
+        if (f && (!f.landed || !f.ok)) {
+          const i = f.i, land = GY - i * SH, yy = f.from + 0.5 * G * ft * ft;
+          const past = f.passed ? s.t - f.passAt : 0, side = Math.sign(f.x - top()) || 1, reach = Math.min(1, ft / Math.sqrt(Math.max(1, 2 * (land - f.from) / G)));
+          const x = f.x0 + (f.x - f.x0) * easeOut(reach) + (f.passed ? side * (40 * past + 60 * past * past) : 0);
+          if (f.ok || sy(yy) < H + SH * 2) K.figure('storeys', Math.round(x), Math.round(sy(Math.min(yy, f.ok ? land : yy))), pose(i, n), 0, false);
         }
+        for (const b of s.bits) rect(Math.round(b.x), Math.round(sy(b.y)), 2, 2, b.c);         // dust and sparkles
+        ctx.restore();
       },
     };
   }

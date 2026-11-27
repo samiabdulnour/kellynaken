@@ -142,11 +142,14 @@
       return { items, big };
     },
     // Sami's tower gets harder as it grows; n is how many storeys already stand on the lobby. The storey on the hook
-    // swings further and faster, from the eighth storey the wind pushes it slowly to one side and back (the crane has
-    // to lean against it), and it has to land ever closer to the middle of the one below.
-    sway(t, n) { return (4 + n * 1.5) * Math.sin(t * (1.4 + n * 0.08)) + course.wind(t, n); },
-    wind(t, n) { return n >= 7 ? (n - 6) * 2.4 * Math.sin(t * 0.35 + 1) : 0; },
-    slack(base, n) { return Math.max(8, base - n * 0.5); },
+    // swings further (and a little faster), from the ninth storey the wind pushes it slowly to one side and back (the
+    // crane has to lean against it), and it has to land ever closer to the middle of the one below. `amp` (0 to 1) is
+    // how hard it swings just now: driving the crane makes it swing, standing still calms it (game.js); the phase
+    // comes from the shared clock, so both phones see it swing alike.
+    swing(n) { return { a: 5 + n * 1.1, w: 1.5 + n * 0.04 }; },
+    sway(t, n, amp = 1) { const g = course.swing(n); return amp * g.a * Math.sin(t * g.w) + course.wind(t, n); },
+    wind(t, n) { return n >= 8 ? (n - 7) * 1.6 * Math.sin(t * 0.35 + 1) : 0; },
+    slack(base, n) { return Math.max(9, base - n * 0.4); },
     // The shark at the reef, the same on both phones. During the throws it circles and now and then dashes at the jetty
     // (`lunges`, seconds into the game; a buoy thrown just then is knocked away): only once a buoy has been caught,
     // and more often for the last one (`late`). During the pull it bites the raft and drags it back (`surges`,
@@ -263,12 +266,13 @@
         const need = Math.round(sc.collect.need * (two ? 1.5 : 1));
         Object.assign(sn, { two, got: [], stung: [], paid: [], cost: { ken: 0, kel: 0 }, have: 0, at: {}, lifted: false, need, bigPart: Math.round(need * ((sc.collect.big && sc.collect.big.part) || 0)), lives: two ? 4 : 3, tideAt: null });
       }
-      if (sc.play === 'tower') Object.assign(sn, { floors: [96], crane: 96, need: Math.round(sc.tower.need * (two ? 1.3 : 1)), lives: two ? 5 : 4, n: 0, last: null, busyUntil: 0, endAt: 0, endPhase: null, holding: false, lifts: 0 });
+      // the tower: two build a little higher (`two`), and a flag every `check` storeys is where a lost game goes on from (see 'retry')
+      if (sc.play === 'tower') Object.assign(sn, { floors: [96], crane: 96, need: two ? sc.tower.two || sc.tower.need : sc.tower.need, lives: two ? 5 : 4, n: 0, last: null, busyUntil: 0, endAt: 0, endPhase: null, holding: false, lifts: 0, check: 0, from: 0 });
       // the reef: each has lifebuoys of their own to lose (`left`), so one who runs out leaves the throwing to the other;
       // `lives` is all of them together. The pull: `tugs` counts each one's taps, `pull` how far the raft has come by `pullT`.
       if (sc.play === 'rescue') { const n = sc.rescue.lives[two ? 1 : 0]; Object.assign(sn, { two, stage: 'throw', hits: 0, needHits: Math.round(sc.rescue.hits * (two ? 1.5 : 1)), left: { ken: n, kel: n }, lives: two ? 2 * n : n, misses: 0,
         pull: 0, pullAt: 0, pullT: 0, needPull: Math.round(sc.rescue.pull * (two ? 1.8 : 1)), tugs: { ken: 0, kel: 0 }, tugAt: { ken: 0, kel: 0 }, lastTug: null, lastTugAt: 0, turns: 0, combo: 0, comboAt: 0 }); }
-      if (sc.play === 'salon') Object.assign(sn, { lives: two ? 4 : 3, need: Math.round(sc.salon.need * (two ? 1.6 : 1)), served: 0, coins: 0, cust: [], next: 0, tt: 0, workers: { ken: null, kel: null } });
+      if (sc.play === 'salon') Object.assign(sn, { lives: two ? 4 : 3, need: Math.round(sc.salon.need * (two ? 1.6 : 1)), served: 0, coins: 0, cust: [], next: 0, tt: 0, workers: { ken: null, kel: null }, hold: { ken: false, kel: false } });
       // the flat: every piece in the heap, nobody holding anything; two get a fifth more time before night
       if (sc.play === 'flat') Object.assign(sn, { seconds: Math.round(sc.flat.seconds * (two ? 1.2 : 1)), no: null, wonAt: 0,
         pieces: course.flat(sn.seed, sc).pieces.map((p) => ({ f: p.f, by: null, till: 0, rest: null, done: false, who: null })) });
@@ -311,6 +315,8 @@
       sn.listenAt = sn.since = sn.showAt + len * sn.beat * 1000 + 300;                // `since`: from when the next stroke is waited for (for the hints)
     }
     // The salon runs on its own between messages: customers come in, work gets done where someone stands, patience runs out.
+    // Each pair of hands at a place works at speed 1, or 1.5 while its owner holds the Pracuj button down; someone
+    // being worked on is happy and loses no patience.
     const QUEUE = 3, AWAY = -1, WAITING = -2;                                       // three chairs to wait on by the door
     function salonTick() {
       const sn = S.scene; if (!sn || sn.phase !== 'play') return false;
@@ -323,21 +329,24 @@
         sn.cust.push({ ...p, step: 0, work: 0, at: WAITING, by: null, pat: max, max, no: 0 });
       }
       for (const c of sn.cust) {
+        let tended = false;
         if (c.at >= 0) {
-          const st = cfg.stations[c.at], k = ['ken', 'kel'].filter((w) => sn.workers[w] === c.at).length;
-          if (st.k === c.order[c.step] && k) {
-            c.work += dt * k;
+          const st = cfg.stations[c.at], hands = ['ken', 'kel'].filter((w) => sn.workers[w] === c.at);
+          if (st.k === c.order[c.step] && hands.length) {
+            tended = true;
+            c.work += dt * hands.reduce((a, w) => a + (sn.hold && sn.hold[w] ? 1.5 : 1), 0);
             if (c.work >= cfg.work[st.k]) {
               c.work = 0; c.step++; c.pat = Math.min(c.max, c.pat + 8);
               if (c.step >= c.order.length) { c.gone = 'happy'; sn.served++; sn.coins += 50 + c.order.length * 30; }
               else {                                                                    // done here: whoever did it takes them by the hand, on to the next thing
-                const w = ['ken', 'kel'].find((q) => sn.workers[q] === c.at && !sn.cust.some((o) => o.by === q));
+                // (with two at it, the one who brought them here: a helper does not walk off with the other's customer)
+                const w = [c.led, 'ken', 'kel'].find((q) => q && sn.workers[q] === c.at && !sn.cust.some((o) => o.by === q));
                 if (w) { c.by = w; c.at = AWAY; sn.workers[w] = null; }
               }
             }
           }
         }
-        if (!c.gone && (c.pat -= dt) <= 0) { c.gone = 'angry'; sn.lives--; }
+        if (!c.gone && !tended && (c.pat -= dt) <= 0) { c.gone = 'angry'; sn.lives--; }
       }
       sn.cust = sn.cust.filter((c) => !c.gone);
       if (sn.served >= sn.need) sn.phase = 'won';
@@ -390,6 +399,7 @@
       if (k === 'flat') { const u = ((sn.wonAt || now()) - sn.startAt) / 1000 / sn.seconds; return u <= 0.5 ? 3 : u <= 0.8 ? 2 : 1; }   // how much daylight was left
       if (k === 'echo') return by(sn.misses + sn.hints, sn.two ? 4 : 3);                // slips, and strokes played only once the drum was shown
       if (k === 'rescue') return by(sn.misses, Math.floor(sn.maxLives / 2));               // buoys handed back do not undo a miss
+      if (k === 'tower' && sn.from) return Math.min(2, by(sn.maxLives - sn.lives, Math.floor(sn.maxLives / 2)));   // built on from a flag: not all of it cleanly
       if (sn.maxLives) return by(sn.maxLives - sn.lives, Math.floor(sn.maxLives / 2));
       return 3;
     }
@@ -479,12 +489,14 @@
       if (kind === 'salon') {
         const cfg = sc.salon, c = sn.cust.find((q) => q.id === (m.c | 0)), st = m.st | 0;
         if (m.e === 'at') sn.workers[who] = Number.isInteger(m.st) && st >= 0 && st < cfg.stations.length ? st : null;   // where this one stands and works
+        if (m.e === 'hold') sn.hold[who] = !!m.on;                                       // the Pracuj button held down: quicker work
         const busy = (q) => q.at >= 0 && cfg.stations[q.at].k === q.order[q.step];          // sitting where their next thing is done: not to be pulled away
-        if (m.e === 'take' && c && !c.by && !busy(c) && !sn.cust.some((q) => q.by === who)) { c.by = who; c.at = AWAY; c.work = 0; }    // leading a customer by the hand
+        // leading a customer by the hand; one nearly out of patience in the other's hand may be taken over, to save them
+        if (m.e === 'take' && c && (!c.by || (c.by !== who && c.pat <= c.max / 4)) && !busy(c) && !sn.cust.some((q) => q.by === who)) { c.by = who; c.at = AWAY; c.work = 0; }
         if (m.e === 'drop' && c && c.by === who && sn.cust.filter((q) => q.at === WAITING).length < QUEUE) { c.by = null; c.at = WAITING; c.work = 0; }   // let go: back to a chair by the door, if one is free
         if (m.e === 'lead' && c && c.by === who) {
           const there = cfg.stations[st];
-          if (there && there.k === c.order[c.step] && !sn.cust.some((q) => q.at === st)) { c.at = st; c.by = null; c.work = 0; sn.workers[who] = st; }
+          if (there && there.k === c.order[c.step] && !sn.cust.some((q) => q.at === st)) { c.at = st; c.by = null; c.work = 0; c.led = who; sn.workers[who] = st; }
           else c.no++;                                                                  // not what they want next, or taken: a shake of the head
         }
       }
@@ -534,9 +546,12 @@
           // where the storey hung when she let it go, as her phone saw it (the room hears the crane only now and then)
           const t = (now() - sn.startAt) / 1000, seen = +m.x, hook = Number.isFinite(seen) ? clamp(seen, 0, 192) : sn.crane + course.sway(t, sn.floors.length - 1), off = hook - sn.floors[sn.floors.length - 1];
           const ok = Math.abs(off) <= course.slack(sc.tower.slack, sn.floors.length - 1);
-          sn.last = { n: ++sn.n, x: hook, ok, perfect: Math.abs(off) <= 2.5 };
+          sn.last = { n: ++sn.n, x: hook, x0: Number.isFinite(+m.x0) ? clamp(+m.x0, 0, 192) : hook, ok, perfect: ok && Math.abs(off) <= 2.5 };   // x0: where it hung when let go
           if (ok) sn.floors.push(hook); else sn.lives--;
-          sn.busyUntil = now() + 1100;
+          if (sn.last.perfect && sn.lives < sn.maxLives) { sn.lives++; sn.last.back = true; }      // a perfect landing gives a lost heart back
+          const every = sc.tower.check || 5, built = sn.floors.length - 1;
+          if (ok && built % every === 0 && built < sn.need - 1) sn.check = built;              // a flag: a lost game goes on from here
+          sn.busyUntil = now() + 700;                                                    // while it falls
           if (sn.floors.length >= sn.need) { sn.endAt = now() + 1000; sn.endPhase = 'won'; }
           else if (sn.lives <= 0) { sn.endAt = now() + 1000; sn.endPhase = 'lost'; }
         }
@@ -630,6 +645,7 @@
       if (m.type === 'fx') return emit(who === 'ken' ? 'kel' : 'ken', { ...m, type: 'fx', from: who });
       const sn = S.scene, sc = sn && place().scenes[sn.index];
       if (m.type === 'pause' && sn && sn.pieces && sn.phase === 'play' && !sn.paused) for (const p of sn.pieces) p.by = null;   // moving in: a pause lets go of what is held
+      if (m.type === 'pause' && sn && sn.hold) sn.hold = { ken: false, kel: false };            // the salon: Pracuj lets go for the pause (a finger still on it says so again after)
       // A pause stops the game's clock: on carrying on, every moment the game keeps is moved on by the pause.
       if (m.type === 'pause') { if (sn && sn.phase === 'play' && !sn.paused) { sn.paused = now(); sn.pausedBy = who; } }
       else if (m.type === 'resume') {
@@ -663,6 +679,8 @@
       // Pexeso lost: another go with the same cards on the table, the pairs found staying found; only the wrong guesses start again.
       else if (m.type === 'retry' && sn && sn.phase === 'lost' && sc.play === 'memory') { start(sn.index, true); Object.assign(S.scene, { deck: sn.deck, done: sn.done, before: (sn.before || 0) + sn.misses }); }
       else if (m.type === 'retry' && sn && sn.phase === 'lost') start(sn.index, true);
+      // the tower, lost and started again: on from its last flag
+      if (m.type === 'retry' && S.scene !== sn && sc && sc.play === 'tower' && sn.check) Object.assign(S.scene, { floors: sn.floors.slice(0, sn.check + 1), check: sn.check, from: sn.check });
       push();
     }
 
