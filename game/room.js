@@ -121,13 +121,24 @@
       return deck;
     },
     // The beach: what the waves wash up, when and where, and how long it stays before the sea takes it back.
-    collect(seed, sc) {
-      const cfg = sc.collect, r = rng(seed), list = [];
-      for (let id = 0, at = 1.2; at < cfg.seconds - 1; id++) {
-        list.push({ id, at, x: 22 + Math.floor(r() * 148), kind: id > 1 && r() < cfg.jelly ? 'jelly' : r() < 0.7 ? 'paper' : 'bottle' });
-        at += cfg.every[0] + r() * (cfg.every[1] - cfg.every[0]);
-      }
-      return list;
+    // A calm start with no jellyfish, then more of them. A second stream (`extra`) only washes up once the tide
+    // (příliv) is in, so the tide can come whenever the room says (see sn.tideAt). Halfway through a big bottle washes
+    // up that takes both of them to lift; nothing lands right next to it. Two share one beach: more washes up for
+    // them, but no more jellyfish a second.
+    collect(seed, sc, two) {
+      const cfg = sc.collect, r = rng(seed), items = [], B = cfg.big, more = two ? 1.2 : 1;
+      const big = B ? { at: B.at, stay: B.stay, x: 64 + Math.floor(r() * 64) } : null;
+      const nearBig = (at, x) => big && at > big.at - cfg.stay && at < big.at + big.stay && Math.abs(x - big.x) < 30;
+      const wash = (rand, at, extra) => {                                              // one thing washed up; returns the wait for the next
+        const id = items.length, calm = clamp((at - (cfg.calm || 0)) / 18, 0, 1);       // jellyfish come in slowly after the calm start
+        let x = 22 + Math.floor(rand() * 148);
+        if (nearBig(at, x)) x = big.x + (x < big.x ? -36 : 36);
+        items.push({ id, at, x, extra, stay: cfg.stay, kind: id > 1 && rand() < (cfg.jelly / more) * calm ? 'jelly' : rand() < 0.7 ? 'paper' : 'bottle' });
+        return (cfg.every[0] + rand() * (cfg.every[1] - cfg.every[0])) / more;
+      };
+      for (let at = 1.2; at < cfg.seconds - 1; ) at += wash(r, at, false);
+      for (let at = 1.5, r2 = rng(seed ^ 0x51f15e); at < cfg.seconds - 1; ) at += wash(r2, at, true) / 0.8;   // with the tide: 1.8 times as much
+      return { items, big };
     },
     // Sami's tower gets harder as it grows; n is how many storeys already stand on the lobby. The storey on the hook
     // swings further and faster, from the eighth storey the wind pushes it slowly to one side and back (the crane has
@@ -229,7 +240,10 @@
       if (sc.play === 'shoot') Object.assign(sn, { lives: two ? 4 : 3, hits: 0, need: Math.round(sc.shoot.need * (two ? 1.6 : 1)), every: sc.shoot.every / (two ? 1.4 : 1), two, hit: [], missed: [], item: null, gold: null, go: null });
       if (sc.play === 'find') Object.assign(sn, { found: [], need: sc.find.need });
       if (sc.play === 'memory') { const first = two ? (Math.random() < 0.5 ? 'ken' : 'kel') : null; Object.assign(sn, { deck: course.memory(sn.seed, sc), open: [], done: [], misses: 0, maxMiss: sc.memory.miss + (two ? 2 : 0), first, turn: first, hideAt: 0 }); }
-      if (sc.play === 'collect') Object.assign(sn, { got: [], stung: [], need: Math.round(sc.collect.need * (two ? 1.5 : 1)), lives: two ? 4 : 3 });
+      if (sc.play === 'collect') {                                                       // `have`: pieces of the message so far; the big bottle holds `bigPart` of them
+        const need = Math.round(sc.collect.need * (two ? 1.5 : 1));
+        Object.assign(sn, { two, got: [], stung: [], paid: [], cost: { ken: 0, kel: 0 }, have: 0, at: {}, lifted: false, need, bigPart: Math.round(need * ((sc.collect.big && sc.collect.big.part) || 0)), lives: two ? 4 : 3, tideAt: null });
+      }
       if (sc.play === 'tower') Object.assign(sn, { floors: [96], crane: 96, need: Math.round(sc.tower.need * (two ? 1.3 : 1)), lives: two ? 5 : 4, n: 0, last: null, busyUntil: 0, endAt: 0, endPhase: null, holding: false, lifts: 0 });
       if (sc.play === 'rescue') Object.assign(sn, { stage: 'throw', hits: 0, needHits: sc.rescue.hits * (two ? 2 : 1), lives: two ? 4 : 3, pull: 0, needPull: Math.round(sc.rescue.pull * (two ? 2 : 1)), pullAt: 0 });
       if (sc.play === 'salon') Object.assign(sn, { lives: two ? 4 : 3, need: Math.round(sc.salon.need * (two ? 1.6 : 1)), served: 0, coins: 0, cust: [], next: 0, tt: 0, workers: { ken: null, kel: null } });
@@ -456,11 +470,25 @@
         if (sn.first) { sn.first = other(sn.first); sn.turn = sn.first; }                     // and the roles swap
       }
       if (kind === 'collect') {
-        const id = m.id | 0, it = course.collect(sn.seed, sc)[id];
-        if (!it) return;
-        if (m.e === 'grab' && it.kind !== 'jelly' && !sn.got.includes(id)) { sn.got.push(id); if (sn.got.length >= sn.need) sn.phase = 'won'; }
-        if (m.e === 'sting' && it.kind === 'jelly' && !sn.stung.includes(id + ':' + who)) { sn.stung.push(id + ':' + who); if (--sn.lives <= 0) sn.phase = 'lost'; }
+        const beach = course.collect(sn.seed, sc, sn.two), big = beach.big, t = (now() - sn.startAt) / 1000;
         if (m.e === 'finish') sn.phase = 'lost';
+        // The big bottle: with two, it comes up once both stand at it; alone, once held up for a second (the phone times it).
+        if ((m.e === 'at' || m.e === 'lift') && big && !sn.lifted && t > big.at - 1 && t < big.at + big.stay + 1) {
+          if (m.e === 'at') sn.at[who] = !!m.on;
+          if (m.e === 'lift' ? !sn.two : sn.two && sn.at.ken && sn.at.kel) { sn.lifted = true; sn.have += sn.bigPart; }
+        }
+        const id = m.id | 0, it = beach.items[id];
+        if (it && m.e === 'grab' && it.kind !== 'jelly' && !sn.got.includes(id)) { sn.got.push(id); sn.have++; }
+        // Each jellyfish stings each of them once at most, and costs one heart however many it stings. With two, one
+        // of them alone can cost all but the last heart: it takes both to lose.
+        if (it && m.e === 'sting' && it.kind === 'jelly' && !sn.stung.includes(id + ':' + who)) {
+          sn.stung.push(id + ':' + who);
+          if (!sn.paid.includes(id) && (!sn.two || sn.cost[who] < sn.maxLives - 1)) { sn.paid.push(id); sn.cost[who]++; if (--sn.lives <= 0) sn.phase = 'lost'; }
+        }
+        if (sn.have >= sn.need && sn.phase === 'play') sn.phase = 'won';
+        // The finale: the tide comes once `tideNote` of the note is found (or in the last seconds, the phones know when),
+        // a second after this so both phones hear of it before anything more washes up.
+        else if (sn.tideAt === null && sn.have >= sn.need * (sc.collect.tideNote || 1)) sn.tideAt = Math.max(0, t) + 1;
       }
       // The tower: Kendrick moves the crane, Kellyn lets each storey go. It lands if it is over the top of the house.
       if (kind === 'tower') {

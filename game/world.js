@@ -197,7 +197,11 @@ window.WORLD = {
       look: { sky: '#FFE2B0', far: '#D9622B', far2: '#C98A4B', ground: '#F5D7A1', line: '#D9A441' },
       scenes: [
         { id: 'australia-beach', name: 'Pláž Bondi', at: [120, 244], label: 'below', bg: 'australia-beach', play: 'collect', code: 'LAHEV', ground: 226,
-          collect: { seconds: 55, need: 15, stay: 3.6, every: [1.0, 1.7], jelly: 0.24, won: 'Na vzkazu stojí: POMOC! Jsme na skále za útesem.' },
+          // `calm`: seconds with no jellyfish; the tide brings more in, faster: in the last `tide` seconds, or as soon as
+          // `tideNote` of the note is found, so everyone gets the finale. The big bottle washes up at `at` and stays `stay`
+          // seconds; it holds `part` of the message. `note` fills in as they collect.
+          collect: { seconds: 60, need: 20, stay: 3.6, every: [1.0, 1.7], jelly: 0.26, calm: 6, tide: 15, tideNote: 0.5, big: { at: 15, stay: 14, part: 0.22 },
+            note: 'POMOC! JSME NA|SKÁLE ZA ÚTESEM', won: 'Na vzkazu stojí: „Pomoc! Jsme na skále za útesem.“' },
           // The saga opens like a short film: the voyage, his photograph, and today's two travellers seen from behind.
           talk: [['', 'Po válce utekl praděda Václav z Československa. Na lodi s uprchlíky plul přes celý oceán až do Austrálie.', null, 'ship'],
             ['', 'Byl to skvělý chlap. Dva roky pracoval ve vnitrozemí, získal australské občanství a pak žil v Brisbane.', null, 'photo'],
