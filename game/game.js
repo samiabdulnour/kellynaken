@@ -966,16 +966,24 @@
     const back = [];
     for (let k = 0; k < 4; k++) back.push({ at: song.start - (4 - k) * beat, kind: 'stick', vol: k ? 0.7 : 1, count: k + 1 });
     for (let b = 0; b < cfg.beats; b++) { const at = song.start + b * beat; back.push({ at, kind: 'hat', vol: 0.45 }); if (b % 2 === 0) back.push({ at, kind: 'kick', vol: 0.22 }); }
-    const s = { t: 0, over: false, won: false, notes, pick, back: 0, counted: 0, taps: 0, mateTaps: 0, combo: 0, best: 0, mateCombo: 0, heat: 0, parts: [], stray: [], missed: 0, told: 0,
+    const s = { t: 0, over: false, won: false, notes, pick, back: 0, counted: 0, taps: 0, mateTaps: 0, combo: 0, best: 0, mateCombo: 0, heat: 0, parts: [], stray: [], slots: new Set(), missed: 0, told: 0, stars: 0,
       press: [-9, -9, -9], hint: [-9, -9, -9], shake: [-9, -9, -9], ring: [-9, -9, -9], bad: [-9, -9, -9], good: [-9, -9, -9],
       tapAt: -9, mateAt: -9, cheerAt: -9, mateCheer: -9, flash: -9, lost: -9, asked: false, first: true, saidPick: false, saidPower: false, saidHalf: false, saidFill: false, saidEnd: false, tipUntil: 1e9, sent: 0 };
     let live = sn;
-    const view = stage('<span class="count"></span><span class="meter"><i></i></span>', two ? (who === 'ken' ? 'Tvoje jsou dva levé bubny.' : 'Tvůj je modrý činel.') : 'Ťukni, až je nota na čáře.');
-    view.tip.classList.add('up');
+    // the bar: hits out of what is needed, and three stars that light up as they are earned (the first one wins it)
+    const view = stage('<span class="count"></span><span class="meter"><i></i></span><span class="starbar"><i></i><i></i><i></i></span>', two ? (who === 'ken' ? 'Tvoje jsou dva levé bubny.' : 'Tvůj je modrý činel.') : 'Ťukni, až je nota na čáře.');
+    view.tip.classList.add('up', 'roof');                                               // just under the bar, clear of the board on the stage roof
+    s.base = view.tip.textContent;                                                       // the opening advice: it stays until the first hit
     if (two) for (let i = 0; i < 3; i++) add(`<span class="owner" style="${pinAt([i * LANE + LANE - 20, PAD + 4])}">${face(i < 2 ? 'ken' : 'kel', 3, 1)}</span>`);   // whose drum it is
     const powered = () => Net.now() < live.power;
-    const paint = () => { view.hud.firstElementChild.textContent = `${live.hits} / ${live.need}`; view.hud.lastElementChild.firstElementChild.style.width = clamp(live.hits / live.need, 0, 1) * 100 + '%'; };
-    const say = (text, secs) => { view.tip.textContent = text; s.tipUntil = secs ? s.t + secs : 1e9; };
+    const paint = () => {
+      const [count, meter, stars] = view.hud.children, got = (live.marks || [live.need]).filter((k) => live.hits >= k).length;
+      count.textContent = `${live.hits} / ${live.need}`; meter.firstElementChild.style.width = clamp(live.hits / live.need, 0, 1) * 100 + '%';
+      [...stars.children].forEach((e, i) => e.classList.toggle('on', i < got));
+      if (got > s.stars && !s.over) beep(1040, 1320);                                    // a new star: a chime as it pops up
+      s.stars = got;
+    };
+    const say = (text, secs) => { view.tip.textContent = text; s.tipUntil = secs ? s.t + secs : 1e9; };   // a tip for `secs`, then the advice is back
     const mid = (lane) => lane * LANE + LANE / 2;
     const beatAt = (t) => (t - song.start) / beat;
     // A handful of pixels flying off from where something was hit.
@@ -1019,30 +1027,35 @@
         const lane = clamp(Math.floor(x / LANE), 0, 2), t = s.t;
         if (!ours(lane)) { s.shake[lane] = t; beep(170); say(who === 'ken' ? 'Tohle hraje Kellyn.' : 'Tohle hraje Kendrick.', 1.6); return; }   // the other one's drum: a shake and a word
         s.press[lane] = t; s.taps++; s.tapAt = t;
-        if (pick && !live.picked && !s.asked && lane === pick.lane && Math.abs(pick.at - t) <= 0.25) {      // caught the drumstick on the line
+        const slot = Math.round(beatAt(t)), onBeat = Math.abs(beatAt(t) - slot) * beat <= 0.15;   // the beat the tap is on, if it is in time
+        let best = null;
+        for (const n of notes) if (n.lane === lane && !n.hit && Math.abs(n.at - t) <= WINDOW && (!best || Math.abs(n.at - t) < Math.abs(best.at - t))) best = n;
+        // caught the drumstick on the line; it falls close to a note, so it takes the tap only when it is the nearer one
+        if (pick && !live.picked && !s.asked && lane === pick.lane && Math.abs(pick.at - t) <= 0.25 && (!best || Math.abs(pick.at - t) < Math.abs(best.at - t))) {
           s.asked = true; drum(KIT[lane]); beep(660, 880, 1100); burst(mid(lane), LINE, '#FFD43A', 14, 60); s.flash = t;
           Net.send({ type: 'fx', k: 'tap', lane, i: -1, c: s.combo });
           return Net.send({ type: 'ev', e: 'pick' });
         }
-        let best = null;
-        for (const n of notes) if (n.lane === lane && !n.hit && Math.abs(n.at - t) <= WINDOW && (!best || Math.abs(n.at - t) < Math.abs(best.at - t))) best = n;
         if (best) {                                                                      // a hit: it sounds, pops and counts at once, before the room hears of it
           const dbl = powered();
-          best.hit = t; s.good[lane] = t; s.combo++; s.best = Math.max(s.best, s.combo); s.missed = 0;
+          best.hit = t; if (onBeat) s.slots.add(slot); s.good[lane] = t; s.combo++; s.best = Math.max(s.best, s.combo); s.missed = 0;
           drum(KIT[lane]); burst(mid(lane), LINE, COLOUR[lane], best.big ? 16 : 8); if (dbl || best.big) burst(mid(lane), LINE, '#FFF8E7', 8, 70);
           plus(dbl ? '+2' : '+1', mid(lane), LINE - 9, dbl ? '#FFD43A' : '#FFF8E7');
           Net.send({ type: 'ev', e: 'hit', n: dbl ? 2 : 1 });
           Net.send({ type: 'fx', k: 'tap', lane, i: notes.indexOf(best), c: s.combo });
           if (PRAISE[s.combo]) { cheer(PRAISE[s.combo]); s.cheerAt = t; }
-          if (s.first) { s.first = false; if (s.tipUntil > 1e8) say(''); }
+          if (s.first) { s.first = false; s.base = ''; if (s.tipUntil > 1e8) say(''); }
           return;
         }
         drum(KIT[lane], 0, 0.55);                                                        // a softer stroke: no note there
         Net.send({ type: 'fx', k: 'tap', lane, i: -1, c: s.combo });
-        const near = notes.find((n) => ours(n.lane) && Math.abs(n.at - t) <= NEAR);
-        if (near || t < song.start - NEAR) {                                             // a little early or late, the drum next to it, or the count-in: no harm done
-          s.ring[lane] = t;
-          if (near && near.lane !== lane && !near.hit) s.hint[near.lane] = t;            // the right drum lights up
+        // No harm done: in the count-in; once for each note close by (a little early or late, or the drum next to it, which
+        // then lights up); and once each beat for a tap in time with it, so drumming along with the music never costs.
+        // Banging away does: taps off the beat, more than one a beat, or more than one at a note.
+        const near = notes.find((n) => ours(n.lane) && !n.hit && !n.near && Math.abs(n.at - t) <= NEAR);
+        if (near || (onBeat && !s.slots.has(slot)) || t < song.start - NEAR) {
+          s.ring[lane] = t; if (onBeat) s.slots.add(slot);
+          if (near) { near.near = true; if (near.lane !== lane) s.hint[near.lane] = t; }
           return;
         }
         s.stray = s.stray.filter((u) => t - u < 1.2); s.stray.push(t);
@@ -1062,8 +1075,8 @@
           const e = back[s.back++];
           if (e.at > s.t - 0.05) drum(e.kind, e.at - s.t, e.vol);
         }
-        while (s.counted < 4 && s.t >= back[s.counted].at) {                             // Raz, dva, tři, čtyři!
-          const n = ++s.counted, p = add(`<p class="go beat">${n}</p>`);
+        while (s.counted < 4 && s.t >= back[s.counted].at) {                             // Raz, dva, tři, čtyři! Four dots fill up, one a click
+          const n = ++s.counted, p = add(`<p class="go beat">${'<i class="on"></i>'.repeat(n)}${'<i></i>'.repeat(4 - n)}</p>`);
           setTimeout(() => p.remove(), beat * 900);
         }
         for (const n of notes) {
@@ -1075,7 +1088,7 @@
         if (!s.saidFill && s.t >= song.fill - LEAD) { s.saidFill = true; cheer('Finále!'); }
         if (!s.saidEnd && s.t >= song.end - LEAD) { s.saidEnd = true; say(two ? 'Poslední rána spolu!' : 'Velká rána na konec!', LEAD + 0.6); }
         if (pick && !live.picked && !s.saidPick && s.t >= pick.at - LEAD) { s.saidPick = true; say(ours(pick.lane) ? 'Chyť paličku!' : `Paličku chytá ${heroName(mate())}!`, LEAD + 0.4); }
-        if (s.t > s.tipUntil) say('');
+        if (s.t > s.tipUntil) say(s.base);
         if (s.t > song.end + 1.2 && Net.now() - s.sent > 1000) { s.sent = Net.now(); Net.send({ type: 'ev', e: 'finish' }); }   // said again each second until the room has heard both
       },
       draw() {
@@ -1106,12 +1119,12 @@
         ctx.globalAlpha = Math.max(0, 0.5 - (t - s.flash) * 1.5) + (heat > 0.5 ? 0.07 * pulse * heat : 0);   // a flash for the drumstick, and on the beat when it is hot
         rect(28, 33, 136, FLOOR - 26, '#FFF8E7');
         ctx.restore();
-        // the board on the stage roof: the count-in, then the streak
+        // the board on the stage roof: the count-in (a lamp a click), then the streak
         const cheering = t - s.cheerAt < 0.6, fresh = t - s.tapAt < 0.1;
-        rect(80, 34, 32, 13, INK); rect(81, 35, 30, 11, cheering && Math.floor(t * 10) % 2 ? '#FFD43A' : '#1A1420');
-        if (s.counted && s.counted <= 4 && t < song.start) digits(String(s.counted), 96, 36, 2, '#FFF8E7');
-        else if (s.combo >= 2) digits(String(Math.min(999, s.combo)), 96, 36, 2, cheering && Math.floor(t * 10) % 2 ? INK : fresh ? '#FFF8E7' : '#FFD43A');
-        else for (let k = 0; k < 5; k++) rect(84 + k * 6, 40, 2, 2, t - s.lost < 0.6 && Math.floor(t * 8) % 2 ? '#CC2233' : '#3A2F3F');
+        rect(80, 35, 32, 13, INK); rect(81, 36, 30, 11, cheering && Math.floor(t * 10) % 2 ? '#FFD43A' : '#1A1420');
+        if (s.counted && t < song.start) for (let k = 0; k < 4; k++) rect(83 + k * 7, 39, 5, 5, k < s.counted ? (k === s.counted - 1 && t - back[k].at < 0.15 ? '#FFF8E7' : '#FFD43A') : '#3A2F3F');
+        else if (s.combo >= 2) digits(String(Math.min(999, s.combo)), 96, 37, 2, cheering && Math.floor(t * 10) % 2 ? INK : fresh ? '#FFF8E7' : '#FFD43A');
+        else for (let k = 0; k < 5; k++) rect(84 + k * 6, 41, 2, 2, t - s.lost < 0.6 && Math.floor(t * 8) % 2 ? '#CC2233' : '#3A2F3F');
         // the band: Alan in the middle, each hero over their own drums; a stroke for every tap, a cheer at a milestone
         const at = two ? { ken: 54, kel: 142 } : { [who]: 68 }, ax = two ? 98 : 124;
         (sc.cast || []).forEach((id, i) => K.figure(id, ax + i * 26, FLOOR - (pulse > 0.6 ? 1 : 0), s.won || cheering ? 'joy' : 'act', t));
@@ -1165,7 +1178,7 @@
           }
         }
         const left = (live.power - Net.now()) / 1000;
-        if (left > 0 && (left > 1.5 || Math.floor(t * 8) % 2)) { rect(114, 34, 16, 13, INK); rect(115, 35, 14, 11, '#FFD43A'); item(sc.pickup, 122, 40); }   // held, by the board; blinks when nearly spent
+        if (left > 0 && (left > 1.5 || Math.floor(t * 8) % 2)) { rect(114, 35, 16, 13, INK); rect(115, 36, 14, 11, '#FFD43A'); item(sc.pickup, 122, 41); }   // held, by the board; blinks when nearly spent
         // the drums: pressed in, back up a touch too far, settled. The one to hit now lights up; the other one's are dark.
         for (let i = 0; i < 3; i++) {
           const u = t - s.press[i], dy = u < 0.06 ? 3 : u < 0.13 ? 2 : u < 0.2 ? -1 : 0;
