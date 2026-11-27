@@ -3592,15 +3592,16 @@
   const POINTER = ['....XXXXXXXX..', '....XCCCCCCX..', '...XSSSSSSSX..', '...XSSSSSSSSX.', '..XSSSSSSSSSX.', '..XSSSSSSSSSSX', '.XSSSSSSSSSSSX',
     'XSSSXSSSSSSSSX', 'XSSXXSSSSSSSSX', '.XX.XSSXSSXSSX', '....XSSXSSXXX.', '....XSSXXX....', '....XSSX......', '....XSSX......', '....XSSX......', '.....XX.......'];
   function Memory(sc, place, sn) {
-    const cfg = sc.memory, who = me(), COLS = 4, CW = 40, CH = 50, GAP = 6, X0 = Math.round((W - (COLS * CW + (COLS - 1) * GAP)) / 2), Y0 = 36;
-    const FLIP = 0.26;                                                                 // seconds a card takes to turn over
-    const s = { t: 0, over: false, lost: false, keyAt: null, endIn: 0, pend: [], bits: [], later: [], seen: new Set(), hint: null, hintAt: -9, xs: sn.misses, xsAt: -9, note: '', noteTill: 0, could: false, wave: -9, tipWas: null, hudWas: null, deal: clock(sn) < -0.6 };
+    const cfg = sc.memory, who = me(), COLS = 4, CW = 40, CH = 44, GAP = 6, X0 = Math.round((W - (COLS * CW + (COLS - 1) * GAP)) / 2), Y0 = 30;   // the bench under the cards is where the two of them stand
+    const FLIP = 0.26, REACH = 0.08;                                                   // seconds a card takes to turn over; and the hand to get to it first
+    const s = { t: 0, over: false, lost: false, keyAt: null, endIn: 0, pend: [], bits: [], later: [], seen: new Set(), hint: null, hintAt: -9, xs: sn.misses, xsAt: -9, note: '', noteTill: 0, could: false, mateCould: false, pokeAt: -9, wave: -9, tipWas: null, hudWas: null, deal: clock(sn) < -0.6 };
     let live = sn;
     const card = sn.deck.map((f, i) => ({ up: sn.done.includes(i) || sn.open.includes(i), at: -9, pop: -9, bad: -9, wob: -9 }));
     for (const i of sn.done) s.seen.add('p' + sn.deck[i]);                            // pairs found before (a go after a lost one): no fuss over them again
     for (let k = 1; k <= sn.misses; k++) s.seen.add('m' + k);
     const view = stage('<span class="count"></span><span class="chyby"></span>', '');
     const two = () => !!live.turn;
+    view.tip.classList.add('mem'); view.tip.classList.toggle('alone', !two());       // clear of the heroes under the cards
     const finish = (won) => view.end(won, won ? 'Všechny dvojice!' : 'Moc chyb!', won ? (cfg.won || 'Výborná paměť!') : live.done.length ? `Nalezené dvojice ${two() ? 'vám' : 'ti'} zůstanou.` : `${two() ? 'Zkuste' : 'Zkus'} to ještě jednou.`);
     const spot = (i) => ({ x: X0 + (i % COLS) * (CW + GAP), y: Y0 + Math.floor(i / COLS) * (CH + GAP) });
     const cardAt = (x, y) => live.deck.findIndex((f, i) => { const p = spot(i); return x >= p.x && x < p.x + CW && y >= p.y && y < p.y + CH; });
@@ -3624,24 +3625,25 @@
     // Judged the moment the second card is tapped, on the phone that turned it; the other phone when the room says so.
     // `seen` keeps either from making the fuss twice. It shows once the card has finished turning, so it is seen first,
     // and once the room has taken the flip: one it refused must not cheer or shake, nor use up the fuss of the real one.
-    function judge(a, b, misses) {
+    function judge(a, b, misses, by) {
       const pair = live.deck[a] === live.deck[b], k = pair ? 'p' + live.deck[a] : 'm' + misses;
       if (s.seen.has(k)) return; s.seen.add(k);
+      if (pair) s.finder = by;
       const name = cfg.faces[live.deck[a]][2];
       const ok = () => (pair ? live.done.includes(a) && live.done.includes(b) : live.open.includes(a) && live.open.includes(b));
       const show = pair
-        ? () => { card[a].pop = card[b].pop = s.t; card[a].hold = card[b].hold = false; hud(); burst(a); burst(b); beep(660, 880, 1100); if (name) cheer(name + '!'); }
-        : () => { card[a].bad = card[b].bad = s.t; s.xs = Math.max(s.xs, misses); hud(); beep(200, 160); if (live.maxMiss - misses === 1) say('Pozor, poslední šance!'); };
+        ? () => { card[a].pop = card[b].pop = s.t; card[a].hold = card[b].hold = false; hud(); burst(a); burst(b); beep(660, 880, 1100); if (name) cheer(name + '!'); does(by, 'cheer'); if (two()) does(other(by), 'cheer', -1, 0.1); }
+        : () => { card[a].bad = card[b].bad = s.t; s.xs = Math.max(s.xs, misses); hud(); beep(200, 160); if (live.maxMiss - misses === 1) say('Pozor, poslední šance!'); does(by, 'shrug'); if (two() && live.maxMiss - misses <= 1) kids[other(by)].wince = s.t; if (misses >= live.maxMiss) dizzyAt = s.t + SPAN.shrug; };
       const drop = () => { s.seen.delete(k); card[a].hold = card[b].hold = false; };
       const then = (at) => s.later.push({ at, fn: () => (ok() ? show() : s.pend.some((p) => p.i === a || p.i === b) ? then(s.t) : drop()) });   // no answer yet: look again next frame
       if (pair) card[a].hold = card[b].hold = true;                                  // not green until it is seen to be a pair
-      then(s.t + FLIP);
+      then(s.t + REACH + FLIP);
     }
     // A partner's "Tady!": a hand taps on the card, with the word over it, on both phones; the line below says who.
     function hintOn(i, from, note) {
       hintOff();
       const p = spot(i);
-      s.hint = { i, at: s.t, from, note, el: add(`<p class="tady" style="${pinAt([p.x + CW / 2, p.y])}">Tady!</p>`) };
+      s.hint = { i, at: s.t, from, note, glide: still(from), el: add(`<p class="tady" style="${pinAt([p.x + CW / 2, p.y + 3])}">Tady!</p>`) };   // over the card's top edge: the top row's clear of the bar
       say(note, 3.5);
     }
     function hintOff() { if (s.hint) { s.hint.el.remove(); if (s.note === s.hint.note) s.noteTill = 0; } s.hint = null; }
@@ -3671,6 +3673,110 @@
     }
     hud(); tip();
 
+    // The two of them at the bench under the cards, Kendrick on the left and Kellyn on the right, facing in (alone: this
+    // phone's hero in the middle, turning to the card in play). Every tap is acted out at once: a reach, the pointing
+    // hand (its cuff in their shirt colour, a dotted line back to them) shooting to the card and flicking it over; a hop
+    // for joy at a pair, the partner joining in; a shrug at a wrong one; a reach pulled back when a tap cannot act; a
+    // point held on the card for a "Tady!". The partner's taps play the same on this phone, from the room's cards.
+    const FOOT = 284, SPAN = { reach: 0.3, nope: 0.15, cheer: 0.6, shrug: 0.4 }, ONE = 1 / 55;   // ONE: a game pixel of their height
+    const kids = { ken: { act: null, face: 0, hop: -9, bob: -9, wince: -9, look: null }, kel: { act: null, face: 0, hop: -9, bob: -9, wince: -9, look: null } };
+    let dizzyAt = 1e9;                                                                 // lost: from the last wrong pair's shrug
+    const other = (w) => (w === 'ken' ? 'kel' : 'ken'), hx = (w) => (two() ? (w === 'ken' ? 30 : 162) : 96), inward = (w) => (two() && w === 'kel' ? -1 : 1);
+    const mid = (i) => { const p = spot(i); return { x: p.x + CW / 2, y: p.y + CH / 2 }; };
+    const toward = (w, x) => (x < hx(w) - 4 ? -1 : x > hx(w) + 4 ? 1 : inward(w));
+    const aim = (w, i) => { const x = mid(i).x; return x < hx(w) ? -1 : x > hx(w) ? 1 : inward(w); };   // pointing: to the card's side, even right above them
+    // Kellyn's point k0 is drawn with her feet 7 px back on the sheet: put them where she stands, so she leans in.
+    const plant = (w, o) => (w === 'kel' && o.pose === 'point' && !o.k ? 7 * o.face : 0);
+    const point = (w) => K.pose(w, 'point', w === 'kel' ? 'shoot' : 'cheer'), flick = (w) => K.pose(w, 'tap', w === 'kel' ? 'shoot' : 'cheer');
+    const hop = (u, up) => -Math.round(up * (u < 0.15 ? Math.sin((u / 0.15) * Math.PI / 2) : u < 0.3 ? Math.cos(((u - 0.15) / 0.15) * Math.PI / 2) : 0));   // up eased out, down eased in
+    // A new reach (or "Tady!") while the hand is still out goes on from where the hand is, not back from the hero.
+    const still = (w) => { const p = kids[w].ptr; return p && s.t - p.at < 0.06 ? p : null; };
+    function does(w, k, i, delay) { kids[w].act = { k, i, at: s.t + (delay || 0), glide: k === 'reach' ? still(w) : null }; if (i >= 0) kids[w].face = toward(w, mid(i).x); }
+    // A tap that cannot act: a reach pulled straight back (not cutting short a real reach, a cheer or a shrug). On the
+    // partner's turn a look at them, and they bob: my turn!
+    function nope(i, theirs, w = who) {
+      const a = kids[w].act; if (!a || a.k === 'nope' || s.t - a.at >= SPAN[a.k]) does(w, 'nope', i);
+      if (theirs && two()) { kids[w].look = { x: hx(other(w)), till: s.t + 0.4 }; kids[other(w)].bob = s.t; }
+      if (w === who && two() && s.t - s.pokeAt > 0.25) { s.pokeAt = s.t; Net.send({ type: 'fx', k: 'nope', i, theirs: !!theirs }); }
+    }
+    // How a hero stands this frame: the pose and its frame (k for the hand), lifted by dy, stretched by sx and sy from the
+    // feet, leaning (the head `lean` px over), which way they face, and the pointing hand if it is out.
+    function acting(w) {
+      const h = kids[w], t = s.t, a = h.act, u = a ? t - a.at : -1, open = opened(), lag = w === 'kel' ? 0.3 : 0;
+      const o = { pose: 'stand', f: K.loop(t + lag, 1.5), k: 0, dy: 0, sx: 1, sy: 1, lean: 0, face: two() ? inward(w) : h.face || 1, hand: null };
+      if (open.length) o.face = toward(w, mid(open[open.length - 1]).x);                 // watching the card in play
+      if (s.hint && s.hint.from !== w) o.face = toward(w, mid(s.hint.i).x);               // the partner points at a card: look at it
+      if (h.look && t < h.look.till) o.face = toward(w, h.look.x);
+      const cheer = (v) => { o.pose = 'cheer'; o.f = 0; o.dy = hop(v, 4); if (v >= 0.3 && v < 0.36) { o.sx = 1.08; o.sy = 0.92; } };   // and the landing squash
+      if (t >= dizzyAt && (!s.over || t - s.overAt < 1)) { o.pose = 'dizzy'; o.f = 0; o.lean = Math.round(Math.sin((t - dizzyAt) * 14)); return o; }   // lost: dizzy, swaying, then just standing
+      if (s.over && !s.lost && t >= s.hopsAt) { const v = t - s.hopsAt - lag / 3; cheer(((v % 0.7) + 0.7) % 0.7); return o; }   // won: hopping for joy, one after the other
+      if (s.over && w === (s.finder || who) && t >= s.liftAt && t < s.liftAt + 0.6) { o.pose = K.pose(w, 'lift', 'cheer'); o.f = K.frame(1); o.k = 1; return o; }   // the key held up
+      if (s.hint && s.hint.from === w) {                                                 // "Tady!": pointing at the card for as long as it lasts
+        o.pose = point(w); o.f = K.frame(0); o.face = aim(w, s.hint.i); o.hand = { i: s.hint.i, u: t - s.hint.at, held: true, glide: s.hint.glide }; return o;
+      }
+      if (a && u >= 0 && u < SPAN[a.k]) {
+        if (a.k === 'reach') {                                                           // the reach, the flick as the card turns, and settling back
+          o.face = aim(w, a.i); o.hand = { i: a.i, u, held: false, glide: a.glide };
+          if (u < 0.08) { o.pose = point(w); o.f = K.frame(0); o.sx = 0.96; o.sy = 1.04; }
+          else if (u < 0.16) { o.pose = flick(w); o.f = K.frame(1); o.k = 1; }
+          else o.sy = 1 - ONE * Math.round(Math.sin(((u - 0.16) / 0.14) * Math.PI));
+        } else if (a.k === 'nope') { o.face = aim(w, a.i); if (u < 0.09) { o.pose = point(w); o.f = K.frame(0); } else o.lean = -o.face; }   // a reach, pulled back
+        else if (a.k === 'cheer') cheer(u);
+        else { o.pose = K.pose(w, 'shrug', 'stand'); o.f = 0; o.lean = Math.round(Math.sin((u / 0.4) * 6 * Math.PI)); }   // a shrug, shaking the head
+        return o;
+      }
+      if (started() && !s.over && (two() ? turn() === w : canAct())) o.lean = o.face;   // their turn: leaning in to the cards
+      if (Math.floor((t + lag) * 1.5) % 2) o.sy += ONE;                                  // the breath
+      const v = t - h.hop, b = t - h.bob, d = t - h.wince;
+      if (v >= 0 && v < 0.25) o.dy = -Math.round(Math.sin((v / 0.25) * Math.PI) * 2);  // a turn begins: a hop with the ripple
+      else if (b >= 0 && b < 0.2) o.dy = -Math.round(Math.sin((b / 0.2) * Math.PI) * 2);
+      if (d >= 0 && d < 0.3) { o.sx = 1.02; o.sy = 1 - ONE; }                          // the last chance gone wrong: a wince
+      return o;
+    }
+    // Where a hero's working hand is on the screen, as drawn this frame.
+    const handAt = (w, o) => { const p = K.hand(w, o.pose, o.k, o.face < 0); return { x: hx(w) + plant(w, o) + p.x * o.sx - o.lean * ONE * p.y * o.sy, y: FOOT + o.dy + p.y * o.sy }; };
+    function drawKid(w, o) {
+      ctx.save(); ctx.translate(hx(w) + plant(w, o), FOOT + o.dy); if (o.lean) ctx.transform(1, 0, -o.lean * ONE, 1, 0, 0); ctx.scale(o.sx, o.sy);
+      K.hero(w, 0, 0, o.pose, o.f, o.face < 0); ctx.restore();
+      return o;
+    }
+    // The pointing hand, drawn once for each cuff colour (and once as its shadow), so it can grow as it shoots out.
+    const pics = {};
+    function handPic(c) {
+      if (pics[c]) return pics[c];
+      const p = pics[c] = document.createElement('canvas'), g = p.getContext('2d'); p.width = 14; p.height = 16;
+      POINTER.forEach((row, j) => { for (let i = 0; i < row.length; i++) if (row[i] !== '.') { g.fillStyle = c === 'shade' ? 'rgba(43,31,26,.45)' : row[i] === 'X' ? INK : row[i] === 'C' ? c : '#F6D2B0'; g.fillRect(i, j, 1, 1); } });
+      return p;
+    }
+    // Out from the hero's hand to the card in 80 ms (growing as it goes), with a dotted line in their colour back to them;
+    // there it flicks the card over and comes back, or for a "Tady!" stays, tapping on it. Its shadow stays on the card.
+    // While it would cover the hero it is still in their fist: not drawn. The line is drawn behind them, an arm reaching
+    // out, and each dot has a pixel under it that shows on the street and the cards both (light under Kendrick's dark
+    // shirt colour, dark under Kellyn's light one).
+    function reachOut(w, o) {
+      const h = o.hand, to = mid(h.i), hand = handAt(w, o);
+      let e = 1, dip = 0, from = hand, k0 = 0.4;
+      if (h.u < 0.08) { e = 1 - (1 - h.u / 0.08) ** 2; if (h.glide) { from = h.glide; k0 = h.glide.k; } }
+      else if (h.held) dip = -Math.round(Math.abs(Math.sin((h.u - 0.08) * 5)) * 4);
+      else if (h.u < 0.16) dip = Math.round(Math.sin(((h.u - 0.08) / 0.08) * Math.PI) * 2);
+      else if (h.u < 0.24) e = 1 - ((h.u - 0.16) / 0.08) ** 2;
+      else return null;
+      const k = k0 + (1 - k0) * e, x = from.x + (to.x - from.x) * e, y = from.y + (to.y - from.y) * e + dip, bx = hx(w) + plant(w, o);
+      if (from === hand && x + 9 * k > bx - 13 && x - 5 * k < bx + 13 && y + k > FOOT + o.dy - 56) return null;
+      return { w, x, y, k, e, to, hand, cuff: WORLD.heroes[w].shirt };
+    }
+    function reachLine(p) {
+      const cx = p.x + 2 * p.k, cy = p.y - 14 * p.k, n = Math.max(Math.abs(cx - p.hand.x), Math.abs(cy - p.hand.y)), [r, g, b] = [1, 3, 5].map((j) => parseInt(p.cuff.slice(j, j + 2), 16));
+      const under = r * 0.3 + g * 0.59 + b * 0.11 > 128 ? 'rgba(43,31,26,.55)' : 'rgba(255,248,231,.8)';
+      for (let j = 0; j < n; j += 2) { const px = p.hand.x + ((cx - p.hand.x) * j) / n, py = p.hand.y + ((cy - p.hand.y) * j) / n; rect(px, py + 1, 1, 1, under); rect(px, py, 1, 1, p.cuff); }
+    }
+    function reachHand(p) {
+      const half = (v) => Math.round(v * 2) / 2;
+      kids[p.w].ptr = { x: p.x, y: p.y, k: p.k, at: s.t };
+      if (p.e >= 1) ctx.drawImage(handPic('shade'), p.to.x - 4, p.to.y - 13);
+      ctx.drawImage(handPic(p.cuff), half(p.x - 5 * p.k), half(p.y - 15 * p.k), half(14 * p.k), half(16 * p.k));
+    }
+
     const outline = (x, y, w, h, c, k) => { rect(x, y, w, k, c); rect(x, y + h - k, w, k, c); rect(x, y, k, h, c); rect(x + w - k, y, k, h, c); };
     function drawCard(i, f) {
       const c = card[i], p = spot(i), open = opened();
@@ -3697,23 +3803,16 @@
       }
       ctx.save(); ctx.translate(cx, y); ctx.scale(kx * k, k);
       if (!up) {                                                                     // the back: a pattern of diamonds
-        rect(-20, -25, CW, CH, '#7A4A22'); rect(-19, -24, CW - 2, CH - 2, '#CC2233'); rect(-17, -22, CW - 6, CH - 6, '#E8505E');
-        for (let j = 0; j < 4; j++) for (let n = 0; n < 3; n++) rect(-13 + n * 10, -18 + j * 10 + (n % 2) * 5, 4, 4, '#FFD9A8');
+        rect(-20, -22, CW, CH, '#7A4A22'); rect(-19, -21, CW - 2, CH - 2, '#CC2233'); rect(-17, -19, CW - 6, CH - 6, '#E8505E');
+        for (let j = 0; j < 4; j++) for (let n = 0; n < 3; n++) rect(-13 + n * 10, -17 + j * 9 + (n % 2) * 4, 4, 4, '#FFD9A8');
       } else {                                                                       // the face: green round a pair found, red round a wrong one
         const edge = bad ? '#CC2233' : done ? '#1FA463' : '#B98850', thick = bad || done ? 2 : 1;
-        rect(-20, -25, CW, CH, edge); rect(-20 + thick, -25 + thick, CW - 2 * thick, CH - 2 * thick, '#FFF8E7');
+        rect(-20, -22, CW, CH, edge); rect(-20 + thick, -22 + thick, CW - 2 * thick, CH - 2 * thick, '#FFF8E7');
         const [sheet, pose] = cfg.faces[f], sp = K.sprites[sheet];
-        if (sp) K.figure(sheet, 0, 18, pose, 0, false, Math.min(34 / sp.w, 38 / sp.h));
-        if (done) { rect(12, -23, 7, 6, '#1FA463'); for (const [a, d] of [[1, 2], [2, 3], [3, 2], [4, 1], [5, 0]]) rect(13 + a - 1, -22 + d, 1, 2, '#FFF8E7'); }   // a tick in the corner
+        if (sp) K.figure(sheet, 0, 17, pose, 0, false, Math.min(34 / sp.w, 35 / sp.h));
+        if (done) { rect(12, -20, 7, 6, '#1FA463'); for (const [a, d] of [[1, 2], [2, 3], [3, 2], [4, 1], [5, 0]]) rect(13 + a - 1, -19 + d, 1, 2, '#FFF8E7'); }   // a tick in the corner
       }
       ctx.restore();
-    }
-    // The hint: a hand tapping on the card, the finger on its middle.
-    function drawHand() {
-      const p = spot(s.hint.i), u = s.t - s.hint.at, tap = Math.round(Math.abs(Math.sin(u * 5)) * 4), cuff = (WORLD.heroes[s.hint.from] || {}).shirt || '#FFD43A';
-      const x0 = p.x + CW / 2 - 5, y0 = p.y + CH / 2 - 15;
-      POINTER.forEach((row, j) => { for (let i = 0; i < row.length; i++) if (row[i] !== '.') rect(x0 + i + 1, y0 + j + 2, 1, 1, 'rgba(43,31,26,.45)'); });   // its shadow on the card stays put
-      POINTER.forEach((row, j) => { for (let i = 0; i < row.length; i++) if (row[i] !== '.') rect(x0 + i, y0 + j - tap, 1, 1, row[i] === 'X' ? INK : row[i] === 'C' ? cuff : '#F6D2B0'); });
     }
     // The cards are cleared away and a golden key rises from under the last pair, turning, with a sparkle, and flies to the door.
     function drawKey(u) {
@@ -3735,47 +3834,51 @@
     }
 
     return {
-      s, kind: 'memory', peek: () => ({ deck: live.deck, open: opened(), done: live.done, mine: canAct(), turn: live.turn, hint: s.hint && s.hint.i, spot }),
+      s, kind: 'memory', acting, peek: () => ({ deck: live.deck, open: opened(), done: live.done, mine: canAct(), turn: live.turn, hint: s.hint && s.hint.i, spot }),
       sync(n) {
+        const asked = new Set(s.pend.map((p) => p.i)), by = (a, b) => (!two() || asked.has(a) || asked.has(b) ? who : mate());
         s.pend = s.pend.filter((p) => !n.open.includes(p.i) && !n.done.includes(p.i));    // answered
         const was = live; live = n;
-        for (const i of n.done) if (!was.done.includes(i)) judge(i, n.done.find((j) => j !== i && n.deck[j] === n.deck[i]), n.misses);   // turned on the other phone
-        if (n.misses > was.misses) { s.xsAt = s.t; if (n.open.length === 2) judge(n.open[0], n.open[1], n.misses); }
+        if (two()) for (const i of [...n.open, ...n.done]) if (!was.open.includes(i) && !was.done.includes(i) && !asked.has(i)) { does(mate(), 'reach', i); s.mateCould = false; }   // the partner turned it: their reach
+        for (const i of n.done) if (!was.done.includes(i)) { const j = n.done.find((q) => q !== i && n.deck[q] === n.deck[i]); judge(i, j, n.misses, by(i, j)); }   // turned on the other phone
+        if (n.misses > was.misses) { s.xsAt = s.t; if (n.open.length === 2) judge(n.open[0], n.open[1], n.misses, by(n.open[0], n.open[1])); }
         hud();
       },
       over(won) {
-        s.over = true; s.lost = !won; hintOff(); tip();
+        s.over = true; s.lost = !won; s.overAt = s.t; s.hopsAt = s.t + 0.7; hintOff(); tip(); if (!won) dizzyAt = Math.min(dizzyAt, s.t);
         if (won && cfg.key) {                                                         // the last pair has its moment; then the key comes out, flies to the door and unlocks it; then the card
           const p = spot(live.done[live.done.length - 1]); s.keyFrom = { x: p.x + CW / 2, y: p.y + CH / 2 };
-          s.keyAt = s.t + 0.8; s.endIn = 2.9;
+          s.keyAt = s.liftAt = s.t + 0.8; s.hopsAt = s.keyAt + 1.4; s.endIn = 2.9;      // held up as it comes out; hops once the door clicks
         } else finish(won);
       },
       down(x, y) {
         const i = cardAt(x, y); if (s.over || i < 0) return;
         const c = card[i];
-        if (!started()) { c.wob = s.t; beep(180); return; }                            // still being dealt
+        if (!started()) { c.wob = s.t; beep(180); return nope(i); }                    // still being dealt
         if (!mine()) {                                                                 // the partner's turn: point at a card for them
-          if (passed()) { c.wob = s.t; beep(180); return say(face(mate(), 3, 1) + `Teď hledá ${esc(heroName(mate()))}.`, 1.5); }   // one card each: the second is the partner's
-          if (isUp(i) || s.t - s.hintAt < 0.5) { c.wob = s.t; beep(180); return; }
+          if (passed()) { c.wob = s.t; beep(180); nope(i, true); return say(face(mate(), 3, 1) + `Teď hledá ${esc(heroName(mate()))}.`, 1.5); }   // one card each: the second is the partner's
+          if (isUp(i) || s.t - s.hintAt < 0.5) { c.wob = s.t; beep(180); return nope(i, true); }
           s.hintAt = s.t; beep(880, 1175); Net.send({ type: 'fx', k: 'hint', i });
           return hintOn(i, who, `${esc(heroName(mate()))} to uvidí.`);
         }
         const open = opened();
-        if (isUp(i) || open.length >= 2) { c.wob = s.t; beep(180); return; }          // up already, or two are up: wait
+        if (isUp(i) || open.length >= 2) { c.wob = s.t; beep(180); return nope(i); }  // up already, or two are up: wait
         s.pend.push({ i, at: s.t });                                                   // it turns now, before the room hears of it
-        beep(open.length ? 660 : 520);
+        beep(open.length ? 660 : 520); does(who, 'reach', i);
         Net.send({ type: 'ev', e: 'flip', i });
-        if (open.length === 1) judge(open[0], i, live.misses + 1);
+        if (open.length === 1) judge(open[0], i, live.misses + 1, who);
         hintOff();
       },
       fx(m) {
+        if (m.k === 'nope' && WORLD.heroes[m.from] && m.from !== who && !s.over) { const i = m.i | 0; if (i >= 0 && i < live.deck.length) nope(i, !!m.theirs, m.from); return; }
         if (m.k !== 'hint' || s.over || !WORLD.heroes[m.from] || !mine()) return;      // given for a turn that is over already: no use now
         const i = m.i | 0; if (i < 0 || i >= live.deck.length || isUp(i)) return;
         hintOn(i, m.from, face(m.from, 3, 1) + `${esc(heroName(m.from))} radí: tady!`); beep(1320, 990);
       },
       update(dt) {
         s.t += dt;
-        card.forEach((c, i) => { const u = isUp(i); if (u !== c.up) { c.up = u; c.at = s.t; } });
+        const reached = (i) => Math.max(s.t, ...Object.values(kids).map((h) => (h.act && h.act.k === 'reach' && h.act.i === i ? h.act.at + REACH : 0)));
+        card.forEach((c, i) => { const u = isUp(i); if (u !== c.up) { c.up = u; c.at = u ? reached(i) : s.t; } });   // turning up once the hand is on it
         const late = s.pend.filter((p) => s.t - p.at > 2.5);                          // the room never took it: it turns back
         if (late.length) { s.pend = s.pend.filter((p) => !late.includes(p)); for (const p of late) card[p.i].wob = s.t; }
         const due = s.later.filter((l) => s.t >= l.at); if (due.length) { s.later = s.later.filter((l) => !due.includes(l)); due.forEach((l) => l.fn()); }
@@ -3785,8 +3888,11 @@
         if (live.misses > s.xs && s.t - s.xsAt > FLIP + 0.5) s.xs = live.misses;      // a cross whose shake was missed (a phone asleep) still shows
         hud();
         const can = canAct();                                                          // your turn now: the cards ripple, and with two, a chime
-        if (can && !s.could) { s.wave = s.t; if (two() && clock(live) > 0.5) beep(660, 990); }
+        if (can && !s.could) { s.wave = s.t; kids[who].hop = s.t; if (two() && clock(live) > 0.5) beep(660, 990); }
         s.could = can;
+        const theirs = two() && !s.over && started() && turn() === mate() && opened().length < 2;   // and the partner's turn: they hop here too
+        if (theirs && !s.mateCould) kids[mate()].hop = s.t;
+        s.mateCould = theirs;
         tip();
         if (s.keyAt !== null && !s.rang && s.t >= s.keyAt) { s.rang = true; beep(660, 880, 1100, 1320); }
         if (s.keyAt !== null && !s.clicked && s.t - s.keyAt > 1.4) { s.clicked = true; beep(300, 600, 900); }
@@ -3799,9 +3905,10 @@
         if (fade < 1) {
           ctx.save(); ctx.globalAlpha = 1 - fade;
           live.deck.forEach((f, i) => drawCard(i, f));
-          if (s.hint) drawHand();
           ctx.restore();
         }
+        const cast = (two() ? ['ken', 'kel'] : [who]).map((w) => { const o = acting(w); return { w, o, p: o.hand && reachOut(w, o) }; });
+        cast.forEach((c) => c.p && reachLine(c.p)); cast.forEach((c) => drawKid(c.w, c.o)); cast.forEach((c) => c.p && reachHand(c.p));
         for (const b of s.bits) {                                                      // sparkles: little squares, every third a cross
           const x = Math.round(b.x), y = Math.round(b.y);
           if (b.c === '#FFF8E7') { rect(x - 1, y, 3, 1, b.c); rect(x, y - 1, 1, 3, b.c); } else rect(x, y, 2, 2, b.c);
