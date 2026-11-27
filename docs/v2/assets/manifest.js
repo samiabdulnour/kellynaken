@@ -19,6 +19,8 @@ window.ASSETS = {
     "strahov-field",
     "strahov-gate",
     "strahov-hill",
+    "sydney-flat",
+    "sydney-street",
     "title",
     "world-map"
   ]

@@ -19,26 +19,31 @@
 // A place has a few scenes. A scene has a background (bg), some lines of story (talk), and a way to play.
 // `ground` is how far down the picture feet stand, when it is not the usual 232 (the sea, the jetty).
 // A scrolling picture is repeated with every other copy mirrored; `tile: 'repeat'` repeats it as it is.
-//   run     a side-scrolling dash: tap to jump the obstacles
-//   drums   notes fall down three lanes in time with the beat: tap each drum as its note reaches the line
-//   echo    a rhythm is played on four drums and has to be played back; each of them has two of the drums
+//   run     a side-scrolling dash on surfboards, a little faster all the time: jump the fins, stay down under the parrots
+//   drums   notes fall down three lanes in time with the beat: tap each drum as its note reaches the line; with two,
+//           Kendrick has the left two drums and Kellyn the right one
+//   echo    a rhythm is played on four drums and has to be played back, one stroke longer each round; each of them has two of the drums
 //   find    koalas peek out of the trees: tap them while they show; drag to look around a wide picture
 //   salon   customers want washing, cutting, dyeing, drying and paying: lead them from place to place and work there
 //   memory  pexeso: one turns the first card over, the other turns the second looking for its pair; then they swap.
-//           With `key`, a key comes out from under the last pair: it opens the door to the next scene
+//           Whoever waits can point at a card on the partner's phone. `faces` are [sheet, pose, name said on a pair].
+//           A lost game keeps the pairs found. With `key`, a key comes out from under the last pair: it opens the door to the next scene
 //   collect run along the beach picking up what the waves wash in, and keep away from the jellyfish
 //   rescue  throw lifebuoys to the people on the rock, then pull them across before the shark gets there
 //   tower   build a house storey by storey: drive the crane to the stack, pick a storey up, bring it over the house and
-//           let it go; with two, one drives the crane and the other works the hook
+//           let it go; with two, one drives the crane and the other works the hook. A crane standing still calms the swing.
 //   shoot   padlocks appear on the `spots` of the picture and slip away: tap one to shoot at it (with two, each has their own colour). Kendrick fires a puck with his hockey stick,
-//           Kellyn throws her white bunny
+//           Kellyn throws her white bunny. One that blinks may be saved by either. The first waits until it is shot; then they
+//           come from `every` to `fast` seconds apart; after `need` a big golden padlock comes down at `gold` [x, y], to be hit by both at once
+//   flat    moving in: drag the furniture from the heap to its silhouette in the rooms, tap a piece to turn it round,
+//           before the sun goes down in the windows
 //   stub    not built yet: shows a card and lets you carry on
 //
 // `pickup` puts one of the `items` into a scene, to grab like a power-up: jump into it in a dash, hit it in a shot,
 // catch it on the line in the drums. Each item belongs to one saga: the drumstick to Strahov (the drumming),
 // the boomerang to Australia. The drumstick is for hitting: in a dash the hero whacks whatever comes at them for a few
 // seconds, and in the drums every hit counts twice. The boomerang is for throwing: in a dash it gives three throws
-// that fly ahead, knock out the first thing in the way and come back.
+// that fly ahead, knock out the next thing in the way (for both of them) and come back.
 // Texts are drafts. The story of who or what is behind it all is still open.
 window.WORLD = {
   title: 'Kellyn a Ken',
@@ -49,8 +54,8 @@ window.WORLD = {
     kel: { name: 'Kellyn', shirt: '#BFE8D0', legs: '#F6C1D0', badge: '#F08BA0', hair: '#9A6535', tie: '#F3A6C0' },
   },
   items: {
-    drumstick: { name: 'Palička', art: ['strahov', 'sticks'], use: 'hit', dash: 'Palička! Chvíli praštíš do všeho, co ti stojí v cestě.', shot: 'Palička! Každá rána je dvojitá.', drums: 'Palička! Chvíli se každá trefa počítá dvakrát.' },
-    boomerang: { name: 'Bumerang', art: ['aussie', 'boomerang'], use: 'throw', dash: 'Bumerang! Klepni na Hoď a smete, co ti stojí v cestě. Máš tři hody.', shot: 'Bumerang! Každá rána se vrací.' },
+    drumstick: { name: 'Palička', art: ['strahov', 'sticks'], use: 'hit', dash: 'Palička! Chvíli praštíš do všeho, co ti stojí v cestě.', shot: 'Palička! Každá rána je dvojitá.', drums: 'Každá trefa dvakrát!' },
+    boomerang: { name: 'Bumerang', art: ['aussie', 'boomerang'], use: 'throw', dash: 'Bumerang! Klepni na Hoď.', shot: 'Bumerang! Každá rána se vrací.' },
   },
   // Czechia, close up: Prague under the glass (tapping anywhere on the glass opens it), and Ostrov.
   map: {
@@ -93,7 +98,7 @@ window.WORLD = {
       look: { sky: '#8FD3F4', far: '#F2C078', far2: '#E7A6B5', ground: '#A39B96', line: '#7A6F6A' },
       scenes: [
         { id: 'praha-home', name: 'Doma', at: [22, 234], label: 'below', bg: 'praha-home', play: 'shoot', code: 'ZAMEK',
-          shoot: { need: 16, every: 1.5, stay: 3.4, sway: 2, target: 'zámek',                 // padlocks on the lamp, the three portraits, the shelves and baskets, the sofa, the TV and its cabinet
+          shoot: { need: 16, every: 1.5, fast: 1.0, stay: 3.4, sway: 2, gold: [96, 104], target: 'zámek',   // padlocks on the lamp, the three portraits, the shelves and baskets, the sofa, the TV and its cabinet
             spots: [[96, 30], [60, 76], [94, 76], [128, 76], [9, 46], [8, 112], [70, 138], [126, 142], [176, 110], [168, 42], [180, 74], [178, 162]] },
           talk: [['', 'Doma je divné ticho. Někdo tu chybí…'], ['', 'A někdo vás zamkl! Na dveřích, na skříních, všude visí zámky.'], ['hero', 'Ty zámky sestřelím!']] },
         // A walk down the street to the salon (play 'platform', see Room.course.platform): ◀ ▶ walk, Skok, Hoď.
@@ -131,7 +136,7 @@ window.WORLD = {
       scenes: [
         { id: 'praha-door', name: 'Před salonem', at: [62, 284], label: 'right', bg: 'praha-door', play: 'memory', code: 'KLIC',
           memory: { pairs: 8, miss: 10, key: true, won: 'A pod poslední dvojicí byl klíč. Dveře jsou odemčené!',
-            faces: [['salonkit', 'scissors'], ['salonkit', 'comb'], ['salonkit', 'brush'], ['salonkit', 'dryer'], ['salonkit', 'spray'], ['salonkit', 'dye'], ['salonkit', 'curlers'], ['salonkit', 'mirror']] },
+            faces: [['salonkit', 'scissors', 'Nůžky'], ['salonkit', 'comb', 'Hřeben'], ['salonkit', 'brush', 'Kartáč'], ['salonkit', 'dryer', 'Fén'], ['salonkit', 'spray', 'Lak na vlasy'], ['salonkit', 'dye', 'Barva'], ['salonkit', 'curlers', 'Natáčky'], ['salonkit', 'mirror', 'Zrcátko']] },
           talk: [['', 'Kadeřnictví je zamčené. Na dveřích visí cedulka: Klíč dostane, kdo najde všechny dvojice.'], ['', 'Na lavičce před dveřmi leží kartičky. Samé kadeřnické věci.'], ['hero', 'Pexeso! Jeden otočí první kartičku, druhý k ní hledá dvojici.']] },
         // From here on she is found: the salon is full and she cannot get away until every customer is done.
         { id: 'praha-salon', name: 'V salonu', at: [44, 262], label: 'right', bg: 'praha-salon', play: 'salon', code: 'NUZKY', cast: ['leila'],
@@ -140,7 +145,7 @@ window.WORLD = {
             // along the back wall: the basin, the picture's own two chairs at the mirrors (cutting, dyeing) and the dryer;
             // `chair` means the picture already has it. The till stands in front. `side` is where the hairdresser stands.
             stations: [{ k: 'wash', x: 18, y: 142, side: 20 }, { k: 'cut', x: 58, y: 142, chair: true, side: 20 }, { k: 'dye', x: 133, y: 142, chair: true, side: -20 },
-              { k: 'dry', x: 174, y: 142, side: -36 }, { k: 'pay', x: 120, y: 262, side: 18 }],
+              { k: 'dry', x: 174, y: 142, side: -36 }, { k: 'pay', x: 120, y: 262, side: -18 }],
             work: { wash: 3, cut: 4, dye: 4, dry: 3, pay: 1.2 },
             orders: [['cut', 'pay'], ['wash', 'cut', 'dry', 'pay'], ['wash', 'dye', 'dry', 'pay'], ['wash', 'cut', 'dye', 'dry', 'pay'], ['wash', 'dry', 'pay']],
           },
@@ -172,15 +177,16 @@ window.WORLD = {
               ['note', 2345, 36], ['note', 2460, 36], ['note', 2500, 12]] },
           talk: [['', 'Z kopce nad městem někdo volá o pomoc.'], ['', 'Nahoru se musí pěšky. Pozor na šišky a vrány!'], ['', 'Když najdeš paličku, chvíli smeteš všechno v cestě.']] },
         { id: 'strahov-gate', name: 'Brána stadionu', at: [62, 149], label: 'below', bg: 'strahov-gate', play: 'shoot', code: 'BRANA',
-          shoot: { need: 16, every: 1.3, stay: 3.2, sway: 3, target: 'zámek',                 // padlocks on the gates under the stands, the stair railing and the rail above
+          shoot: { need: 16, every: 1.3, fast: 0.85, stay: 3.2, sway: 3, gold: [96, 132], target: 'zámek',   // padlocks on the gates under the stands, the stair railing and the rail above
             spots: [[52, 186], [70, 186], [88, 186], [106, 186], [124, 186], [140, 186], [164, 160], [180, 150], [120, 150], [96, 152]] },
           talk: [['', 'Velký strahovský stadion. Všechny vchody jsou zavřené a na mřížích visí zámky.']] },
         // From here on he is found: he shows the rhythm, and at the concert he plays along.
         { id: 'strahov-drums', name: 'Zkušebna', at: [18, 136], label: 'below', bg: 'strahov-drums', play: 'echo', code: 'BUBEN', cast: ['alan'],
-          echo: { rounds: 6, first: 2, beat: 0.6 },
-          talk: [['', 'Pod tribunou je zkušebna. A v ní někdo bubnuje!'], ['alan', 'Večer hraju na stadionu a kapela nikde. Zahrajete to se mnou?'], ['alan', 'Nejdřív zkouška. Já zahraju, vy to po mně zopakujete.']] },
+          // 2 strokes, then one more each round up to 7; a drum lights up as a hint after `hint` seconds of waiting
+          echo: { rounds: 6, first: 2, beat: 0.62, hint: { first: 1, ken: 3, kel: 2 } },
+          talk: [['', 'Pod tribunou je zkušebna. A v ní někdo bubnuje!'], ['alan', 'Večer hraju na stadionu a kapela nikde. Zahrajete to se mnou?'], ['alan', 'Nejdřív zkouška. Já zahraju, vy to po mně zopakujete. A pokaždé přidám jeden úder.']] },
         { id: 'strahov-concert', name: 'Koncert', at: [42, 125], label: 'right', bg: 'strahov-concert', play: 'drums', code: 'PODIUM', pickup: 'drumstick', cast: ['alan'],
-          drums: { bpm: 104, beats: 96, pass: 0.62, busy: 0.35 }, say: { won: ['Stadion šílí!', 'Takový koncert tu dlouho nebyl.'] },
+          drums: { bpm: 104, beats: 96, pass: 0.6, busy: 0.35 }, say: { won: ['Stadion šílí!', 'Takový koncert tu dlouho nebyl.'] },
           talk: [['', 'Stadion je plný. Světla, pódium a vy tři.'], ['alan', 'Trefujte noty, až budou na čáře. Raz, dva, tři, čtyři!']] },
       ],
       done: [['alan', 'To byl koncert! Díky, parťáci.']],
@@ -191,7 +197,11 @@ window.WORLD = {
       look: { sky: '#FFE2B0', far: '#D9622B', far2: '#C98A4B', ground: '#F5D7A1', line: '#D9A441' },
       scenes: [
         { id: 'australia-beach', name: 'Pláž Bondi', at: [120, 244], label: 'below', bg: 'australia-beach', play: 'collect', code: 'LAHEV', ground: 226,
-          collect: { seconds: 55, need: 15, stay: 3.6, every: [1.0, 1.7], jelly: 0.24, won: 'Na vzkazu stojí: POMOC! Jsme na skále za útesem.' },
+          // `calm`: seconds with no jellyfish; the tide brings more in, faster: in the last `tide` seconds, or as soon as
+          // `tideNote` of the note is found, so everyone gets the finale. The big bottle washes up at `at` and stays `stay`
+          // seconds; it holds `part` of the message. `note` fills in as they collect.
+          collect: { seconds: 60, need: 20, stay: 3.6, every: [1.0, 1.7], jelly: 0.26, calm: 6, tide: 15, tideNote: 0.5, big: { at: 15, stay: 14, part: 0.22 },
+            note: 'POMOC! JSME NA|SKÁLE ZA ÚTESEM', won: 'Na vzkazu stojí: „Pomoc! Jsme na skále za útesem.“' },
           // The saga opens like a short film: the voyage, his photograph, and today's two travellers seen from behind.
           talk: [['', 'Po válce utekl praděda Václav z Československa. Na lodi s uprchlíky plul přes celý oceán až do Austrálie.', null, 'ship'],
             ['', 'Byl to skvělý chlap. Dva roky pracoval ve vnitrozemí, získal australské občanství a pak žil v Brisbane.', null, 'photo'],
@@ -199,28 +209,80 @@ window.WORLD = {
             ['', 'A nějaký čas tu žil i váš druhý praděda, Georges.', null, 'photo'],
             ['', 'Dnes se po stopách pradědy Václava vydali dva cestovatelé. Chtěli vidět místa, kde kdysi žil.', null, 'travellers'],
             ['', 'Jenže na pláži Bondi teď vyplavilo moře roztrhaný vzkaz v láhvi.'], ['hero', 'Posbíráme všechny kousky, než je vlny zase odnesou!']] },
-        { id: 'australia-sea', name: 'Na vlně', at: [136, 230], label: 'right', bg: 'australia-sea', scroll: true, play: 'run', code: 'SURF', ground: 200, tile: 'repeat', pickup: 'boomerang',
-          run: { seconds: 40, low: 'žralok', high: 'papoušek', board: true, art: { low: ['aussie', 'fin', 'fin2'], high: ['parrot', 'parrot1', 'parrot2'] } },
-          talk: [['', 'Za útesem se zvedají pořádné vlny. Vy to zvládnete na prkně!'], ['', 'Na prkno! Žraloka přeskoč, pod papouškem zůstaň dole.']] },
+        // Byron Bay: the bulge of the east coast north of Sydney, the easternmost point of the mainland
+        { id: 'australia-sea', name: 'Na vlně', at: [167, 106], label: 'below', bg: 'australia-sea', scroll: true, play: 'run', code: 'SURF', ground: 200, tile: 'repeat', pickup: 'boomerang',
+          // `speed`: how fast the sea goes by at the start and at the end, in pixels a second; `heart`: when a heart floats by, to
+          // jump into for one back (room.js: course.run lays the course out)
+          run: { seconds: 40, speed: [70, 105], heart: 0.62, low: 'žralok', high: 'papoušek', board: true, art: { low: ['aussie', 'fin', 'fin2'], high: ['parrot', 'parrot1', 'parrot2'] } },
+          talk: [['', 'V Byron Bay se zvedají pořádné vlny. Vy to zvládnete na prkně!'], ['', 'Na prkno! Žraloka přeskoč, pod papouškem zůstaň dole.']] },
         // Koalas sit still, small, in the forks and on the trunks of the bush picture (S15). A hiding place is [x, y, pose]:
         // where its feet are on the picture, and whether it hugs the trunk (branch), looks round it (side) or peeks over leaves (peek).
         { id: 'australia-outback', name: 'Buš', at: [151, 102], label: 'left', bg: 'australia-bush', play: 'find', code: 'KOALA', ground: 284,
-          find: { seconds: 100, need: 10, hidden: true, size: 0.28, show: 0.45, every: [6, 10],                 // a wide bush, four and a half screens
+          // Alone 10 of the 21 hiding places have a koala in them, with two 14.
+          find: { seconds: 100, need: 10, needTwo: 14, hidden: true, size: 0.28, show: 0.45, every: [6, 10],     // a wide bush, four and a half screens
             spots: [[78, 130, 'branch'], [36, 94, 'peek'], [132, 80, 'peek'], [205, 140, 'branch'], [262, 88, 'side'], [190, 52, 'peek'], [152, 170, 'side'],
               [314, 160, 'side'], [352, 140, 'branch'], [402, 62, 'peek'], [418, 160, 'side'], [505, 160, 'side'], [472, 76, 'peek'], [560, 86, 'peek'],
               [640, 150, 'branch'], [606, 40, 'peek'], [706, 160, 'branch'], [766, 112, 'peek'], [820, 150, 'branch'], [792, 60, 'peek'], [742, 176, 'side']] },
           talk: [['', 'Cesta vede buší. Ve stromech se něco hýbe…'], ['hero', 'Koaly! Najdeme je všechny.']] },
         // From here on they are found: stranded on the rock, waving.
         { id: 'australia-reef', name: 'Žraločí útes', at: [147, 63], label: 'left', bg: 'australia-reef', play: 'rescue', code: 'ZRALOK', ground: 246, cast: ['sami', 'zofia'],
-          rescue: { hits: 3, pull: 45, seconds: 14, land: { x: 92, y: 140, w: 18 }, green: [0.18, 0.44], jetty: 206 },
+          // hits: buoys to land on the rock (half as many again for two); lives: buoys each may lose, alone and with two;
+          // swing: how fast the needle goes (a share of the meter a second), at the first throw and at the last; lunge: seconds
+          // between the shark's dashes at the jetty; pull: taps to bring the raft over (four fifths more for two), in `seconds`,
+          // while the shark drags it back at `drain` taps a second now and then. green: where the needle sends a buoy into the ring (land.x ± land.w).
+          rescue: { hits: 4, lives: [4, 3], swing: [0.5, 0.95], lunge: [8, 11], pull: 36, seconds: 24, drain: 3, land: { x: 92, y: 140, w: 18 }, green: [0.18, 0.44], jetty: 206 },
           talk: [['', 'Támhle někdo mává! Na skále uprostřed moře, a kolem krouží žralok.'], ['hero', 'Hodíme jim záchranné kruhy!']] },
         // After the rescue: Sami is an architect, and his house in Sydney is waiting to be built.
         { id: 'australia-sydney', name: 'Sydney', at: [98, 228], label: 'left', bg: 'australia-sydney', play: 'tower', code: 'JERAB', cast: ['sami', 'zofia'],
-          tower: { need: 15, slack: 15, stack: 16 },   // `stack`: where the storeys wait on the ground, to be picked up one by one                // 14 storeys on the lobby; the higher, the harder (room.js: course.sway, course.slack)
+          // 14 storeys on the lobby (two: 16), the last one the crown; the higher, the harder (room.js: course.sway, course.slack).
+          // `stack`: where the storeys wait on the ground, to be picked up one by one (clear of the picture's edge);
+          // `check`: every so many storeys a flag, where a lost game goes on from.
+          tower: { need: 15, two: 17, slack: 15, stack: 24, check: 5 },
           talk: [['sami', 'Díky, že jste nás zachránili! Víte, že jsem architekt?'], ['sami', 'Navrhl jsem v Sydney nový dům. Jenže stavba se zasekla a sám ho nepostavím.'],
             ['zofia', 'Kendrick bude řídit jeřáb a Kellyn bude pouštět patra. Spolu to zvládnete!'], ['hero', 'Jdeme stavět!']] },
+        // The new flat is empty. In Sydney people put furniture they no longer need out on the kerb: walk the street of
+        // terrace houses and find everything on the list (play 'platform', with `list`: the door of the flat opens only
+        // when all of it is found). Ibises walk the footpath, magpies swoop.
+        // The pieces on the list are items named like their pictures, standing where `h` says (on the footpath, or on top
+        // of a pile); touching one takes it. The junk to climb is kerbside rubbish: a box 18 high, an old TV 23, a bin 23
+        // (each fitted to its width: 34, 30, 24), stacked by putting one over another. Magpies ['magpie', from, to, height,
+        // speed, every] glide high and every few seconds dive at whoever is near (game.js); only a dive can hurt, and it
+        // is seen coming. `forgiving`: the gentler controls (a jump pressed a moment early or late still counts, a knock
+        // pushes you back off what hurt you, one who stops to free the other from a bubble is not dived at).
+        // No step is taller than 23 (a short press of Skok), from either side, so a child going back is never stuck.
+        // `later`: a piece a neighbour puts out only once another is found (the plant, once the shelf is): it turns up a
+        // little way back, so it is found by turning round. The rug in the dip between two TVs can be jumped over too.
+        { id: 'sydney-kerb', name: 'Nábytek', at: [112, 204], label: 'left', bg: 'sydney-street', scroll: true, play: 'platform', music: 'street', code: 'GAUC', cast: ['sami', 'zofia'], ground: 228,
+          platform: { length: 2640, goal: 2552, gate: 'flat', forgiving: true, list: ['sofa', 'armchair', 'lamp', 'table', 'chair', 'shelf', 'rugroll', 'plant', 'bed'], later: { plant: 'shelf' },
+            blocks: [[400, 34, 18, 'box'], [490, 34, 18, 'box'], [524, 34, 18, 'box'],
+              [720, 34, 18, 'box'], [754, 30, 23, 'tv'], [752, 34, 41, 'box'], [786, 34, 18, 'box'], [1010, 24, 23, 'bin'], [1090, 34, 18, 'box'],
+              [1310, 34, 18, 'box'], [1344, 30, 23, 'tv'], [1420, 30, 23, 'tv'], [1452, 34, 18, 'box'],
+              [1620, 24, 23, 'bin'], [1644, 24, 23, 'bin'], [1740, 34, 18, 'box'], [1774, 30, 23, 'tv'], [1772, 34, 41, 'box'], [1806, 30, 23, 'tv'], [1806, 30, 46, 'tv'], [1836, 30, 23, 'tv'],
+              [2080, 24, 23, 'bin'],
+              [2200, 34, 18, 'box'], [2234, 30, 23, 'tv'], [2232, 34, 41, 'box'], [2266, 30, 23, 'tv'], [2266, 30, 46, 'tv'], [2296, 30, 23, 'tv'], [2296, 30, 46, 'tv'],
+              [2326, 30, 23, 'tv'], [2326, 30, 46, 'tv'], [2356, 30, 23, 'tv']],
+            foes: [['ibis', 250, 330, 0, 10], ['ibis', 600, 670, 0, 14], ['magpie', 680, 900, 116, 20, 7], ['ibis', 920, 990, 0, 18], ['ibis', 1022, 1022, 23, 0],
+              ['magpie', 1080, 1270, 112, 22, 6], ['ibis', 1215, 1270, 0, 20], ['ibis', 1500, 1580, 0, 22], ['ibis', 1630, 1658, 23, 10],
+              ['magpie', 1540, 1730, 120, 24, 5], ['ibis', 1900, 1990, 0, 24], ['ibis', 1960, 2040, 0, 28], ['magpie', 1880, 2100, 112, 26, 4.5],
+              ['ibis', 2272, 2290, 46, 8], ['magpie', 2230, 2420, 130, 26, 4], ['ibis', 2410, 2470, 0, 22]],   // the last ibis keeps clear of the door, which pushes back whoever comes too soon
+            items: [['armchair', 170, 0], ['table', 524, 18], ['lamp', 769, 41], ['chair', 880, 0], ['heart', 1107, 34], ['sofa', 1180, 0],
+              ['rugroll', 1398, 0], ['shelf', 1789, 41], ['plant', 1712, 0], ['heart', 2092, 38], ['bed', 2326, 46]] },
+          talk: [['sami', 'Dům stojí, jenže náš nový byt je úplně prázdný.'], ['zofia', 'V Sydney lidi dávají nábytek, který už nechtějí, ven na chodník. Kdo chce, ten si ho vezme!'],
+            ['sami', 'Seznam máte nahoře. Najděte všechno, co na něm je.'], ['', 'Pozor na ibisy a straky!']] },
+        // Moving in before night: the flat seen like a dollhouse, two rooms; drag every piece to its place (play 'flat').
+        // A place is [piece, x, y, size, facing, after]: where the piece's feet stand on the picture (the bedroom floor is
+        // y 98-136, the living room's 229-282; the heap lies along the bottom, so nothing stands below 256 there), how big
+        // it is drawn (of its picture in the furniture or kerb sheet), which way round it must stand (1 as drawn, -1
+        // turned round, 0 either way; shown by its silhouette) and which piece must be down first. The rug ('rugroll',
+        // rolled up in the heap) lies flat; the sofa and the coffee table stand on it. Two get a fifth more time.
+        { id: 'sydney-flat', name: 'Byt', at: [80, 240], label: 'below', bg: 'sydney-flat', play: 'flat', code: 'BYT', cast: ['sami', 'zofia'], ground: 274,
+          flat: { seconds: 120,
+            places: [['bed', 50, 114, 0.62, 1], ['shelf', 104, 100, 0.55, 0], ['chair', 153, 124, 0.42, 0],
+              ['rugroll', 98, 251, 0.62, 0], ['sofa', 98, 239, 0.45, 0, 'rugroll'], ['table', 98, 252, 0.4, 0, 'rugroll'],
+              ['lamp', 62, 236, 0.42, 0], ['armchair', 141, 247, 0.42, 0], ['plant', 25, 254, 0.36, -1]] },
+          talk: [['zofia', 'Všechno máme! Teď to rychle nastěhovat, než se setmí.'], ['', 'Táhni věci na svá místa. Klepnutím je otočíš.']] },
       ],
-      done: [['sami', 'Díky, dům stojí! Sám bych ho nikdy nepostavil.'], ['zofia', 'Juchůů! Zachránili jste nás a ještě jste postavili mrakodrap!']],
+      done: [['sami', 'Díky! Dům stojí a byt je zařízený. Sám bych to nikdy nezvládl.'], ['zofia', 'Juchůů! Zachránili jste nás, postavili mrakodrap a ještě nás nastěhovali!']],
     },
   ],
 };

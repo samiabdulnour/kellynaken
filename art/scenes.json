@@ -15,5 +15,7 @@
   { "code": "S9", "id": "australia-reef", "size": [192, 288] },
   { "code": "S14", "id": "strahov-concert", "size": [192, 288] },
   { "code": "S15", "id": "australia-bush", "size": [864, 288] },
-  { "code": "S16", "id": "australia-sydney", "size": [192, 288] }
+  { "code": "S16", "id": "australia-sydney", "size": [192, 288] },
+  { "code": "S17", "id": "sydney-street", "size": [432, 288] },
+  { "code": "S18", "id": "sydney-flat", "size": [192, 288] }
 ]

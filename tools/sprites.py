@@ -389,7 +389,9 @@ OBJECT_ROWS = {                                  # code: (name in the game, what
     'P10': ('customers', ['c0', 'c1', 'c2', 'c3', 'c4', 'c5', 'd0', 'd1', 'd2', 'd3', 'd4', 'd5']),
     'P16': ('parrot', ['parrot1', 'parrot2']),                                      # a rainbow lorikeet, the danger to duck under at sea
     'P17': ('street', ['car1', 'car2', 'bench', 'bin', 'wall', 'salon', 'coin', 'heart']),   # the walk down the street: things to climb, the salon's door
-    'P18': ('hill', ['stones', 'boulder', 'logs', 'spruce', 'gatel', 'gater']),                # the walk up the hill: stone walls, a boulder, logs, the cones' spruce, the stadium gate
+    'P18': ('hill', ['stones', 'boulder', 'logs', 'spruce', 'gatel', 'gater']),
+    'P19': ('furniture', ['sofa', 'armchair', 'lamp', 'table', 'chair', 'shelf', 'rugroll', 'plant']),   # second-hand furniture on a Sydney kerb
+    'P20': ('kerb', ['bed', 'rug', 'tv', 'box', 'ibis', 'ibisfly', 'magpie1', 'magpie2']),               # the bed and the rug laid flat, junk, and the street's birds                # the walk up the hill: stone walls, a boulder, logs, the cones' spruce, the stadium gate
     'P11': ('beach', ['bottle', 'paper', 'shell', 'star', 'crab', 'jelly', 'buoy', 'raft']),
     'P12': ('salonkit', ['scissors', 'comb', 'brush', 'dryer', 'spray', 'dye', 'curlers', 'clip', 'mirror', 'shampoo']),
     'P13': ('dog', ['stand', 'trot1', 'trot2', 'sit', 'bark', 'sniff']),          # praděda Václav's Yorkshire terrier
