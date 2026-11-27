@@ -10,12 +10,13 @@ a row of five faces.
 For each character it writes game/assets/sprites/<id>.png (the big figures, plus running frames made from the
 side view) and <id>-faces.png, and it writes game/assets/sprites.js to say what is where.
 
-It also reads art/source/poses/A1.png ... A8.png: rows of four drawn poses for the two heroes (running, jumping,
-dizzy, cheering, surfing, shooting or throwing, drumming; A7 and A8 playing the guitar and the bass in the band),
+It also reads art/source/poses/A1.png ... A8.png and on: rows of four drawn poses for the two heroes (running, jumping,
+dizzy, cheering, surfing, shooting or throwing, drumming; A7 and A8 playing the guitar and the bass in the band;
+A15-A20 Kellyn's poses for acting on every button: carrying the bunny, standing, striking, heaving, lifting, pointing),
 already cut out and drawn much finer, about 105 pixels tall. Those become <id>-poses.png and are what the game draws
 the heroes from; the game shows them at half size, two of their pixels to one pixel of a background.
 (A7, A8 and objects/P21, Alan at his drum kit, are generated bodies wearing the heroes' and Alan's own heads, cut
-from A1, A4 and Alan's sheet, already on the 6-pixel grid.)
+from A1, A4 and Alan's sheet, already on the 6-pixel grid; so are A15-A20, and A15 is A4's own run with the bunny.)
 
 The big figures are the base: they are the most detailed drawings on the sheet, about 45 game pixels tall.
 The sheet is drawn in big square "pixels" (about 4.4 real pixels wide on a sheet 1536 wide), so each figure is
@@ -237,9 +238,21 @@ POSE_ROWS = {                                   # which row holds which frames, 
     'ken': [('A1', ['run', 'run', 'run', 'run']), ('A2', ['jump', 'dizzy', 'cheer', 'surf']), ('A3', ['aim', 'shoot', 'drum', 'drum']),
             ('A7', ['guitar', 'guitar', 'rock', 'leap'])],          # the band: strumming down and up, leaning back, in the air
     'kel': [('A4', ['run', 'run', 'run', 'run']), ('A5', ['jump', 'dizzy', 'cheer', 'surf']), ('A6', ['aim', 'shoot', 'drum', 'drum']),
-            ('A8', ['bass', 'bass', 'groove', 'leap'])],            # the band: plucking (with a nod), leaning back, in the air
+            ('A8', ['bass', 'bass', 'groove', 'leap']),             # the band: plucking (with a nod), leaning back, in the air
+            ('A15', ['carry', 'carry', 'carry', 'carry']),          # A4's run with the bunny under her arm (ears up on 2 and 4)
+            ('A16', ['idle', 'idle', 'stand', 'stand']),            # hugging the bunny (B: a breath, an ear flopped); hands free
+            ('A17', ['drumhit', 'drumhit', 'throw', 'throw']),      # sticks: right down / left down; overhand throw: cocked, released
+            ('A18', ['tap', 'tap', 'heave', 'heave']),              # a strike: fist up, fist down; grip low, pull back
+            ('A19', ['lift', 'lift', 'point', 'point']),            # overhead lift: mid-step, feet together; pointing: up at 45, level
+            ('A20', ['shrug', 'swing', 'airgear', 'airgear'])],     # oops; the bunny over her shoulder; in the air with it, after the throw
 }
 POSE_PIXEL = 6.0                                # how wide one drawn "pixel" is in those rows
+# Frames drawn over the body of another (a run with the bunny, a breath): planted exactly where that one is, plus dx,
+# so the body does not jump between them. (row, frame in the row): (row, frame, dx), dx in pose pixels.
+ANCHOR_LIKE = {
+    ('A15', 0): ('A4', 0, 0), ('A15', 1): ('A4', 1, 0), ('A15', 2): ('A4', 2, 0), ('A15', 3): ('A4', 3, 0),
+    ('A16', 1): ('A16', 0, 0), ('A16', 3): ('A16', 2, 1),
+}
 
 
 def shrink(a, p=POSE_PIXEL):
@@ -289,7 +302,7 @@ def soften(img):
 
 def pose_frames(name):
     """Every drawn pose of one hero as (pose, picture, where the body's middle is, how far the feet are off the ground)."""
-    frames = []
+    frames, where, anchor = [], [], {}
     for code, poses in POSE_ROWS[name]:
         path = os.path.join(POSES, code + '.png')
         if not os.path.exists(path): return None
@@ -298,7 +311,7 @@ def pose_frames(name):
         cols = runs(al.sum(axis=0) > 0, 40, 12)
         assert len(cols) == len(poses), (code, cols)
         ground = max(np.nonzero(al[:, c0:c1].any(axis=1))[0].max() for c0, c1 in cols) + 1     # the line they all stand on
-        for pose, (c0, c1) in zip(poses, cols):
+        for k, (pose, (c0, c1)) in enumerate(zip(poses, cols)):
             rows = np.nonzero(al[:, c0:c1].any(axis=1))[0]
             small = shrink(a[rows.min():rows.max() + 1, c0:c1])
             op = small[..., 3] > 0
@@ -307,6 +320,11 @@ def pose_frames(name):
             xs = np.nonzero(band)[1]
             lift = 0 if pose == 'jump' else int(round((ground - 1 - rows.max()) / POSE_PIXEL))
             frames.append((pose, soften(Image.fromarray(small, 'RGBA')), float(np.median(xs)) + 0.5, lift))
+            where.append((code, k)); anchor[(code, k)] = frames[-1][2]
+    for i, at in enumerate(where):
+        if at in ANCHOR_LIKE and ANCHOR_LIKE[at][:2] in anchor:
+            code, k, dx = ANCHOR_LIKE[at]
+            frames[i] = frames[i][:2] + (float(int(round(anchor[(code, k)])) + dx),) + frames[i][3:]   # whole pixels, as pasted
     return frames
 
 
@@ -317,9 +335,10 @@ def pose_sheet(name):
     left = max(int(np.ceil(ax)) for _, f, ax, _ in frames)
     right = max(int(np.ceil(f.width - ax)) for _, f, ax, _ in frames)
     cw, ch = 2 * max(left, right) + 2, max(f.height + lift for _, f, _, lift in frames)
-    # Standing still: no drawn pose for it yet, so the mid-step running frame, set down on the ground.
-    step = [fr for fr in frames if fr[0] == 'run'][1]
-    frames.append(('stand', step[1], step[2], 0))
+    # Standing still: where no pose is drawn for it, the mid-step running frame, set down on the ground.
+    if not any(fr[0] == 'stand' for fr in frames):
+        step = [fr for fr in frames if fr[0] == 'run'][1]
+        frames.append(('stand', step[1], step[2], 0))
     out = Image.new('RGBA', (cw * len(frames), ch))
     poses = {}
     for k, (pose, f, ax, lift) in enumerate(frames):
