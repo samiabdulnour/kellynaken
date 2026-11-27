@@ -130,13 +130,16 @@
         "name": "Leila",
         "kind": "chase",
         "seconds": 75,
-        "target": 18,
+        "target": 28,
         "speed": [
-          82,
-          130
+          100,
+          158
         ],
         "freeze": 2.2,
-        "tip": "Sbírejte pro ni kytky. Koho chytí, toho učeše."
+        "tip": "Sbírejte pro ni kytky. Koho chytí, toho učeše.",
+        "flowers": 4,
+        "penalty": 1,
+        "ease": 4
       }
     ],
     "win": {
