@@ -4559,7 +4559,7 @@
       },
       over(won) {
         s.over = true; s.lost = !won; s.hold = null; paint();
-        if (!won) return view.end(false, 'Setmělo se.', 'Zkuste to znovu.');
+        if (!won) return view.end(false, 'Setmělo se.', mateHere() ? 'Zkuste to znovu.' : 'Zkus to znovu.');   // alone: to one child
         s.finale = Math.max(0.01, s.t); cheer('Nastěhováno!'); beep(1047, 1319, 1568);
         setTimeout(() => { if (view.hud.isConnected) view.end(true, 'Nastěhováno!', 'Všechno je na svém místě.'); }, 2900);   // first the lights and the visitors
       },
