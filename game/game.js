@@ -2285,14 +2285,23 @@
   // The first one waits until it is shot. Once enough are open, a big golden padlock comes down: both throw at it within
   // two seconds of each other (alone: hit it three times).
   function Shoot(sc, place, sn) {
-    const cfg = sc.shoot, who = me(), GY = sc.ground || GROUND, BODY = 26, G = 420, max = sn.lives, BLINK = 0.9, REACH = 20;
+    const cfg = sc.shoot, who = me(), GY = sc.ground || GROUND, BODY = 32, G = 420, max = sn.lives, BLINK = 0.9, REACH = 20;
     // A padlock out of time takes SLIP seconds to slip away before it counts as gone: long enough for the partner's
     // last-moment shot to reach this phone first. TOGETHER: how close their two throws at the golden padlock must be.
     const SLIP = 0.5, TOGETHER = 2;
-    const hand = (w, x, dir) => (w === 'ken' ? { x: x + dir * 28, y: GY - 4 } : { x: x + dir * 20, y: GY - 34 });   // where a shot leaves: the blade of the stick, or her hand
-    const mine = hand(who, BODY, 1), theirs = hand(mate(), W - BODY, -1);
+    // The two heroes as they act it out, this phone's on the left and the partner mirrored on the right (see look):
+    // what each is doing (`act`: a shot, a tap that fires nothing, a shrug, a 'mine!' hop, a 'ready!' hop, since `at`),
+    // when they last pressed, when their last puck left the blade, when Kellyn last caught her bunny in her hands or
+    // picked it up from her feet, and (the partner's) whether a star is next. REL: the wind-up, how long after the
+    // press the swing starts (the puck and the star leave then; the bunny SWUNG later, at the end of the swing).
+    const REL = { ken: 0.05, kel: 0.06 }, SWUNG = 0.06, FEET = 16;
+    const hero = (w, x, dir) => ({ w, x, dir, act: null, press: -9, rel: -9, caught: -9, pick: -9, star: false });
+    const ME = hero(who, BODY, 1), PAL = hero(mate(), W - BODY, -1), heroOf = (w) => (w === who ? ME : PAL);
+    // Where a shot leaves: the blade of the stick on the floor, or her hand as it lets go (the star's from higher up;
+    // the bunny's as she lunges, 2 px forward).
+    const hand = (h, star) => (h.w === 'ken' ? { x: h.x + h.dir * 28, y: GY - 4 } : ((p) => ({ x: h.x + p.x + (star ? 0 : 2 * h.dir), y: GY + p.y }))(K.hand('kel', star ? 'throw' : 'shoot', star ? 1 : 0, h.dir < 0)));
     const { targets } = Room.course.shoot(sn.seed, sc, sn.every, sn.need, sn.two);
-    const s = { t: 0, over: false, lost: false, shots: [], pops: [], drops: [], sparks: [], marks: [], cool: 0, swing: 0, mateSwing: 0, thrown: 0, again: null, next: null,
+    const s = { t: 0, over: false, lost: false, shots: [], pops: [], drops: [], sparks: [], marks: [], backs: [], cool: 0, thrown: 0, again: null, next: null, wonAt: 0, age: 0,
       open: new Set(), told: new Set(), asked: false, said: false, seen: 0, mine: 0, streak: 0, tapAt: 0, nudge: {}, quake: -9, tip: '', tipUntil: Infinity, helped: false, gold: null, painted: '' };
     let live = sn;
     // Whose a padlock is (alone, every one is yours), in their colour, which is also on the floor under each hero.
@@ -2447,28 +2456,33 @@
     }
 
     // One shot from `from`: right at a padlock (`aim`: its id, or 'gold'), following it as it sways until it lands
-    // on it; or, with nothing near the finger, towards (x, y) and on. Only one's own shots open anything.
-    function fire(w, from, x, y, real, star, aim) {
+    // on it; or, with nothing near the finger, towards (x, y) and on. Only one's own shots open anything. It is
+    // thrown now (`at`) but leaves the hand `delay` later (`go`), after the wind-up (the bunny after the swing too).
+    function fire(w, from, x, y, real, star, aim, delay = 0) {
       const dx = x - from.x, dy = y - from.y, back = live.item === 'boomerang', d = Math.hypot(dx, dy) || 1;
-      const kind = w === 'ken' ? 'puck' : star ? 'star' : 'bunny';
+      const kind = w === 'ken' ? 'puck' : star ? 'star' : 'bunny', go = s.t + delay, sh = { kind, w, real, from, x: from.x, y: from.y, at: s.t, go };
       if (aim !== null && !back) {                                                        // the bunny goes in an arc, the rest straight
         const T = kind === 'bunny' ? Math.max(0.4, Math.abs(dx) / 170) : Math.max(0.25, d / (kind === 'puck' ? 300 : 260));
-        s.shots.push({ kind, real, aim, from, x: from.x, y: from.y, vx: dx, at: s.t, T, arc: kind === 'bunny' ? G * T * T / 2 : 0 });
+        Object.assign(sh, { aim, vx: dx, T, arc: kind === 'bunny' ? G * T * T / 2 : 0 });
       } else if (kind !== 'bunny' || back) {                                              // straight and fast; with the boomerang it turns round and comes home
         const v = kind === 'puck' ? 280 : 250;
-        s.shots.push({ kind, real, aim: null, from, x: from.x, y: from.y, vx: dx / d * v, vy: dy / d * v, g: 0, r: 12, turn: back ? s.t + Math.max(0.35, d / v + 0.12) : 0 });
-      } else { const T = Math.max(0.4, Math.abs(dx) / 170); s.shots.push({ kind, real, aim: null, from, x: from.x, y: from.y, vx: dx / T, vy: (dy - 0.5 * G * T * T) / T, g: G, r: 13 }); }
+        Object.assign(sh, { aim: null, vx: dx / d * v, vy: dy / d * v, g: 0, r: 12, turn: back ? go + Math.max(0.35, d / v + 0.12) : 0 });
+      } else { const T = Math.max(0.4, Math.abs(dx) / 170); Object.assign(sh, { aim: null, vx: dx / T, vy: (dy - 0.5 * G * T * T) / T, g: G, r: 13 }); }
+      s.shots.push(sh);
+      if (kind === 'puck') heroOf(w).rel = go;                                            // the puck waiting at the blade goes with it
+      return sh;
     }
     function throwAt(x, y, aim) {
       const star = who === 'kel' && s.thrown++ % 2 === 1;                                 // Kellyn takes turns: bunny, star, bunny, star
-      fire(who, mine, x, y, true, star, aim);
+      const delay = swing(ME, star, aim === 'gold');
+      ME.act.shot = fire(who, hand(ME, star), x, y, true, star, aim, delay);
       Net.send({ type: 'fx', k: 'shot', x, y, star, aim });                               // the other device shows it flying to the same padlock, from where this hero stands there
     }
     // A shot goes the moment the finger lands: it sounds, the hero swings, and corners close in on the padlock.
     function shoot(x, y, aim, cool) {
       throwAt(x, y, aim);
       if (live.item === 'drumstick') s.again = { at: s.t + 0.13, x: x + 7, y: y - 7 };       // the drumstick's second beat, a little to one side
-      s.cool = cool; s.swing = 0.25; beep(who === 'ken' ? 330 : 660);
+      s.cool = cool; beep(who === 'ken' ? 330 : 660);
       s.marks.push({ x, y, at: s.t, aim });
     }
     // A tap goes for the nearest padlock this hero may shoot (their own, or the partner's while it blinks), or the
@@ -2477,7 +2491,7 @@
     // A tap while the hero is still swinging (`later`) is answered at once, with a tick and the marks on what it went
     // for; its shot goes the moment the swing is over (see update).
     function tap(x, y, later) {
-      const wait = (aim) => { s.next = { x, y, aim }; s.marks.push({ x, y, at: s.t, aim }); beep(1320); };
+      const wait = (aim) => { s.next = { x, y, aim }; s.marks.push({ x, y, at: s.t, aim }); beep(1320); windUp(ME); };
       if (s.gold) {
         const p = goldSpot(), on = goldUp() && Math.hypot(p.x - x, p.y - y) < 28;
         if (later) return wait(on ? 'gold' : null);
@@ -2486,9 +2500,11 @@
       const near = (ok) => targets.filter((tg) => tg.born <= s.t && up(tg) && ok(tg)).map((tg) => ({ tg, d: Math.hypot(tx(tg) - x, tg.y - y) })).filter((n) => n.d < REACH).sort((a, b) => a.d - b.d)[0];
       const flying = (tg) => s.shots.some((sh) => sh.aim === tg.id);
       const aim = near((tg) => mayHit(tg) && !flying(tg)), already = !aim && near(mayHit), theirs = !aim && !already && near((tg) => !mayHit(tg));
-      if (already) { s.marks.push({ x, y, at: s.t, aim: already.tg.id }); return beep(990); }   // a shot is on its way to that one already
+      if (already) { s.marks.push({ x, y, at: s.t, aim: already.tg.id }); dud(ME); return beep(990); }   // a shot is on its way to that one already
       if (theirs) {
         s.nudge[theirs.tg.id] = s.t; beep(196, 165);
+        if (!busy(ME)) ME.act = { kind: 'shrug', at: s.t }; else if (ME.act.star && !ME.act.landed) ME.act.hop = s.t;   // not mine: a shrug (a swing goes on; holding the star out, a hop)
+        if (!busy(PAL)) PAL.act = { kind: 'mine', at: s.t };                              // on the right, the partner hops ('mine!')
         return say(`${face(mate(), 3, 0.6)} Ten je ${mate() === 'kel' ? 'Kellynin' : 'Kendrickův'}.`, 1.4);
       }
       if (later) return wait(aim ? aim.tg.id : null);
@@ -2521,6 +2537,138 @@
       return next && s.t - next.born > 0.3 ? { x: tx(next), y: next.y } : null;
     }
 
+    // ---- acting it out, on both phones (the partner's shots come as fx) ----
+    // A shot: Kendrick winds up (crouched), swings (the puck leaves the blade 50 ms after the press), follows through
+    // with a lunge, a swoosh and dust, and settles back; at the golden padlock he jumps into it. Kellyn lifts the bunny
+    // back, swings and lets go at the end of the swing, 120 ms after the press, and waits arm out until it hops back
+    // into her hands; every second throw is a star, held up with the bunny sitting at her feet, thrown, and the bunny
+    // picked up again after (a bunny thrown before that picks it up first). A press while a shot is still going starts
+    // the next one at its swing (no wind-up), so fast tapping keeps up.
+    const LEN = (a) => (a.w === 'ken' ? (a.gold ? 0.41 : 0.44) : a.star ? (a.landed ? a.landed - a.at + 0.08 : 9) : 0.36);
+    const busy = (h) => !!h.act && h.act.kind === 'shot' && (h.act.hold || h.act.again || s.t - h.act.at < LEN(h.act));
+    const nextStar = (h) => h.w === 'kel' && (h === ME ? s.thrown % 2 === 1 : h.star);
+    const away = (h, but) => h.w === 'kel' && (s.shots.some((sh) => sh.w === h.w && sh.kind === 'bunny' && sh !== but) || s.backs.some((b) => b.w === h.w));   // her bunny in the air, or on its way back
+    // Her bunny sitting at her feet: while she throws a star (until she picks it up after), or as she reaches down for it.
+    const starOn = (h) => { const a = h.act; return !!a && a.kind === 'shot' && a.star && !a.hold && !(a.landed && s.t - a.landed >= 0.08); };
+    const sits = (h) => h.w === 'kel' && !away(h) && (starOn(h) || (!!h.act && h.act.kind === 'shot' && !!h.act.hold && !!h.act.scoop));
+    const padUp = (h) => { if (s.gold) return goldUp(); for (const tg of targets) { if (tg.born > s.t) break; if (up(tg) && (h === ME ? mayHit(tg) : ownerOf(tg) === h.w)) return true; } return false; };
+    const resting = (h) => s.t - h.press > 3 && !padUp(h);                                 // nothing to shoot and no press for 3 s: at rest
+    function swing(h, star, gold) {                                                       // a shot starts; how long until it leaves the hand
+      const scoop = h.w === 'kel' && !star && sits(h), quick = busy(h) && !(scoop && !h.act.hold);   // (her bunny at her feet: picked up first)
+      h.act = { kind: 'shot', w: h.w, star, gold: gold && h.w === 'ken', scoop, at: s.t - (quick ? REL[h.w] : 0) }; h.press = s.t;
+      return (quick ? 0 : REL[h.w]) + (h.w === 'kel' && !star ? SWUNG : 0);
+    }
+    // Pressed while the shot before is still going (the next goes when the swing is over, see update): wound up again
+    // at once and held there when the next is due soon; while the stick (or the bunny) is still going through, or the
+    // next is a while off, the swing plays on and the wind-up comes just before it.
+    const STRIKE = 0.15;
+    const held = (h) => ({ kind: 'shot', w: h.w, star: nextStar(h), at: s.t, hold: true, scoop: !nextStar(h) && sits(h) });
+    function windUp(h) {
+      const a = h.act, t = a ? s.t - a.at : 9;
+      h.press = s.t;
+      if (a && a.kind === 'shot' && !a.hold && (t < REL[h.w] + STRIKE || s.cool > REL[h.w] + 0.1)) { a.again = true; return; }
+      if (!a || !a.hold) h.act = held(h);
+    }
+    // A tap that fires nothing (a shot is on its way there already): Kendrick dips, dust at the blade; Kellyn hops, arm
+    // out. In the middle of a strike the strike goes on (Kendrick's dust still comes); her arm stays out after a star.
+    function dud(h) {
+      const a = h.act, shot = a && a.kind === 'shot' && !a.hold; h.press = s.t;
+      if (h.w === 'ken') puff(h.x + h.dir * 28, GY - 2);
+      if (shot && a.star && !a.landed) a.hop = s.t;
+      else if (!(shot && s.t - a.at < REL[h.w] + STRIKE)) h.act = { kind: 'dud', at: s.t };
+    }
+    // What a hero looks like now: the pose and its frame, moved (dx forward, dy down) or squashed about the feet, and
+    // what else is drawn: the gear at the feet, Kellyn's star in her hand, the swoosh of the stick, the bunny bobbing,
+    // Kendrick breathing (all above the waist 1 px down), the bunny on its way from her feet into her hands (`pick`).
+    function look(h) {
+      const w = h.w, kel = w === 'kel', a = h.act, e = a ? s.t - a.at : 9, out = kel && away(h), star = nextStar(h);
+      const L = { pose: 'aim', f: 0, dx: 0, dy: 0, sx: 0, sy: 0, feet: false, star: -1, swoosh: -1, jiggle: false, breath: false, pick: -1 };
+      const THROW = K.pose(w, 'throw', 'shoot'), SWING = K.pose(w, 'swing', 'shoot'), DIP = { sx: 1.02, sy: 0.98 };
+      const PICK = (u) => ({ ...L, ...(K.has(w, 'heave') ? { pose: 'heave', f: K.frame(0) } : { pose: 'jump', dy: 2 }), pick: clamp(u, 0, 1) });   // down for the bunny at her feet
+      if (s.over && s.lost) return { ...L, pose: 'dizzy', feet: !out };
+      if (s.over) return { ...L, pose: 'cheer', feet: !out, dy: -Math.round(4 * Math.max(0, Math.sin(((s.t - s.wonAt) * 2 + (h === ME ? 0 : 0.5)) * Math.PI * 2))) };   // hopping for joy, the two in turn
+      if (a && a.kind === 'shot') {
+        const t = a.hold ? REL[w] - 0.001 : e, tense = a.hold && e > 0.12 && (Math.floor(e / 0.1) & 1) === 1;   // waiting to go again: wound up (a long wait: tensing, 1 px)
+        if (!kel) {
+          if (t < 0.05) return { ...L, dx: -2, ...(tense ? { sx: 1.08, sy: 0.92 } : { sx: 1.06, sy: 0.94 }) };   // wound up, crouched
+          if (a.gold) {
+            if (t < 0.35) return { ...L, pose: K.pose(w, 'airgear', 'shoot'), f: K.frame(1), dy: -Math.round(6 * Math.sin(((t - 0.05) / 0.3) * Math.PI)) };   // a jump shot
+            if (t < 0.41) return { ...L, sx: 1.08, sy: 0.92 };                                     // and down, squashed
+          } else {
+            if (t < 0.11) return { ...L, pose: SWING };
+            if (t < 0.36) { const u = (t - 0.11) / 0.25; return { ...L, pose: 'shoot', dx: Math.round(3 * (1 - u) * (1 - u)), swoosh: t < 0.19 ? (t - 0.11) / 0.08 : -1 }; }
+            if (t < 0.44) return { ...L, ...(t > 0.38 && t < 0.42 ? DIP : {}) };                    // back to the wind-up, with a bob
+          }
+        } else if (a.star) {
+          if (t < 0.06) return { ...L, pose: THROW, f: K.frame(0), dx: -1, star: 0, feet: !out, ...(tense ? DIP : {}) };   // the star held up, a little back
+          if (!a.landed) return { ...L, pose: THROW, f: K.frame(1), feet: !out, dy: s.t - (a.hop ?? -9) < 0.12 ? -1 : 0 };   // thrown, the arm out until it lands
+          if (s.t - a.landed < 0.08 && !out) return PICK((s.t - a.landed) / 0.08);                // the bunny picked up
+        } else {
+          const bare = away(h, a.shot);                                                            // (her bunny still out: thrown empty-handed)
+          if (t < 0.06) return a.scoop ? PICK((a.hold ? e : t) / 0.06) : { ...L, pose: bare ? 'shoot' : 'aim', dx: -2, ...(a.hold ? (tense ? DIP : {}) : { sx: 1, sy: 1.04 }) };   // the bunny lifted back, stretching up (or picked up first)
+          if (t < 0.12) return { ...L, pose: bare ? 'shoot' : SWING };
+          if (t < 0.36) { const u = (t - 0.12) / 0.24; return { ...L, pose: 'shoot', dx: Math.round(2 * (1 - u) * (1 - u)) }; }
+        }
+      }
+      if (a && a.kind === 'dud' && e < 0.12) {
+        if (!kel) return { ...L, ...DIP };
+        if (out) return { ...L, pose: 'shoot', dy: -1 };
+        return star ? { ...L, pose: THROW, f: K.frame(1), dy: -1, star: 1, feet: true } : { ...L, pose: SWING, dy: -1 };
+      }
+      if (a && a.kind === 'shrug' && e < 0.3) return K.has(w, 'shrug') ? { ...L, pose: 'shrug', feet: !out } : { ...L, dx: Math.floor(e * 20) % 2 ? 1 : -1 };
+      if (a && a.kind === 'mine' && e < 0.25) return { ...L, pose: 'cheer', feet: !out, dy: -Math.round(3 * Math.sin((e / 0.25) * Math.PI)) };
+      if (a && a.kind === 'ready' && e < 0.22) return e < 0.16 ? { ...L, dy: -Math.round(3 * Math.sin((e / 0.16) * Math.PI)) } : { ...L, sx: 1.08, sy: 0.92 };   // 'ready!': a hop
+      if (kel && s.t - h.pick < 0.08 && !out) return PICK((s.t - h.pick) / 0.08);              // her bunny back at her feet: picked up
+      if (kel && s.t - h.caught < 0.08) return { ...L, ...DIP, pose: K.pose(w, 'idle', 'aim'), f: K.frame(0) };   // caught, and hugged
+      if (out) return { ...L, pose: 'shoot', ...(Math.floor(s.t / 0.25) & 1 ? DIP : {}) };     // arm out, waiting for the bunny to come back
+      const clock = s.age + (h === ME ? 0 : 0.37);                                              // (this phone's own clock, never below 0; the two not in step)
+      if (resting(h)) return { ...L, pose: K.pose(w, 'idle', 'aim'), f: K.loop(clock, 1.5) };   // resting, breathing
+      if (star) return { ...L, pose: THROW, f: K.frame(0), star: 0, feet: true };               // a star next: held up, the bunny sat down at her feet
+      return { ...L, jiggle: kel && (Math.floor(s.t / 0.4) & 1) === 1, breath: !kel && (Math.floor(clock * 1.5) & 1) === 1 };   // ready: wound up (her bunny bobbing on its ears; he breathes)
+    }
+    // Kendrick's next puck, lying where the blade comes down (resting, just ahead of it): gone as it is struck, and a
+    // new one slides in from behind.
+    function waiting(h, idle) {
+      const u = s.t - h.rel, to = idle ? 20 : 28; if (!K.has('things', 'puck') || (u >= 0 && u < 0.05)) return;
+      const k = u >= 0.05 && u < 0.2 ? 1 - (1 - (u - 0.05) / 0.15) ** 2 : 1;
+      K.figure('things', h.x + h.dir * Math.round(-2 + (to + 2) * k), GY + 1, 'puck', 0, h.dir < 0, 0.3);
+    }
+    const SWOOSH = [[4, -7], [8, -4], [12, -2], [16, -2], [20, -3], [24, -5]];               // along the blade's path on the floor, its tail first
+    function drawHero(h) {
+      const L = look(h), w = h.w, flip = h.dir < 0, x = h.x + h.dir * L.dx, y = GY + L.dy;
+      if (L.feet) { if (w === 'ken') gearAtFeet(w, x, GY, flip); else if (K.has('things', 'bunny')) K.figure('things', x + h.dir * FEET, GY, 'bunny', 0, flip, 0.4); }
+      if (w === 'ken') waiting(h, L.pose === 'idle');
+      if (L.sx) { ctx.save(); ctx.translate(x, y); ctx.scale(L.sx, L.sy); K.hero(w, 0, 0, L.pose, L.f, flip); ctx.restore(); }
+      else if (L.breath) for (const top of [0, 1]) {                                       // a breath: all above the waist drawn 1 px down
+        ctx.save(); ctx.beginPath(); ctx.rect(x - 40, top ? y - 80 : y - 22, 80, top ? 58 : 30); ctx.clip();
+        K.hero(w, x, y + top, L.pose, L.f, flip); ctx.restore();
+      }
+      else if (!L.jiggle) K.hero(w, x, y, L.pose, L.f, flip);
+      else for (const up of [0, 1]) {                                                      // her bunny bobs on its ears: the box round it drawn 1 px up
+        ctx.save(); ctx.beginPath(); if (!up) ctx.rect(-8, -8, W + 16, H + 16); ctx.rect(x + (flip ? 6 : -20), y - 32, 14, 18); ctx.clip('evenodd');
+        K.hero(w, x, y - up, L.pose, L.f, flip); ctx.restore();
+      }
+      if (L.pick >= 0 && K.has('things', 'bunny')) {                                         // from where it sat into her hands, in the first two thirds
+        const p = K.hand(w, L.pose, 0, flip), u = Math.min(1, L.pick * 1.5), sat = h.dir * FEET;
+        K.figure('things', x + Math.round(sat + (p.x - sat) * u), GY - Math.round(2 * u), 'bunny', 0, flip, 0.4);
+      }
+      if (L.star >= 0 && K.sprites.star) { const p = K.hand(w, L.pose, L.star, flip); K.prop(K.sprites.star, x + p.x, y + p.y + 4, Math.floor(s.t * 10) % 2); }
+      if (L.swoosh >= 0) SWOOSH.forEach(([px, py], i) => { if (L.swoosh < 0.5 || i >= 3) rect(x + h.dir * px - (flip ? 3 : 0), y + py, 3, 1, '#FFFFFF'); });
+    }
+    // Where Kellyn's bunny hops back to: the hand she holds out in front as she waits (she hugs it as she catches it),
+    // or down at her feet when a star is next or on its way (or it is over); which of the two is settled as it sets off.
+    function nest(h, feet) {
+      if (feet || s.over) return { x: h.x + h.dir * FEET, y: GY - 7 };
+      const p = K.hand('kel', 'shoot', 0, h.dir < 0); return { x: h.x + p.x, y: GY + p.y };
+    }
+    // Where a shot was a moment ago (`at`), for the star's sparkle trail; nowhere before it left the hand.
+    function trail(sh, at) {
+      if (at < sh.go) return null;
+      if (!sh.T) return { x: sh.x - sh.vx * (s.t - at), y: sh.y - sh.vy * (s.t - at) };
+      const u = clamp((at - sh.go) / sh.T, 0, 1), q = spotOf(sh.aim);
+      return { x: sh.from.x + (q.x - sh.from.x) * u, y: sh.from.y + (q.y - sh.from.y) * u - sh.arc * u * (1 - u) };
+    }
+
     const api = {
       s, kind: 'shoot', spot: (tg) => (tg.id === 'gold' ? goldSpot() : { x: tx(tg), y: tg.y }), pickAt,
       live: () => (s.gold ? (goldUp() && !s.over ? [{ id: 'gold', born: s.gold.at + 1.2 }] : []) : targets.filter((tg) => up(tg) && mayHit(tg))),
@@ -2540,10 +2688,12 @@
       fx(m) {
         if (m.k !== 'shot') return;
         const aim = (m.aim === 'gold' && s.gold) || (Number.isInteger(m.aim) && targets[m.aim]) ? m.aim : null;   // (the golden one may not be here yet)
-        fire(mate(), theirs, +m.x || 0, +m.y || 0, false, !!m.star, aim); s.mateSwing = 0.25;
+        const star = !!m.star, delay = swing(PAL, star, m.aim === 'gold');                  // the partner swings here too, the same way
+        PAL.act.shot = fire(mate(), hand(PAL, star), +m.x || 0, +m.y || 0, false, star, aim, delay);
+        if (PAL.w === 'kel') PAL.star = !star;                                              // she takes turns: after a star a bunny, and back
       },
       over(won) {
-        s.over = true; s.lost = !won; paint();
+        s.over = true; s.lost = !won; s.wonAt = s.t; paint();
         const end = () => view.end(won, won ? 'Trefa!' : `Uteklo ${sn.two ? 'vám' : 'ti'} jich moc.`, won ? 'Cesta je volná.' : `Zkus${sn.two ? 'te' : ''} to ještě jednou.`);
         if (!won) return end();
         if (s.gold) { const p = goldSpot(); s.gold.won = s.t; burst(p.x, p.y, COLOUR.ken, s.t, 8); burst(p.x, p.y, COLOUR.kel, s.t + 0.06, 8); burst(p.x, p.y, '#FFD43A', s.t + 0.12, 10); }
@@ -2552,12 +2702,13 @@
       },
       down(x, y) {
         if (s.over || y < 22) return;
-        if (s.t < 0) { s.marks.push({ x, y, at: s.t, aim: null }); return beep(196); }            // not yet: 2, 1, Start!
+        ME.press = s.t;
+        if (s.t < 0) { s.marks.push({ x, y, at: s.t, aim: null }); ME.act = { kind: 'ready', at: s.t }; return beep(196); }   // not yet: 2, 1, Start! (a hop: ready!)
         s.tapAt = s.t;
         tap(x, y, s.cool > 0);
       },
       update(dt) {
-        s.t = clock(live); s.cool -= dt; s.swing -= dt; s.mateSwing -= dt;
+        s.t = clock(live); s.cool -= dt; s.age += dt;
         if (s.tipUntil < s.t) say('', 0);
         if (!s.over && s.next && s.cool <= 0) {                                           // the swing is over: the tap made during it goes, at the padlock it was meant
           const n = s.next, tg = Number.isInteger(n.aim) && targets[n.aim]; s.next = null;  // for, even one that has only just begun to slip away
@@ -2567,11 +2718,12 @@
         const p = pickAt();
         for (const sh of s.shots) {
           if (sh.T) {                                                                       // aimed: it lands on its padlock wherever it has swayed to
-            const u = Math.min(1, (s.t - sh.at) / sh.T), q = spotOf(sh.aim);
+            const u = clamp((s.t - sh.go) / sh.T, 0, 1), q = spotOf(sh.aim);
             sh.x = sh.from.x + (q.x - sh.from.x) * u; sh.y = sh.from.y + (q.y - sh.from.y) * u - sh.arc * u * (1 - u);
             if (u >= 1) land(sh);
             continue;
           }
+          if (s.t < sh.go) continue;                                                        // still in the hand
           sh.x += sh.vx * dt; sh.vy += sh.g * dt; sh.y += sh.vy * dt;
           if (sh.turn && s.t >= sh.turn) { sh.vx = -sh.vx; sh.vy = -sh.vy; sh.turn = 0; sh.home = true; }
           if (sh.home && (sh.vx < 0 ? sh.x <= sh.from.x : sh.x >= sh.from.x)) sh.dead = true;
@@ -2585,7 +2737,23 @@
           }
           if (sh.x < -10 || sh.x > W + 10 || sh.y < 10 || sh.y > H + 10) { if (sh.turn) sh.turn = s.t; else sh.dead = true; }
         }
+        for (const sh of s.shots) if (sh.dead && sh.kind === 'bunny') {                   // the bunny hops back: into her hands, or (a star next or on its way) to her feet
+          const h = heroOf(sh.w); s.backs.push({ w: sh.w, x: clamp(sh.x, 8, W - 8), y: clamp(sh.y, 40, GY - 8), at: s.t, feet: s.over || nextStar(h) || starOn(h) });
+        }
         s.shots = s.shots.filter((sh) => !sh.dead);
+        s.backs = s.backs.filter((b) => {                                                  // caught; or sat down at her feet, and picked up unless a star still needs it there
+          if (s.t - b.at < 0.35) return true;
+          const h = heroOf(b.w); if (!b.feet) h.caught = s.t; else if (!s.over && !nextStar(h) && !starOn(h)) h.pick = s.t;
+          return false;
+        });
+        for (const h of [ME, PAL]) {                                                       // the dust where the stick strikes; the star landed
+          const a = h.act; if (!a || a.kind !== 'shot') continue;
+          if (h === ME && !s.next && (a.hold || a.again)) { if (a.hold) { h.act = null; continue; } a.again = false; }   // the tap it waited for came to nothing
+          if (a.hold) continue;
+          if (a.again && s.t - a.at >= REL[h.w] + STRIKE && s.cool <= REL[h.w]) { h.act = held(h); continue; }   // pressed during the swing: wound up again, just before the next
+          if (h.w === 'ken' && !a.gold && !a.dust && s.t - a.at >= 0.11) { a.dust = true; if (h === ME || mateHere()) puff(h.x + h.dir * 28, GY - 2); }
+          if (a.star && !a.landed && (!a.shot || a.shot.dead)) a.landed = s.t;
+        }
         if (!s.over) for (const tg of targets) {                                           // the ones that got away (slipped off, no shot coming): both devices say so, the room counts each once
           if (tg.born > s.t || tg.born >= goldAt()) break;
           if (left(tg) <= -SLIP && !s.told.has(tg.id) && !done(tg) && !coming(tg)) { s.told.add(tg.id); gone(tg); Net.send({ type: 'ev', e: 'miss', id: tg.id }); }
@@ -2642,14 +2810,21 @@
         }
         const pk = pickAt(); if (pk) item(sc.pickup, pk.x, pk.y);
         if (live.item) item(live.item, 12, 34);                                             // what they are holding, up in the corner
-        // wound up and ready; swinging through for a moment after each shot. Kellyn's hand stays empty while her bunny is in the air.
-        const won = s.over && !s.lost, pose = (w, swing, real) => (won ? 'cheer' : swing > 0 || (w === 'kel' && s.shots.some((sh) => sh.kind === 'bunny' && sh.real === real)) ? 'shoot' : 'aim');
-        if (mateHere()) K.hero(mate(), W - BODY, GY, s.lost ? 'dizzy' : pose(mate(), s.mateSwing, false), s.t, true);
-        K.hero(who, BODY, GY, s.lost ? 'dizzy' : pose(who, s.swing, true), s.t);
+        if (mateHere()) drawHero(PAL);                                                      // the two of them acting it out (see look)
+        drawHero(ME);
+        for (const b of s.backs) {                                                          // Kellyn's bunny hopping back to her, low, tumbling
+          const h = heroOf(b.w); if ((h === PAL && !mateHere()) || !K.has('things', 'bunnyfly')) continue;
+          const u = clamp((s.t - b.at) / 0.35, 0, 1), q = nest(h, b.feet);
+          K.figure('things', Math.round(b.x + (q.x - b.x) * u), Math.round(b.y + (q.y - b.y) * u - 40 * u * (1 - u)) + 8, Math.floor(s.t * 6) % 2 ? 'bunnyflip' : 'bunnyfly', 0, q.x < b.x, 0.5);
+        }
         for (const sh of s.shots) {
+          if (s.t < sh.go) continue;                                                        // still in the hand (see look)
           const x = Math.round(sh.x), y = Math.round(sh.y);
           if (sh.kind === 'puck') { if (K.has('things', 'puckfly')) K.figure('things', x, y + 4, 'puckfly', 0, sh.vx < 0, 0.45); else { rect(x - 4, y - 2, 8, 4, INK); rect(x - 3, y - 2, 6, 1, '#7A6F6A'); } }
-          else if (sh.kind === 'star' && K.sprites.star) K.prop(K.sprites.star, x, y + 4, Math.floor(s.t * 10) % 2);
+          else if (sh.kind === 'star' && K.sprites.star) {                                  // a sparkle trail behind the star
+            for (let k = 1; k <= 3; k++) { const p = trail(sh, s.t - 0.03 * k); if (p) rect(Math.round(p.x), Math.round(p.y), 1, 1, ['#FFFFFF', '#FFF1A8', '#FFD43A'][(k + Math.floor(s.t * 12)) % 3]); }
+            K.prop(K.sprites.star, x, y + 4, Math.floor(s.t * 10) % 2);
+          }
           else if (K.has('things', 'bunnyfly')) K.figure('things', x, y + 8, Math.floor(s.t * 6) % 2 ? 'bunnyflip' : 'bunnyfly', 0, sh.vx < 0, 0.5);   // the bunny tumbles as it flies
           else if (K.sprites.bunny) K.prop(K.sprites.bunny, x, y + 11, Math.floor(s.t * 6) % 2);
           else { rect(x - 5, y - 4, 10, 8, '#D9CFC6'); rect(x - 4, y - 3, 8, 6, '#FFFDF8'); }
