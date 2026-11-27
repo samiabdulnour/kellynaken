@@ -42,19 +42,24 @@ const K = (() => {
         o.connect(g).connect(ac.destination); o.start(t + i * 0.09); o.stop(t + i * 0.09 + 0.1);
       });
     } catch (e) {}
-  }  // Drums, made from a falling tone and a burst of noise: kick, snare, tom and cymbal.
+  }  // Drums, made from a falling tone and a burst of noise: kick, snare, tom and cymbal; for a backing beat also a
+  // short hi-hat ('hat') and two sticks clicked together ('stick'). `wait` plays it that many seconds from now, timed
+  // on the sound's own clock (steadier than a timer); `vol` plays it quieter (1 is full).
   let noise = null;
-  function drum(kind) {
+  function drum(kind, wait, vol) {
     try {
       ac = ac || new (window.AudioContext || window.webkitAudioContext)();
-      const t = ac.currentTime, out = ac.createGain(); out.connect(ac.destination);
+      if (wait && ac.state !== 'running') return;                                   // asleep: nothing piles up to burst out later
+      const t = ac.currentTime + Math.max(0, wait || 0), v = vol === undefined ? 1 : vol, out = ac.createGain(); out.connect(ac.destination);
       if (!noise) { noise = ac.createBuffer(1, ac.sampleRate * 0.5, ac.sampleRate); const d = noise.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; }
-      const tone = (f0, f1, len, vol) => { const o = ac.createOscillator(), g = ac.createGain(); o.type = 'sine'; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f1, t + len); g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + len); o.connect(g).connect(out); o.start(t); o.stop(t + len + 0.02); };
-      const hiss = (freq, len, vol) => { const n = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain(); n.buffer = noise; f.type = 'highpass'; f.frequency.value = freq; g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + len); n.connect(f).connect(g).connect(out); n.start(t); n.stop(t + len + 0.02); };
+      const tone = (f0, f1, len, vol) => { const o = ac.createOscillator(), g = ac.createGain(); o.type = 'sine'; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f1, t + len); g.gain.setValueAtTime(vol * v, t); g.gain.exponentialRampToValueAtTime(0.001, t + len); o.connect(g).connect(out); o.start(t); o.stop(t + len + 0.02); };
+      const hiss = (freq, len, vol) => { const n = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain(); n.buffer = noise; f.type = 'highpass'; f.frequency.value = freq; g.gain.setValueAtTime(vol * v, t); g.gain.exponentialRampToValueAtTime(0.001, t + len); n.connect(f).connect(g).connect(out); n.start(t); n.stop(t + len + 0.02); };
       if (kind === 'kick') tone(150, 45, 0.18, 0.5);
       if (kind === 'snare') { tone(220, 120, 0.08, 0.15); hiss(1500, 0.14, 0.2); }
       if (kind === 'tom') tone(240, 120, 0.16, 0.4);
       if (kind === 'cymbal') hiss(6000, 0.4, 0.12);
+      if (kind === 'hat') hiss(8000, 0.05, 0.1);
+      if (kind === 'stick') { tone(1900, 1500, 0.04, 0.2); hiss(5000, 0.03, 0.12); }
     } catch (e) {}
   }
   // Phones only let sound start from a tap: every tap wakes the sound up (it may have been made, asleep, before one),

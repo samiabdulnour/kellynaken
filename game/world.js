@@ -20,7 +20,8 @@
 // `ground` is how far down the picture feet stand, when it is not the usual 232 (the sea, the jetty).
 // A scrolling picture is repeated with every other copy mirrored; `tile: 'repeat'` repeats it as it is.
 //   run     a side-scrolling dash on surfboards, a little faster all the time: jump the fins, stay down under the parrots
-//   drums   notes fall down three lanes in time with the beat: tap each drum as its note reaches the line
+//   drums   notes fall down three lanes in time with the beat: tap each drum as its note reaches the line; with two,
+//           Kendrick has the left two drums and Kellyn the right one
 //   echo    a rhythm is played on four drums and has to be played back, one stroke longer each round; each of them has two of the drums
 //   find    koalas peek out of the trees: tap them while they show; drag to look around a wide picture
 //   salon   customers want washing, cutting, dyeing, drying and paying: lead them from place to place and work there
@@ -53,7 +54,7 @@ window.WORLD = {
     kel: { name: 'Kellyn', shirt: '#BFE8D0', legs: '#F6C1D0', badge: '#F08BA0', hair: '#9A6535', tie: '#F3A6C0' },
   },
   items: {
-    drumstick: { name: 'Palička', art: ['strahov', 'sticks'], use: 'hit', dash: 'Palička! Chvíli praštíš do všeho, co ti stojí v cestě.', shot: 'Palička! Každá rána je dvojitá.', drums: 'Palička! Chvíli se každá trefa počítá dvakrát.' },
+    drumstick: { name: 'Palička', art: ['strahov', 'sticks'], use: 'hit', dash: 'Palička! Chvíli praštíš do všeho, co ti stojí v cestě.', shot: 'Palička! Každá rána je dvojitá.', drums: 'Každá trefa dvakrát!' },
     boomerang: { name: 'Bumerang', art: ['aussie', 'boomerang'], use: 'throw', dash: 'Bumerang! Klepni na Hoď.', shot: 'Bumerang! Každá rána se vrací.' },
   },
   // Czechia, close up: Prague under the glass (tapping anywhere on the glass opens it), and Ostrov.
@@ -185,7 +186,7 @@ window.WORLD = {
           echo: { rounds: 6, first: 2, beat: 0.62, hint: { first: 1, ken: 3, kel: 2 } },
           talk: [['', 'Pod tribunou je zkušebna. A v ní někdo bubnuje!'], ['alan', 'Večer hraju na stadionu a kapela nikde. Zahrajete to se mnou?'], ['alan', 'Nejdřív zkouška. Já zahraju, vy to po mně zopakujete. A pokaždé přidám jeden úder.']] },
         { id: 'strahov-concert', name: 'Koncert', at: [42, 125], label: 'right', bg: 'strahov-concert', play: 'drums', code: 'PODIUM', pickup: 'drumstick', cast: ['alan'],
-          drums: { bpm: 104, beats: 96, pass: 0.62, busy: 0.35 }, say: { won: ['Stadion šílí!', 'Takový koncert tu dlouho nebyl.'] },
+          drums: { bpm: 104, beats: 96, pass: 0.6, busy: 0.35 }, say: { won: ['Stadion šílí!', 'Takový koncert tu dlouho nebyl.'] },
           talk: [['', 'Stadion je plný. Světla, pódium a vy tři.'], ['alan', 'Trefujte noty, až budou na čáře. Raz, dva, tři, čtyři!']] },
       ],
       done: [['alan', 'To byl koncert! Díky, parťáci.']],

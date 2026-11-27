@@ -201,3 +201,16 @@ button{font:inherit;color:inherit}
   color:var(--ink);background:var(--yellow);border:.17em solid var(--ink);animation:tady .45s steps(2,jump-none) infinite alternate}
 @keyframes tady{to{margin-top:-.3em}}
 #ui > .praise,#ui > .plus{pointer-events:none}
+/* The concert: four dots filling up with the clicks of the count-in (numbers would follow "2, 1, Start!" with another
+   1); on each drum, with two, the face of whose drum it is; the tip just under the bar, clear of the board on the stage
+   roof; three stars by the meter that light up as they are earned. */
+.go.beat{font-size:4em;line-height:1;animation:beat .5s steps(4) forwards}
+.go.beat i{display:inline-block;width:.25em;height:.25em;margin:0 .0625em;background:var(--ink-soft);box-shadow:.0625em .0625em 0 var(--ink)}
+.go.beat i.on{background:var(--yellow);box-shadow:.0625em .0625em 0 var(--red),.125em .125em 0 var(--ink)}
+@keyframes beat{from{transform:scale(1.6)}to{transform:scale(1);opacity:.3}}
+#ui > .owner{position:absolute;pointer-events:none;line-height:0}
+.tip.up.roof{inset:2.625em 0 auto}
+.starbar{display:flex;gap:.25em}
+.starbar i{width:1.25em;height:1.25em;background:var(--ink-soft);clip-path:polygon(50% 0,63% 36%,100% 38%,71% 61%,81% 100%,50% 77%,19% 100%,29% 61%,0 38%,37% 36%)}
+.starbar i.on{background:var(--yellow);animation:starpop .5s steps(3)}
+@keyframes starpop{from{transform:scale(2.2)}}
