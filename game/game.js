@@ -566,7 +566,7 @@
       mate: { x: who === 'kel' ? 36 : 18, y: 0, face: 1, pose: 'stand', tx: null, ty: 0 }, dir: 0, held: { left: false, right: false }, jumpHeld: false,
       shots: [], cam: 0, pops: [], whack: -9, told: false, freed: -9, sw: {}, flying: {}, sent: {}, hunt: false, bumpAt: -9, allAt: 0, quake: -9, stuck: 0,
       born: {}, news: null, short: 0, holdTold: -99,
-      steal: {}, dropped: {}, leave: {}, cried: {}, told: {}, wave0: null, waveSent: -9, warned: -1, rushed: -1, soaked: -1, wetAt: -99, mateWet: -99, noteFly: {}, openAt: 0, corked: false, endIn: 0 };
+      steal: {}, dropped: {}, leave: {}, cried: {}, said: {}, wave0: null, waveSent: -9, warned: -1, rushed: -1, soaked: -1, wetAt: -99, mateWet: -99, noteFly: {}, openAt: 0, corked: false, endIn: 0 };
     let live = sn;
     const found = (it) => taken.has(it.id) || live.got.includes(it.id);
     const missing = () => (NOTE ? scraps : pieces).filter((it) => !found(it));
@@ -653,8 +653,26 @@
       if (m.cool > 0) { if (SOFT) m.wantThrow = true; return; }                                  // forgiving: pressed too soon, thrown the moment it can be
       m.cool = 0.45;
       const shot = shoot(who, m.x + m.face * 8, m.y + 28, m.face, true);
+      if (who === 'kel') aim(shot);
       s.shots.push(shot); beep(who === 'ken' ? 330 : 660);
-      Net.send({ type: 'fx', k: 'throw', x: Math.round(shot.x), y: Math.round(shot.y), f: m.face });
+      Net.send({ type: 'fx', k: 'throw', x: Math.round(shot.x), y: Math.round(shot.y), f: m.face, vy: Math.round(shot.vy) });
+    }
+    // Kellyn's bunny goes up in an arc, over anything as low as a crab: with a crab in front of her, it hops lower
+    // and comes down on it (where the crab will be by then).
+    function aim(sh) {
+      const g = sh.g / 2;
+      let best = null;
+      for (const f of L.foes) {
+        if (f.kind !== 'crab' || beaten(String(f.id))) continue;
+        let p = L.at(f, s.t), T = 0;
+        for (let i = 0; i < 2 && p; i++) { T = (p.x - sh.x) / sh.vx; p = T > 0 ? L.at(f, s.t + T) : null; }
+        if (!p || p.hidden || T <= 0.03 || T > 0.62 || (best && T > best.T)) continue;
+        best = { T, y: p.y + SIZE.crab[1] / 2 };
+      }
+      if (!best) return;
+      const vy = clamp((best.y - sh.y + g * best.T * best.T) / best.T, -60, sh.vy);
+      for (let i = 1; i <= 6; i++) { const t = best.T * i / 6; if (sh.y + vy * t - g * t * t < L.top(sh.x + sh.vx * t) + 1) return; }   // never into something in between
+      sh.vy = vy;
     }
     // Kendrick's puck slides fast along the ground: off the edge of a wall or a car it drops to the pavement and slides
     // on, and against a wall it stops. Kellyn's bunny goes up a little and comes down again.
@@ -698,7 +716,7 @@
       const m = s.me; if (m.inv > 0 || out(who) || m.done) return;
       m.inv = 1.4; m.hurt = s.t; m.vy = 120; m.ground = false; beep(200, 150);
       if (SOFT) {                                                                              // knocked back off what hurt, the picture jolts, the hearts shake
-        m.push = (p && p.x > m.x ? -1 : 1) * 120; s.quake = s.t;
+        m.push = (p && p.x > m.x ? -1 : 1) * 120; s.quake = s.t; s.washTo = undefined;
         const el = view.hud.firstElementChild; el.classList.remove('hit'); void el.offsetWidth; el.classList.add('hit');
       }
       Net.send({ type: 'ev', e: 'hurt' }); Net.send({ type: 'fx', k: 'hurt' });
@@ -716,12 +734,14 @@
     }
     function move(dt) {
       const m = s.me;
-      if (m.done) return;
+      if (m.done) return settle(dt);
       const wasAir = !m.ground;
       // walking, and the things in the way: a low step is walked up, anything taller stops you
       const walk = (SOFT && s.t - m.hurt < 0.3) || s.t - s.wetAt < 0.5 ? 0 : s.dir;            // forgiving: a knock (or a wave) stops you for a moment
-      let nx = m.x + walk * SPEED * dt + (m.push || 0) * dt;
-      if (m.push) { m.push *= Math.pow(0.02, dt); if (Math.abs(m.push) < 4) m.push = 0; }         // a knock back, dying away
+      let pushed = m.x + (m.push || 0) * dt;
+      if (m.push < 0 && s.washTo !== undefined) pushed = Math.max(pushed, Math.min(m.x, s.washTo));   // a wave washes you back only as far as is safe
+      let nx = pushed + walk * SPEED * dt;
+      if (m.push) { m.push *= Math.pow(0.02, dt); if (Math.abs(m.push) < 4) { m.push = 0; s.washTo = undefined; } }   // a knock back, dying away
       const go = m.push ? Math.sign(nx - m.x) : walk, want = nx;
       if (s.dir) m.face = s.dir;
       for (const b of L.blocks) {
@@ -752,6 +772,14 @@
       }
       if (m.ground) m.left = s.t;
     }
+    // At the goal (or once it is won) nobody walks any more, but one who got there in the middle of a jump still comes
+    // down onto whatever is under them.
+    function settle(dt) {
+      const m = s.me, floor = L.top(m.x, HALF - 2);
+      if (m.y <= floor) { m.y = floor; m.vy = 0; m.ground = true; return; }
+      m.vy -= G * dt; m.y = Math.max(floor, m.y + m.vy * dt);
+      if (m.y <= floor) { m.vy = 0; m.ground = true; beep(180); }
+    }
     // A jump let go of too soon that did not get up onto what is in front: after the second one, a tip to hold Skok.
     function hopped(m) {
       const from = m.from; m.from = undefined;
@@ -764,7 +792,7 @@
     // At the shut door: it rattles, the padlock swings, the list shows what is still missing, and an arrow points to it.
     function knock() {
       const m = s.me; if (s.t - s.bumpAt < 1.4) return;
-      s.bumpAt = s.t; s.hunt = true; if (SOFT) m.push = -70;
+      s.bumpAt = s.t; s.hunt = true; if (SOFT) { m.push = -70; s.washTo = undefined; }
       beep(150, 110); say(lacking());
     }
     function lacking() {
@@ -906,14 +934,14 @@
       },
       fx(m) {
         if (m.k === 'pos') { s.mate.tx = m.x; s.mate.ty = m.y; s.mate.face = m.f; s.mate.pose = m.p; }
-        if (m.k === 'throw') s.shots.push(shoot(mate(), m.x, m.y, m.f, false));
+        if (m.k === 'throw') { const sh = shoot(mate(), m.x, m.y, m.f, false); if (m.vy !== undefined && !sh.slide) { sh.y = m.y; sh.vy = m.vy; } s.shots.push(sh); }   // the same arc as on the thrower's phone
         if (m.k === 'hurt') s.mate.hurt = s.t;
         if (m.k === 'wet') s.mateWet = s.t;
       },
       over(won) {
         s.over = true; s.lost = !won; paint();
         if (NOTE) {                                                                              // the bottle opens (see opening), then the card
-          view.tip.textContent = ''; s.endIn = won ? 2.4 : 0.9;
+          view.tip.textContent = ''; s.endIn = won ? 2.4 : 0.9; keys.mark('left', false); keys.mark('right', false);
           if (won) { s.openAt = Math.max(0, s.t); cheer('Hej rup!'); beep(523, 659, 784); }
           return;
         }
@@ -926,7 +954,7 @@
       down() {},                                                                               // tapping the picture does nothing: only Skok jumps
       move() {},
       update(dt) {
-        if (s.over) { if (NOTE) opening(dt); return; }
+        if (s.over) { if (s.me.done && !out(who)) settle(dt); if (NOTE) opening(dt); return; }   // one who won mid-jump comes down
         s.t = clock(live);
         const m = s.me;
         if (m.inv > 0) m.inv -= dt;
@@ -1325,13 +1353,19 @@
       if (w.f >= 0 && s.rushed !== w.k) { s.rushed = w.k; K.drum('cymbal', 0, 1); K.drum('tom', 0.06, 0.7); K.drum('cymbal', 0.25, 0.6); }
       if (w.f >= 0.15 && w.f < 1.45 && s.soaked !== w.k && low && m.ground) soak(w);
     }
-    // Caught on the sand: washed back a little, wet through for a moment (drops fall off), no heart lost.
+    // Caught on the sand: washed back a little, wet through for a moment (drops fall off), no heart lost. Never onto
+    // a jellyfish or into a crab's run behind you: the wave leaves you just short of it (one already in a crab's run
+    // stays where the wave found them).
     function soak(w) {
       const m = s.me; s.soaked = w.k; s.wetAt = s.t; m.push = -165;
+      s.washTo = L.foes.filter((f) => (f.kind === 'jelly' || f.kind === 'crab') && !beaten(String(f.id))).reduce((to, f) => {
+        const edge = f.x1 + SIZE[f.kind][0] + HALF + 2;                                          // just clear of it, on the side you stand
+        return edge <= m.x + 0.5 && edge > to ? edge : to;
+      }, m.x - 60);
       beep(392, 262, 196); K.drum('hat');
-      plus('Brr!', clamp(m.x - s.cam, 20, W - 20), GY - m.y - 54, '#BFE8FF');
+      plus('Brr!', clamp(m.x - s.cam, 20, W - 20), GY - m.y - 54, '#FFFFFF');                // white, outlined: it shows on the sea
       s.pops.push({ x: m.x, y: m.y + 6, at: s.t, splash: true });
-      if (!s.told.soak) { s.told.soak = true; say('Šplouch! Až přijde vlna, vylez nahoru.'); }
+      if (!s.said.soak) { s.said.soak = true; say('Šplouch! Až přijde vlna, vylez nahoru.'); }
       Net.send({ type: 'fx', k: 'wet' });
     }
     function beach() {
@@ -1342,21 +1376,31 @@
         }
         const T = stoleAt(it);
         if (T !== undefined && !s.cried[it.id]) { s.cried[it.id] = true; if (Math.abs(it.x - s.cam - W / 2) < W) beep(1500, 1150, 1500); }   // its cry
-        if (T !== undefined && s.t - T > GCRY + GDIVE && !s.told['gull' + it.id] && carrying(it)) {
-          s.told['gull' + it.id] = true;
+        if (T !== undefined && s.t - T > GCRY + GDIVE && !s.said['gull' + it.id] && carrying(it)) {
+          s.said['gull' + it.id] = true;
           if (Math.abs(it.x - s.cam - W / 2) < W * 0.75) say(`Racek ${mateHere() ? 'vám' : 'ti'} sebral kousek! Skoč na něj, nebo ho traf!`);
         }
         if (found(it) && !droppedAt(it) && !s.leave[it.id]) { const g = gullAt(it); s.leave[it.id] = { t: s.t, x: g ? g.x : it.x, y: g ? g.y : 98 }; }   // nothing left to take: off it goes
       }
       for (const id of taken) if (!live.got.includes(id) && s.t - s.sent[id] > 1.5) { s.sent[id] = s.t; Net.send({ type: 'ev', e: 'got', id }); }   // in case it was lost on the way
       const ahead = (kind) => foesNow().some((p) => kindOf(p.id) === kind && !p.hidden && p.x - m.x > 0 && p.x - m.x < 64);
-      if (!s.told.crab && ahead('crab')) { s.told.crab = true; say('Na kraba skoč, nebo ho traf!'); }
-      if (!s.told.jelly && ahead('jelly')) { s.told.jelly = true; say('Medúzu přeskoč!'); }
+      if (!s.said.crab && ahead('crab')) { s.said.crab = true; say('Na kraba skoč, nebo ho traf!'); }
+      if (!s.said.jelly && ahead('jelly')) { s.said.jelly = true; say('Medúzu přeskoč!'); }
       if (!s.allAt && !missing().length && !Object.keys(s.noteFly).length) {                  // every piece found: now to the bottle
         s.allAt = s.t; cheer('Všechny kousky!'); beep(523, 659, 784, 1047);
         if (!m.done) say('Teď na skály k láhvi!');
       }
-      if (mateHere() && live.fin && live.fin[mate()] && !m.done && !out(who) && !s.told.wait) { s.told.wait = true; say(`${heroName(mate())} čeká u láhve!`); }
+      if (mateHere() && live.fin && live.fin[mate()] && !m.done && !out(who) && !s.said.wait) { s.said.wait = true; say(`${heroName(mate())} čeká u láhve!`); }
+      // Standing about for a while without walking (not while a wave comes or the water is up): the arrow to press
+      // blinks green, the way to go: on, or back to the nearest piece once the bottle has said that pieces are missing.
+      if (s.dir) s.walkAt = s.t;
+      const w = surf(), idle = !s.over && !m.done && !out(who) && !(w && w.f < 2.4) && s.t - (s.walkAt || 0) > 4;
+      const back = idle && s.hunt && missing().map(posOf).sort((a, b) => Math.abs(a.x - m.x) - Math.abs(b.x - m.x))[0];
+      const way = !idle ? null : back && back.x < m.x - 10 ? 'left' : 'right';
+      if (way !== s.way) {
+        s.way = way; keys.mark('left', way === 'left'); keys.mark('right', way === 'right');
+        if (way && !s.said.walk) { s.said.walk = true; say('Šipkami jdeš, Skok skáče.'); }
+      }
     }
     // Won: everybody is at the bottle. It is lifted, the cork pops, the last part of the message flies out into the
     // note; then the card.
@@ -1376,7 +1420,7 @@
     function bounce(sp) {                                                                       // a beach umbrella: boing, high up
       const m = s.me; m.y = sp.h; m.vy = JUMP * 1.45; s.jumpHeld = !!s.jumpKey; m.short = false; m.from = undefined; sp.at = s.t;
       beep(330, 660, 990);
-      if (!s.told.boing) { s.told.boing = true; plus('Boing!', clamp(sp.x + sp.w / 2 - s.cam, 20, W - 20), GY - sp.h - 40); }
+      if (!s.said.boing) { s.said.boing = true; plus('Boing!', clamp(sp.x + sp.w / 2 - s.cam, 20, W - 20), GY - sp.h - 40); }
     }
     // How far down the screen a wave's water comes (to just in front of the heroes' feet), or null while it does not.
     function reach(w) {
