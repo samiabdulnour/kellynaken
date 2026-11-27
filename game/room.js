@@ -59,15 +59,30 @@
       }
       return { blocks, foes, items, top, at, length: cfg.length, goal: cfg.goal };
     },
-    drums(seed, sc) {
-      const cfg = sc.drums, beat = 60 / cfg.bpm, r = rng(seed), notes = [];
-      for (let b = 0; b < cfg.beats; b++) {
-        const at = 2.6 + b * beat;
-        if (b % 2 === 0 || r() < 0.8) notes.push({ at, lane: b % 4 === 0 ? 0 : b % 2 ? 1 : r() < 0.5 ? 0 : 2 });
-        if (b > 7 && r() < (cfg.busy || 0.22)) notes.push({ at: at + beat / 2, lane: cfg.busy ? Math.floor(r() * 3) : 2 });   // off-beat notes: more of them, anywhere, in a busier song
+    // The song at the concert. After "Start!" four clicks count it in; then two gentle bars (beats one and three
+    // only), the rest of the first half on the beat, a busier second half (notes between the beats too), two bars of
+    // fill and one big beat to end on. With two, Kendrick has the kick and the snare (left and middle lanes) and
+    // Kellyn the cymbal (right), on the beat only: once a bar, then twice, then every beat. A note's `who` says whose
+    // it is (null: one playing alone has all of them).
+    drums(seed, sc, two) {
+      const cfg = sc.drums, beat = 60 / cfg.bpm, r = rng(seed), notes = [], n = cfg.beats, half = n / 2, fill = n - 8;
+      const start = 0.8 + 4 * beat, end = start + n * beat;
+      const add = (at, lane, big) => notes.push({ at, lane, who: two ? (lane === 2 ? 'kel' : 'ken') : null, big: !!big });
+      const run = (k) => (two ? k % 2 : [0, 1, 2, 1][k % 4]);                              // the fill runs round the drums
+      for (let b = 0; b < n; b++) {
+        const at = start + b * beat, q = b % 4;
+        if (b >= fill) { add(at, run(2 * b)); add(at + beat / 2, run(2 * b + 1)); }
+        else {
+          if (b >= 8 || q % 2 === 0) add(at, q === 0 ? 0 : q === 1 ? 1 : two ? q - 2 : r() < 0.4 ? q - 2 : 2);   // kick on one, snare on two; alone, the cymbal often on three and four
+          if (b >= half && r() < (cfg.busy || 0.3)) add(at + beat / 2, Math.floor(r() * (two ? 2 : 3)));
+        }
+        if (two && (b < 16 ? q === 0 : b < half ? q % 2 === 0 : true)) add(at, 2);    // Kellyn's cymbal
       }
-      // the pick-up falls down the middle lane between two beats, about a third of the way into the song
-      return { notes, beat, pick: sc.pickup ? { lane: 1, at: 2.6 + (Math.floor(cfg.beats * 0.3) + 0.5) * beat } : null };
+      if (two) { add(end, 0, true); add(end, 2, true); } else add(end, 1, true);      // the last beat: with two, both strike together
+      notes.sort((a, b) => a.at - b.at);
+      // the pick-up falls between two beats, about a third of the way in: down the middle, or with two down Kellyn's lane
+      return { notes, beat, start, end, half: start + half * beat, fill: start + fill * beat,
+        pick: sc.pickup ? { lane: two ? 2 : 1, at: start + (Math.floor(n * 0.3) + 0.5) * beat } : null };
     },
     // Koalas in the trees: which of the scene's hiding places are used, and when each one peeks out.
     find(seed, sc) {
@@ -188,7 +203,9 @@
       if (sc.play === 'salon') Object.assign(sn, { lives: two ? 4 : 3, need: Math.round(sc.salon.need * (two ? 1.6 : 1)), served: 0, coins: 0, cust: [], next: 0, tt: 0, workers: { ken: null, kel: null } });
       if (sc.play === 'echo') { Object.assign(sn, { lives: two ? 4 : 3, round: 0, rounds: sc.echo.rounds, n: 0, last: null }); teach(sc.echo.first, 1600); }
       if (sc.play === 'platform') Object.assign(sn, { hurts: 0, outs: 0 });
-      if (sc.play === 'drums') Object.assign(sn, { hits: 0, need: Math.ceil(course.drums(sn.seed, sc).notes.length * (sc.drums.pass || 0.6) * (two ? 1.8 : 1)) });    // two need more than one could drum alone, but not so much that one must carry the other
+      // With two, only a third of Kellyn's notes go into what is needed: Kendrick drumming well wins it even on a day
+      // she misses them all, and every note she does hit still helps. `by`: what each has drummed; `notes`: how many.
+      if (sc.play === 'drums') { const song = course.drums(sn.seed, sc, two), hers = song.notes.filter((q) => q.who === 'kel').length; Object.assign(sn, { two, hits: 0, by: { ken: 0, kel: 0 }, notes: song.notes.length, need: Math.ceil((song.notes.length - hers * 2 / 3) * (sc.drums.pass || 0.6)) }); }
       if (sn.lives !== undefined) sn.maxLives = sn.lives;                                   // for the stars: how many they started with
     }
     // The echo game: a rhythm to repeat. `teach` makes one of the given length (or plays the same one again) and sets
@@ -275,7 +292,7 @@
       if (k === 'platform') return Math.min(by(sn.hurts || 0, sn.two ? 3 : 2), sn.outs ? 2 : 3);
       if (k === 'memory') return by(sn.misses - Math.floor(sn.maxMiss * 0.4), Math.floor(sn.maxMiss * 0.3));
       if (k === 'find') { const u = (now() - sn.startAt) / 1000 / sc.find.seconds; return u <= 0.6 ? 3 : u <= 0.85 ? 2 : 1; }
-      if (k === 'drums') { const r = sn.hits / Math.max(1, sn.need); return r >= 1.25 ? 3 : r >= 1.1 ? 2 : 1; }
+      if (k === 'drums') { const r = sn.hits / Math.max(1, sn.notes || sn.need / 0.62); return r >= 0.8 ? 3 : r >= 0.68 ? 2 : 1; }   // how much of the whole song they played, the two of them
       if (sn.maxLives) return by(sn.maxLives - sn.lives, Math.floor(sn.maxLives / 2));
       return 3;
     }
@@ -393,8 +410,9 @@
         else if (++sn.step >= sn.pattern.length) { if (++sn.round >= sn.rounds) sn.phase = 'won'; else teach(sn.pattern.length + 1, 1500); }
       }
       if (kind === 'drums') {
-        if (m.e === 'hit') sn.hits += m.n === 2 ? 2 : 1;
-        if (m.e === 'miss') sn.hits = Math.max(0, sn.hits - 1);                                   // banging away with no note there
+        const by = sn.by || (sn.by = { ken: 0, kel: 0 }), n = m.n === 2 ? 2 : 1;
+        if (m.e === 'hit') { sn.hits += n; by[who] += n; }
+        if (m.e === 'miss' && by[who] > 0) { sn.hits--; by[who]--; }                           // banging away at nothing: it costs one's own hits, never the partner's
         if (m.e === 'finish') {                                                        // the song is over once everyone playing has said so
           sn.fin[who] = true; sn.finAt = sn.finAt || now();
           if (solo || (sn.fin.ken && sn.fin.kel) || now() - sn.finAt > 2500) sn.phase = sn.hits >= sn.need ? 'won' : 'lost';   // or one has, and the other's device has gone quiet

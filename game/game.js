@@ -947,80 +947,244 @@
     };
   }
 
-  // The drums: notes fall down three lanes in time with the beat. Tap a lane's drum as its note reaches the line.
-  // Nothing is lost for a miss. Both play the same song and their hits are added up.
+  // The concert. Notes come out from under the stage and slide down three lanes to the drums at the bottom: tap a
+  // drum as its note reaches the line. Alan counts in with four clicks of his sticks, then a quiet backing beat (hi-hat
+  // on every beat, kick on one and three) plays along, timed on the sound's own clock from the shared game clock, so
+  // there is always a beat to play to. With two, Kendrick has the kick and the snare (left and middle) and Kellyn the
+  // cymbal (right), on the beat only; alone, all three. Each phone sounds only its own drums and shows the other's.
+  // Notes in a row light up the stage and get the crowd going. A tap close to a note never costs anything; only
+  // banging away at nothing does, and then only one's own hits.
   function Drums(sc, place, sn) {
-    const cfg = sc.drums, FALL = 92, LINE = 230, TOP = 22, WINDOW = 0.15, LANE = W / 3, who = me();
-    const PADS = [['#CC2233', 'kick'], ['#FFD43A', 'snare'], ['#3E7BD6', 'cymbal']];      // colour and sound
-    const KIT = ['kick', 'snare', 'cymbal'];
-    const { notes, pick } = Room.course.drums(sn.seed, sc), last = notes[notes.length - 1].at;
-    const s = { t: 0, over: false, notes, flash: [0, 0, 0], good: [0, 0, 0], bad: [0, 0, 0], taps: 0, mateTaps: 0, pick, asked: false, told: false, sent: 0 };
+    const cfg = sc.drums, who = me(), LANE = W / 3, LINE = 230, PAD = 236;
+    const LIFT = 70, FLOOR = 111, NTOP = 121;           // the picture is drawn higher, so the stage sits up top, clear of the notes; where the band stands; where notes come out
+    const LEAD = 1.6, FALL = (LINE - NTOP) / LEAD, WINDOW = 0.17, NEAR = 0.3;   // how long a note is seen; how close a tap must be to hit it; how close costs nothing
+    const COLOUR = ['#CC2233', '#FFD43A', '#3E7BD6'], KIT = ['kick', 'snare', 'cymbal'], ART = ['bassdrum', 'snare', 'cymbal'];
+    const two = !!sn.two, song = Room.course.drums(sn.seed, sc, two), { notes, beat, pick } = song;
+    const ours = (lane) => !two || (who === 'ken' ? lane < 2 : lane === 2);
+    const PRAISE = { 5: 'Dobře!', 10: 'Super!', 20: 'Paráda!', 30: 'Skvělé!', 50: 'Jsi hvězda!', 75: 'Úžasné!', 100: 'Neuvěřitelné!' };
+    // The backing: four clicks to count in, then the hi-hat on every beat and the kick on one and three, quiet under the player's own drums.
+    const back = [];
+    for (let k = 0; k < 4; k++) back.push({ at: song.start - (4 - k) * beat, kind: 'stick', vol: k ? 0.7 : 1, count: k + 1 });
+    for (let b = 0; b < cfg.beats; b++) { const at = song.start + b * beat; back.push({ at, kind: 'hat', vol: 0.45 }); if (b % 2 === 0) back.push({ at, kind: 'kick', vol: 0.22 }); }
+    const s = { t: 0, over: false, won: false, notes, pick, back: 0, counted: 0, taps: 0, mateTaps: 0, combo: 0, best: 0, mateCombo: 0, heat: 0, parts: [], stray: [], missed: 0, told: 0,
+      press: [-9, -9, -9], hint: [-9, -9, -9], shake: [-9, -9, -9], ring: [-9, -9, -9], bad: [-9, -9, -9], good: [-9, -9, -9],
+      tapAt: -9, mateAt: -9, cheerAt: -9, mateCheer: -9, flash: -9, lost: -9, asked: false, first: true, saidPick: false, saidPower: false, saidHalf: false, saidFill: false, saidEnd: false, tipUntil: 1e9, sent: 0 };
     let live = sn;
-    const view = stage('<span class="count"></span><span class="meter"><i></i></span>', 'Klepni na buben, až je nota na čáře.');
+    const view = stage('<span class="count"></span><span class="meter"><i></i></span>', two ? (who === 'ken' ? 'Tvoje jsou dva levé bubny.' : 'Tvůj je modrý činel.') : 'Ťukni, až je nota na čáře.');
     view.tip.classList.add('up');
+    if (two) for (let i = 0; i < 3; i++) add(`<span class="owner" style="${pinAt([i * LANE + LANE - 20, PAD + 4])}">${face(i < 2 ? 'ken' : 'kel', 3, 1)}</span>`);   // whose drum it is
     const powered = () => Net.now() < live.power;
     const paint = () => { view.hud.firstElementChild.textContent = `${live.hits} / ${live.need}`; view.hud.lastElementChild.firstElementChild.style.width = clamp(live.hits / live.need, 0, 1) * 100 + '%'; };
+    const say = (text, secs) => { view.tip.textContent = text; s.tipUntil = secs ? s.t + secs : 1e9; };
+    const mid = (lane) => lane * LANE + LANE / 2;
+    const beatAt = (t) => (t - song.start) / beat;
+    // A handful of pixels flying off from where something was hit.
+    const burst = (x, y, c, n, up) => { for (let k = 0; k < n; k++) { const a = (k / n) * Math.PI * 2 + Math.random() * 0.5, v = 40 + Math.random() * 45; s.parts.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v * 0.7 - (up || 35), c, at: s.t }); } };
+    const breakStreak = () => { if (!s.combo) return; if (s.combo >= 5) s.lost = s.t; s.combo = 0; Net.send({ type: 'fx', k: 'streak', c: 0 }); };
+    // Digits for the board on the stage roof, three pixels by five.
+    const DIGITS = ['111101101101111', '010110010010111', '111001111100111', '111001011001111', '101101111001001', '111100111001111', '111100111101111', '111001001010010', '111101111101111', '111101111001111'];
+    const digits = (text, cx, y, k, c) => { let x = Math.round(cx - (text.length * 4 - 1) * k / 2); for (const ch of text) { const g = DIGITS[+ch]; for (let i = 0; i < 15; i++) if (g[i] === '1') rect(x + (i % 3) * k, y + Math.floor(i / 3) * k, k, k, c); x += 4 * k; } };
+    // The crowd: fans in the stands beside and above the stage, more of them up and jumping the longer the streak.
+    const fans = (() => {
+      const r = K.rng(5), list = [], SHIRT = ['#CC2233', '#F0448F', '#3E7BD6', '#FFD43A', '#1FA463', '#FFF8E7'], SKIN = ['#E8B58A', '#C99A6B', '#8A5A3B'];
+      const one = (x, y) => list.push({ x, y, th: r(), shirt: SHIRT[Math.floor(r() * SHIRT.length)], skin: SKIN[Math.floor(r() * SKIN.length)], ph: r() * 6, light: r() < 0.45 });
+      for (let x = 3; x < W - 2; x += 5 + Math.floor(r() * 3)) one(x, 31);
+      for (const [x0, x1] of [[3, 24], [168, 189]]) for (let y = 40; y <= 68; y += 7) for (let x = x0 + (y % 2) * 2; x <= x1; x += 5 + Math.floor(r() * 2)) one(x, y);
+      return list;
+    })();
+    const LAMPS = [[49, '#F0448F'], [64, '#FFD43A'], [82, '#3E7BD6'], [110, '#3E7BD6'], [128, '#FFD43A'], [143, '#F0448F']];
     return {
       s, kind: 'drums',
       sync(n) {
         live = n; paint();
-        if (powered() && !s.told) { s.told = true; view.tip.textContent = WORLD.items[sc.pickup].drums; }
-        if (s.told && !powered() && !s.over) view.tip.textContent = '';
+        if (live.picked && !s.saidPower && !s.over) { s.saidPower = true; s.flash = s.t; cheer('Palička!'); say(WORLD.items[sc.pickup].drums, 2.5); }   // whoever caught it, both get it
       },
-      fx(m) { if (m.k === 'tap') { const l = clamp(m.lane | 0, 0, 2); s.flash[l] = 0.12; s.mateTaps++; drum(KIT[l]); } },
-      over(won) { s.over = true; paint(); const [a, b] = (sc.say && sc.say.won) || ['To je rytmus!', 'Dveře povolily.']; view.end(won, won ? a : 'Skoro!', won ? b : `Máte ${live.hits} z ${live.need} potřebných. Zkuste to ještě jednou.`); },
+      // The other phone's strokes: seen, never heard. A note they hit pops here too, and their streak warms the crowd.
+      fx(m) {
+        if (m.k === 'streak') { s.mateCombo = m.c | 0; return; }
+        if (m.k !== 'tap') return;
+        const l = clamp(m.lane | 0, 0, 2), n = notes[m.i];
+        s.press[l] = s.t; s.mateTaps++; s.mateAt = s.t;
+        if (Number.isInteger(m.i) && n && !n.hit && !ours(n.lane)) { n.hit = s.t; s.good[l] = s.t; burst(mid(l), LINE, COLOUR[l], 5); }
+        if (Number.isFinite(m.c)) { if (PRAISE[m.c] && m.c > s.mateCombo) s.mateCheer = s.t; s.mateCombo = m.c | 0; }
+      },
+      over(won) {
+        s.over = true; s.won = won; paint();
+        const [a, b] = (sc.say && sc.say.won) || ['To je rytmus!', 'Dveře povolily.'];
+        view.end(won, won ? a : 'Skoro!', won ? b : `Máte ${live.hits} z ${live.need} potřebných. Zkuste to ještě jednou.`);
+        K.ui.querySelectorAll('.owner').forEach((e) => e.remove());
+      },
       down(x) {
         if (s.over) return;
-        const lane = clamp(Math.floor(x / LANE), 0, 2);
-        s.flash[lane] = 0.12; s.taps++;
-        Net.send({ type: 'fx', k: 'tap', lane });
-        drum(KIT[lane]);
-        if (pick && !live.picked && !s.asked && lane === pick.lane && Math.abs(pick.at - s.t) <= WINDOW + 0.05) {      // caught the pick-up on the line
-          s.asked = true; beep(660, 880, 1100); return Net.send({ type: 'ev', e: 'pick' });
+        const lane = clamp(Math.floor(x / LANE), 0, 2), t = s.t;
+        if (!ours(lane)) { s.shake[lane] = t; beep(170); say(who === 'ken' ? 'Tohle hraje Kellyn.' : 'Tohle hraje Kendrick.', 1.6); return; }   // the other one's drum: a shake and a word
+        s.press[lane] = t; s.taps++; s.tapAt = t;
+        if (pick && !live.picked && !s.asked && lane === pick.lane && Math.abs(pick.at - t) <= 0.25) {      // caught the drumstick on the line
+          s.asked = true; drum(KIT[lane]); beep(660, 880, 1100); burst(mid(lane), LINE, '#FFD43A', 14, 60); s.flash = t;
+          Net.send({ type: 'fx', k: 'tap', lane, i: -1, c: s.combo });
+          return Net.send({ type: 'ev', e: 'pick' });
         }
         let best = null;
-        for (const n of notes) if (n.lane === lane && !n.hit && !n.gone && Math.abs(n.at - s.t) <= WINDOW && (!best || Math.abs(n.at - s.t) < Math.abs(best.at - s.t))) best = n;
-        if (best) { best.hit = true; s.good[lane] = 0.35; Net.send({ type: 'ev', e: 'hit', n: powered() ? 2 : 1 }); if (!s.told) view.tip.textContent = ''; }
-        else if (s.t > 0) { s.bad[lane] = 0.35; Net.send({ type: 'ev', e: 'miss' }); }                  // a drum hit with no note on it costs a point
+        for (const n of notes) if (n.lane === lane && !n.hit && Math.abs(n.at - t) <= WINDOW && (!best || Math.abs(n.at - t) < Math.abs(best.at - t))) best = n;
+        if (best) {                                                                      // a hit: it sounds, pops and counts at once, before the room hears of it
+          const dbl = powered();
+          best.hit = t; s.good[lane] = t; s.combo++; s.best = Math.max(s.best, s.combo); s.missed = 0;
+          drum(KIT[lane]); burst(mid(lane), LINE, COLOUR[lane], best.big ? 16 : 8); if (dbl || best.big) burst(mid(lane), LINE, '#FFF8E7', 8, 70);
+          plus(dbl ? '+2' : '+1', mid(lane), LINE - 9, dbl ? '#FFD43A' : '#FFF8E7');
+          Net.send({ type: 'ev', e: 'hit', n: dbl ? 2 : 1 });
+          Net.send({ type: 'fx', k: 'tap', lane, i: notes.indexOf(best), c: s.combo });
+          if (PRAISE[s.combo]) { cheer(PRAISE[s.combo]); s.cheerAt = t; }
+          if (s.first) { s.first = false; if (s.tipUntil > 1e8) say(''); }
+          return;
+        }
+        drum(KIT[lane], 0, 0.55);                                                        // a softer stroke: no note there
+        Net.send({ type: 'fx', k: 'tap', lane, i: -1, c: s.combo });
+        const near = notes.find((n) => ours(n.lane) && Math.abs(n.at - t) <= NEAR);
+        if (near || t < song.start - NEAR) {                                             // a little early or late, the drum next to it, or the count-in: no harm done
+          s.ring[lane] = t;
+          if (near && near.lane !== lane && !near.hit) s.hint[near.lane] = t;            // the right drum lights up
+          return;
+        }
+        s.stray = s.stray.filter((u) => t - u < 1.2); s.stray.push(t);
+        if (s.stray.length < 3) { s.ring[lane] = t; return; }                            // a stray tap or two is nothing
+        s.bad[lane] = t; s.shake[lane] = t; breakStreak(); beep(150);                     // banging away: that costs a hit
+        if (live.by && live.by[who] > 0) plus('−1', mid(lane), LINE - 9, '#FF8A8A');
+        Net.send({ type: 'ev', e: 'miss' }); say('Ťukej jen na noty.', 2);
       },
       update(dt) {
-        if (s.over) return;
         s.t = clock(live);
-        for (let i = 0; i < 3; i++) { s.flash[i] -= dt; s.good[i] -= dt; s.bad[i] -= dt; }
-        for (const n of notes) if (!n.hit && !n.gone && s.t - n.at > WINDOW) n.gone = true;
-        if (s.t > last + 0.9 && Net.now() - s.sent > 1000) { s.sent = Net.now(); Net.send({ type: 'ev', e: 'finish' }); }   // said again each second until the room has heard both
-      },
-      draw() {
-        K.background(sc.bg, 0, place.look);
-        const two = mateHere();                                                                // they drum along in the room, a stroke for every tap
-        const cast = sc.cast || [], wide = cast.length ? 40 : 22;
-        rect(0, TOP, W, H - TOP, 'rgba(43,31,26,.38)');                                     // the stage dims a little; the band stays bright
-        cast.forEach((id, i) => K.figure(id, W / 2 + i * 26, 204, 'act', s.t));                    // Alan drums along
-        if (two) K.hero(mate(), W / 2 + wide, 206, 'drum', s.mateTaps / 9, true);
-        K.hero(who, two || cast.length ? W / 2 - wide : W / 2, 206, 'drum', s.taps / 9);
-        for (let i = 1; i < 3; i++) rect(i * LANE - 1, TOP, 2, LINE - TOP, 'rgba(255,248,231,.18)');
-        for (let i = 0; i < 3; i++) {                                                               // a slot on each drum, where a note is hit
-          const x = i * LANE + LANE / 2;
-          rect(x - 17, LINE - 7, 34, 14, '#FFF8E7'); rect(x - 15, LINE - 5, 30, 10, 'rgba(43,31,26,.75)');
+        for (const p of s.parts) { p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 260 * dt; }
+        s.parts = s.parts.filter((p) => s.t - p.at < 0.45);
+        const target = s.won ? 1 : Math.min(1, (s.combo + s.mateCombo) / 20);          // how hot the stage is: the streak (both streaks, with two)
+        s.heat += (target - s.heat) * Math.min(1, dt * (target > s.heat ? 2 : 4));
+        if (s.over) return;
+        while (s.back < back.length && back[s.back].at < s.t + 0.2) {                    // the backing beat, a moment ahead on the sound's clock
+          const e = back[s.back++];
+          if (e.at > s.t - 0.05) drum(e.kind, e.at - s.t, e.vol);
+        }
+        while (s.counted < 4 && s.t >= back[s.counted].at) {                             // Raz, dva, tři, čtyři!
+          const n = ++s.counted, p = add(`<p class="go beat">${n}</p>`);
+          setTimeout(() => p.remove(), beat * 900);
         }
         for (const n of notes) {
-          if (n.hit) continue;
-          const y = Math.round(LINE - (n.at - s.t) * FALL), x = n.lane * LANE + LANE / 2;
-          if (y < TOP + 6 || y > H) continue;
-          rect(x - 15, y - 5, 30, 10, INK); rect(x - 14, y - 4, 28, 8, n.gone ? '#7A6F6A' : PADS[n.lane][0]); rect(x - 12, y - 3, 24, 2, n.gone ? '#8A7F7A' : '#FFF8E7');
+          if (n.at > s.t) break;
+          if (!n.hit && !n.gone && s.t - n.at > WINDOW) { n.gone = s.t; if (ours(n.lane)) { breakStreak(); s.missed++; } }   // let through: the streak is over
         }
-        if (pick && !live.picked && s.t - pick.at <= WINDOW + 0.05) { const y = Math.round(LINE - (pick.at - s.t) * FALL); if (y > TOP + 10) item(sc.pickup, pick.lane * LANE + LANE / 2, y); }
+        if (s.missed >= 4 && s.told < 2) { s.told++; s.missed = 0; say('Ťukni na svítící buben.', 3); }
+        if (!s.saidHalf && s.t >= song.half - LEAD) { s.saidHalf = true; cheer('Teď víc not!'); }
+        if (!s.saidFill && s.t >= song.fill - LEAD) { s.saidFill = true; cheer('Finále!'); }
+        if (!s.saidEnd && s.t >= song.end - LEAD) { s.saidEnd = true; say(two ? 'Poslední rána spolu!' : 'Velká rána na konec!', LEAD + 0.6); }
+        if (pick && !live.picked && !s.saidPick && s.t >= pick.at - LEAD) { s.saidPick = true; say(ours(pick.lane) ? 'Chyť paličku!' : `Paličku chytá ${heroName(mate())}!`, LEAD + 0.4); }
+        if (s.t > s.tipUntil) say('');
+        if (s.t > song.end + 1.2 && Net.now() - s.sent > 1000) { s.sent = Net.now(); Net.send({ type: 'ev', e: 'finish' }); }   // said again each second until the room has heard both
+      },
+      draw() {
+        const t = s.t, b = beatAt(t), ph = b >= -4 ? b - Math.floor(b) : 1, pulse = (1 - ph) * (1 - ph), heat = s.heat;   // pulse: 1 on each beat, dying away before the next
+        ctx.save(); ctx.translate(0, -LIFT); K.background(sc.bg, 0, place.look); ctx.restore();
+        const img = K.picture(sc.bg); if (img) ctx.drawImage(img, 0, 196, W, H - 196, 0, 196, W, H - 196);   // the floor again, under the drums
+        // the crowd: a few fans at first, more and jumping higher as the streak grows; phones lit up when it is hot
+        const wave = t - Math.max(s.cheerAt, s.mateCheer) < 0.7;
+        for (const f of fans) {
+          if (f.th > 0.12 + heat * 0.9 && !s.won) continue;
+          const jump = Math.round(pulse * (1 + 2.5 * heat) * (f.th < heat ? 1 : 0.4) + (wave ? 2 : 0)), y = f.y - jump, arms = s.won || wave || f.th < heat - 0.25;
+          rect(f.x - 1, y - 3, 3, 3, f.shirt); rect(f.x - 1, y - 5, 3, 2, f.skin); rect(f.x - 1, y - 6, 3, 1, INK);
+          if (arms) { rect(f.x - 2, y - 7, 1, 3, f.skin); rect(f.x + 2, y - 7, 1, 3, f.skin); if (f.light && heat > 0.5 && Math.sin(t * 3 + f.ph) > -0.2) rect(f.x + 2, y - 9, 1, 2, '#FFF1A8'); }
+        }
+        rect(0, 0, W, NTOP, `rgba(26,20,36,${(0.4 - 0.3 * heat).toFixed(2)})`);                       // the stadium in the dark; the streak lights it up
+        rect(28, 33, 136, FLOOR - 26, `rgba(20,14,30,${(0.35 * (1 - heat)).toFixed(2)})`);
+        ctx.save();                                                                                // the stage lights: beams that swing and flash with the beat
+        for (const [i, [lx, c]] of LAMPS.entries()) {
+          ctx.globalAlpha = (0.05 + 0.22 * heat) * (0.55 + 0.45 * pulse);
+          const sway = Math.sin(t * 1.3 + i * 1.7) * 14 * heat;
+          for (let y = 0; y < FLOOR - 58; y += 2) { const w = 2 + 2 * Math.floor(y / 4); rect(Math.round(lx + sway * y / 52 - w / 2), 58 + y, w, 2, c); }
+        }
+        if (heat > 0.6) for (const [sx, dir] of [[30, -1], [162, 1]]) {                           // and, when it is really going, searchlights over the crowd
+          ctx.globalAlpha = (heat - 0.6) * 0.5;
+          const a = Math.sin(t * 0.9 + sx) * 0.6;
+          for (let k = 0; k < 40; k += 2) rect(Math.round(sx + dir * k * (0.6 + 0.4 * Math.cos(a))), Math.round(44 - k * (0.5 + 0.5 * Math.sin(a + 1))), 3, 2, '#FFF1A8');
+        }
+        ctx.globalAlpha = Math.max(0, 0.5 - (t - s.flash) * 1.5) + (heat > 0.5 ? 0.07 * pulse * heat : 0);   // a flash for the drumstick, and on the beat when it is hot
+        rect(28, 33, 136, FLOOR - 26, '#FFF8E7');
+        ctx.restore();
+        // the board on the stage roof: the count-in, then the streak
+        const cheering = t - s.cheerAt < 0.6, fresh = t - s.tapAt < 0.1;
+        rect(80, 34, 32, 13, INK); rect(81, 35, 30, 11, cheering && Math.floor(t * 10) % 2 ? '#FFD43A' : '#1A1420');
+        if (s.counted && s.counted <= 4 && t < song.start) digits(String(s.counted), 96, 36, 2, '#FFF8E7');
+        else if (s.combo >= 2) digits(String(Math.min(999, s.combo)), 96, 36, 2, cheering && Math.floor(t * 10) % 2 ? INK : fresh ? '#FFF8E7' : '#FFD43A');
+        else for (let k = 0; k < 5; k++) rect(84 + k * 6, 40, 2, 2, t - s.lost < 0.6 && Math.floor(t * 8) % 2 ? '#CC2233' : '#3A2F3F');
+        // the band: Alan in the middle, each hero over their own drums; a stroke for every tap, a cheer at a milestone
+        const at = two ? { ken: 54, kel: 142 } : { [who]: 68 }, ax = two ? 98 : 124;
+        (sc.cast || []).forEach((id, i) => K.figure(id, ax + i * 26, FLOOR - (pulse > 0.6 ? 1 : 0), s.won || cheering ? 'joy' : 'act', t));
+        const hero = (w, taps, hit, yay) => K.hero(w, at[w], FLOOR + (t - hit < 0.08 ? 1 : 0), s.won || t - yay < 0.6 ? 'cheer' : 'drum', taps / 9, two && w === 'kel');
+        hero(who, s.taps, s.tapAt, s.cheerAt);
+        if (two) hero(mate(), s.mateTaps, s.mateAt, s.mateCheer);
+        // the lanes: darker, with lines sliding down on every beat to show the time; the other one's lane darker still
+        rect(0, NTOP, W, H - NTOP, 'rgba(43,31,26,.5)');
+        rect(0, NTOP - 1, W, 1, INK);
+        for (let i = 0; i < 3; i++) if (!ours(i)) rect(i * LANE, NTOP, LANE, PAD - NTOP, 'rgba(43,31,26,.4)');
+        for (let k = Math.ceil(b); k <= b + LEAD / beat; k++) { const y = Math.round(LINE - (k - b) * beat * FALL); if (y > NTOP && k >= 0 && k <= cfg.beats) rect(0, y, W, 1, `rgba(255,248,231,${k % 4 ? 0.05 : 0.12})`); }
+        for (let i = 1; i < 3; i++) rect(i * LANE - 1, NTOP, 2, PAD - NTOP, 'rgba(255,248,231,.16)');
+        // how near each lane's next note of one's own is: its slot and its drum light up as it comes
+        const near = [0, 0, 0];
+        for (const n of notes) { const d = n.at - t; if (d > 0.45) break; if (d >= -WINDOW && !n.hit && ours(n.lane)) near[n.lane] = Math.max(near[n.lane], 1 - Math.max(0, d) / 0.45); }
+        if (pick && !live.picked && Math.abs(pick.at - t) < 0.45 && ours(pick.lane)) near[pick.lane] = Math.max(near[pick.lane], 1 - Math.abs(pick.at - t) / 0.45);
+        for (let i = 0; i < 3; i++) {
+          const x = mid(i), g = near[i] * near[i], lit = t - s.good[i] < 0.1;
+          if (g > 0.15) { ctx.save(); ctx.globalAlpha = g * 0.6; rect(x - 20, LINE - 10, 40, 20, COLOUR[i]); ctx.restore(); }
+          rect(x - 17, LINE - 7, 34, 14, lit ? '#FFF8E7' : g > 0.5 ? COLOUR[i] : `rgba(255,248,231,${(0.55 + 0.3 * pulse).toFixed(2)})`);
+          rect(x - 15, LINE - 5, 30, 10, lit ? '#FFF1A8' : 'rgba(43,31,26,.8)');
+        }
+        // the notes: they grow out from under the stage, pop when hit, go grey and slide on when let through
+        for (const n of notes) {
+          const ahead = n.at - t; if (ahead > LEAD + 0.1) break;
+          const x = mid(n.lane), own = ours(n.lane), bw = n.big ? 46 : 30, h = n.big ? 14 : 10;
+          if (n.hit) {
+            const u = (t - n.hit) / 0.18; if (u >= 1) continue;
+            const w = 2 * Math.round(bw * (1 + 0.5 * u) / 2);
+            ctx.save(); ctx.globalAlpha = 1 - u; rect(x - w / 2, LINE - h / 2 - 1, w, h + 2, COLOUR[n.lane]); rect(x - w / 2 + 2, LINE - h / 2 + 1, w - 4, h - 2, '#FFF8E7'); ctx.restore();
+            continue;
+          }
+          const y = Math.round(LINE - ahead * FALL); if (y < NTOP || y > PAD + 12) continue;
+          const e = 1 - (1 - Math.min(1, (y - NTOP) / 12)) ** 2, w = 2 * Math.round(bw * (0.3 + 0.7 * e) / 2), gone = !!n.gone;
+          ctx.save(); ctx.globalAlpha = !own ? 0.55 : gone ? Math.max(0, 1 - (t - n.gone) * 3) : 1;
+          if (n.big && !gone && Math.floor(t * 8) % 2) rect(x - w / 2 - 2, y - h / 2 - 2, w + 4, h + 4, '#FFF1A8');          // the last big beat blinks
+          rect(x - w / 2, y - h / 2, w, h, INK); rect(x - w / 2 + 1, y - h / 2 + 1, w - 2, h - 2, gone ? '#7A6F6A' : COLOUR[n.lane]);
+          if (w > 8) rect(x - w / 2 + 3, y - h / 2 + 2, w - 6, 2, gone ? '#8A7F7A' : '#FFF8E7');
+          if (own && !gone && powered()) { rect(x - w / 2 - 1, y - h / 2 - 1, 2, 2, '#FFD43A'); rect(x + w / 2 - 1, y - h / 2 - 1, 2, 2, '#FFD43A'); rect(x - w / 2 - 1, y + h / 2 - 1, 2, 2, '#FFD43A'); rect(x + w / 2 - 1, y + h / 2 - 1, 2, 2, '#FFD43A'); }   // worth two
+          ctx.restore();
+        }
+        // the drumstick: its lane glows gold, a ring of sparks turns round it, so nobody can miss it
+        if (pick && !live.picked && t - pick.at <= 0.25) {
+          const y = Math.round(LINE - (pick.at - t) * FALL), x = mid(pick.lane), p = 0.5 + 0.5 * Math.sin(t * 10);
+          if (y >= NTOP) {
+            ctx.save(); ctx.globalAlpha = 0.12 + 0.1 * p; rect(pick.lane * LANE + 2, NTOP, LANE - 4, PAD - NTOP, '#FFD43A');
+            for (const [r, c] of [[11 + Math.round(2 * p), '#FFD43A'], [8, '#FFD43A'], [5, '#FFF1A8']]) { ctx.globalAlpha = 0.3 + 0.15 * p; rect(x - r + 3, y - r, 2 * r - 6, 3, c); rect(x - r, y - r + 3, 2 * r, 2 * r - 6, c); rect(x - r + 3, y + r - 3, 2 * r - 6, 3, c); }   // a round glow, brightest in the middle
+            ctx.restore();
+            for (let k = 0; k < 10; k++) { const a = (k / 10) * Math.PI * 2 + t * 3, r = 14 + 2 * p; rect(Math.round(x + Math.cos(a) * r) - 1, Math.round(y + Math.sin(a) * r * 0.8) - 1, 2, 2, k % 2 ? '#FFF1A8' : '#FFD43A'); }
+            item(sc.pickup, x, y, t);
+          }
+        }
         const left = (live.power - Net.now()) / 1000;
-        if (left > 0 && (left > 2 || Math.floor(s.t * 8) % 2)) item(sc.pickup, 12, 34);         // held; blinks when nearly spent
-        for (let i = 0; i < 3; i++) {                      // the three drums along the bottom
-          const x = i * LANE + 4, on = s.flash[i] > 0;
-          if (s.good[i] > 0) { const u = 1 - s.good[i] / 0.35; for (let k = 0; k < 6; k++) { const a = k / 6 * Math.PI * 2, r = 8 + u * 20; rect(Math.round(x + LANE / 2 - 4 + Math.cos(a) * r), Math.round(LINE + Math.sin(a) * r * 0.7), 3, 3, k % 2 ? '#FFD43A' : '#FFF8E7'); } }   // a hit: a burst of stars
-          if (s.bad[i] > 0) { const cx = x + LANE / 2 - 4; for (let k = -4; k <= 4; k++) { rect(cx + k, LINE + k, 2, 2, '#CC2233'); rect(cx + k, LINE - k, 2, 2, '#CC2233'); } }   // nothing there: a red cross
-          rect(x, 236, LANE - 8, 44, INK); rect(x + 2, 238 + (on ? 2 : 0), LANE - 12, 38, PADS[i][0]);
-          rect(x + 8, 244 + (on ? 2 : 0), LANE - 24, 8, on ? '#FFF8E7' : 'rgba(255,248,231,.45)');
-          const kit = ['bassdrum', 'snare', 'cymbal'][i];
-          if (K.has('strahov', kit)) K.figure('strahov', x + LANE / 2 - 4, 278 + (on ? 2 : 0), kit, 0, false, 0.5);
+        if (left > 0 && (left > 1.5 || Math.floor(t * 8) % 2)) { rect(114, 34, 16, 13, INK); rect(115, 35, 14, 11, '#FFD43A'); item(sc.pickup, 122, 40); }   // held, by the board; blinks when nearly spent
+        // the drums: pressed in, back up a touch too far, settled. The one to hit now lights up; the other one's are dark.
+        for (let i = 0; i < 3; i++) {
+          const u = t - s.press[i], dy = u < 0.06 ? 3 : u < 0.13 ? 2 : u < 0.2 ? -1 : 0;
+          const x = i * LANE + 4 + (t - s.shake[i] < 0.3 ? Math.round(Math.sin((t - s.shake[i]) * 50) * 2) : 0);
+          const hot = Math.max(near[i] > 0.5 ? 1 : 0, t - s.hint[i] < 0.4 ? 1 : 0);
+          rect(x, PAD, LANE - 8, 44, INK); rect(x + 2, PAD + 2 + dy, LANE - 12, 38, COLOUR[i]);
+          rect(x + 8, PAD + 8 + dy, LANE - 24, 8, hot && Math.floor(t * 12) % 3 ? '#FFF8E7' : u < 0.1 ? '#FFF1A8' : 'rgba(255,248,231,.45)');
+          if (K.has('strahov', ART[i])) K.figure('strahov', x + LANE / 2 - 4, 278 + Math.max(0, dy), ART[i], 0, false, 0.5);
+          if (!ours(i)) rect(x, PAD, LANE - 8, 44, 'rgba(43,31,26,.55)');
         }
+        // what just happened at the line: a ring for a tap near a note, a red cross for banging at nothing, sparks for a hit
+        for (let i = 0; i < 3; i++) {
+          const x = mid(i), ur = (t - s.ring[i]) / 0.2, ub = t - s.bad[i];
+          if (ur < 1) { const r = Math.round(17 + ur * 6), q = Math.round(7 + ur * 4); ctx.save(); ctx.globalAlpha = 1 - ur; rect(x - r, LINE - q, 2 * r, 1, '#FFF8E7'); rect(x - r, LINE + q, 2 * r, 1, '#FFF8E7'); rect(x - r, LINE - q, 1, 2 * q, '#FFF8E7'); rect(x + r - 1, LINE - q, 1, 2 * q, '#FFF8E7'); ctx.restore(); }
+          if (ub < 0.35) for (let k = -4; k <= 4; k++) { rect(x - 1 + k, LINE + k, 2, 2, '#CC2233'); rect(x - 1 + k, LINE - k, 2, 2, '#CC2233'); }
+        }
+        ctx.save();
+        for (const p of s.parts) { ctx.globalAlpha = Math.max(0, 1 - (t - p.at) / 0.45); rect(Math.round(p.x) - 1, Math.round(p.y) - 1, 2, 2, p.c); }
+        ctx.restore();
       },
     };
   }
