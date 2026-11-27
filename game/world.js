@@ -223,7 +223,7 @@ window.WORLD = {
         // terrace houses and find everything on the list (play 'platform', with `list`: the door of the flat opens only
         // when all of it is found). Ibises walk the footpath, magpies swoop.
         { id: 'sydney-kerb', name: 'Nábytek', at: [112, 204], label: 'left', bg: 'sydney-street', scroll: true, play: 'platform', music: 'street', code: 'GAUC', cast: ['sami', 'zofia'],
-          platform: { length: 2640, goal: 2552, gate: 'flat', list: ['sofa', 'armchair', 'lamp', 'table', 'chair', 'shelf', 'rugroll', 'plant'],
+          platform: { length: 2640, goal: 2552, gate: 'flat', list: ['sofa', 'armchair', 'lamp', 'table', 'chair', 'shelf', 'rugroll', 'plant', 'bed'],
             blocks: [], foes: [], items: [] },
           talk: [['sami', 'Dům stojí, jenže náš nový byt je úplně prázdný.'], ['zofia', 'V Sydney lidi dávají nábytek, který už nechtějí, ven na chodník. Kdo chce, ten si ho vezme!'],
             ['sami', 'Seznam máte nahoře. Najděte všechno, co na něm je.'], ['', 'Pozor na ibisy a straky!']] },
